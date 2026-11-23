@@ -10,7 +10,7 @@ The scaffold matches the Lean v1 plan: pnpm workspace, Vite/React SPA, pure-TS
 sim engine, YAML/Markdown content, Go API with embedded SPA, Envoy + Compose,
 mise tasks, and CI. No new infrastructure was introduced.
 
-**Fixed:** 47 findings. **Deferred:** 9, all phase- or trigger-gated. No
+**Fixed:** 49 findings. **Deferred:** 9, all phase- or trigger-gated. No
 blocking issues.
 
 A second round ran the real UI in Chromium. It caught a duplicate `<h1>`, an
@@ -68,6 +68,8 @@ fixed below.
 | 45 | Theory lessons still showed clock controls and ticked the simulator | Clock controls hidden; engine starts only for interactive lessons |
 | 46 | Theory repeated a “Knowledge check” heading above the quiz component | Removed the duplicate section from 27 lessons |
 | 47 | Rounded soft roadmap cards still read as generic/Claude-like | Blueprint-style cards: numbered tabs, dashed lesson rows, hard shadows, separate cert accent |
+| 48 | Lesson lists were bottom-aligned by `margin-top: auto`, so short units looked broken | Top-aligned lists with fixed title/description rows; E2E alignment test |
+| 49 | No persistence, XP, streaks, or lesson unlocking | Dexie local progress, saved quiz answers, linear unlocks, continue/next, reset; E2E reload test |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -104,11 +106,12 @@ references in the docs.
 
 - `mise run lint` — Biome + Stylelint clean.
 - `mise run typecheck` — all four TS packages clean.
-- `mise run test` — 50 Vitest tests pass (sim, selectors, history, line editor,
-  content, lesson checks, lesson guard, curriculum coverage).
-- `mise run e2e` — 11 Playwright tests pass (roadmap/cert tracks, quiz
-  completion, correct/mistyped labels, wrong image, paste/cursor editing, sticky
-  terminal, history recall, mobile viewport, API proxy), with no page errors.
+- `mise run test` — 56 Vitest tests pass (sim, selectors, history, line editor,
+  content, lesson checks, lesson guard, curriculum coverage, progress/streaks).
+- `mise run e2e` — 13 Playwright tests pass (progress persistence/unlock/reset,
+  roadmap/cert tracks, top-aligned lesson lists, quiz completion,
+  correct/mistyped labels, wrong image, paste/cursor editing, sticky terminal,
+  history recall, mobile viewport, API proxy), with no page errors.
 - `mise run api-test` — Go tests pass, including SPA fallback and method
   rejection; `gofmt` and `go vet` clean.
 - `mise run build` — Vite build clean; no chunk-size warning.

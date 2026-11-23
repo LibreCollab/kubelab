@@ -379,9 +379,11 @@ there).
 
 ## 9. Gamification
 
-Duolingo-inspired, not cloned. **MVP:** XP per lesson, daily streak with freeze,
-skill-node unlocking, unit checkpoints. **Later:** timed debug challenges and
-leagues only if retention data asks; no hearts.
+Duolingo-inspired, not cloned. **Implemented locally:** XP per completed
+lesson, daily streak, saved quiz answers, linear lesson/unit unlocking,
+completion state, continue/next navigation, and reset — persisted in IndexedDB
+via Dexie. **Later:** streak freezes, timed debug challenges, leagues, and
+account sync; no hearts.
 
 Mobile: theory + quizzes + tap-the-correct-manifest exercises are
 mobile-friendly; the real terminal is desktop-first (offer a simplified command

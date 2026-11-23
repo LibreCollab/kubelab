@@ -97,8 +97,10 @@ mise run up
   verification command (e.g. `kubectl get pods`) before completion.
 - The terminal stays sticky beside the theory on desktop while the lesson scrolls,
   with a live next-check / remaining-count strip and quiz cards.
-- Terminal UI, dynamic roadmap with every unit and certification track, quiz
-  cards for knowledge checks, and a lazy-loaded lesson route.
+- Local progress in IndexedDB (Dexie): completion, XP, streaks, saved quiz
+  answers, linear unlock rules, continue/next navigation, and reset.
+- Terminal UI, dynamic roadmap with per-lesson completion/current/locked states,
+  every unit and certification track, and quiz cards for knowledge checks.
 - Playwright E2E covering landing, quizzes, terminal/checkpoint, strict label and
   image validation, sticky terminal, editing/history, and the API proxy.
 - Go API with `/api/healthz`, SPA embedding, graceful shutdown.

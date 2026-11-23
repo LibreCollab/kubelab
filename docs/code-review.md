@@ -34,7 +34,8 @@
 | Lesson checks | State-only checks completed the lesson without the verification command | Command checks + engine command log; lesson now requires `kubectl get pods` |
 | Content | Only one lesson and no certification entry points | Glob-loaded curriculum: 34 lessons, 12 units, 5 cert readiness checks, dynamic roadmap |
 | Lesson checks | Theory lessons had no completion mechanism | `quiz` check type + knowledge-check UI, validated at load time |
-| Lesson layout | Quiz-only lessons showed an unusable terminal | Checkpoint-only panel for theory lessons |
+| Lesson layout | Quiz-only lessons showed an unusable terminal | Terminal omitted; inline feedback for theory lessons |
+| Progress | No persistence, XP, streaks, or unlocks | Dexie-backed local progress, quiz-answer persistence, and linear unlocking with E2E coverage |
 | Content | Deployment/Service theory linked to terminal commands the simulator does not support | Removed those “try it” blocks; concept lessons are quiz-only |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
@@ -96,5 +97,5 @@
 
 ## Verification
 
-`mise run lint`, `typecheck`, 50 Vitest tests, Go tests, `gofmt`, `go vet`,
-`mise run build`, and 11 Playwright E2E tests all pass.
+`mise run lint`, `typecheck`, 56 Vitest tests, Go tests, `gofmt`, `go vet`,
+`mise run build`, and 13 Playwright E2E tests all pass.
