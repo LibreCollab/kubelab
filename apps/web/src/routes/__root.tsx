@@ -21,12 +21,16 @@ export function RootLayout() {
             className="brand"
             aria-label="Kubelab — start the first lesson"
           >
-            <img src="/favicon.svg" alt="" className="brand-mark" width={34} height={34} />
+            <span className="brand-mark" aria-hidden="true">
+              K
+            </span>
             <span>Kubelab</span>
           </Link>
         ) : (
           <Link to="/" className="brand">
-            <img src="/favicon.svg" alt="" className="brand-mark" width={34} height={34} />
+            <span className="brand-mark" aria-hidden="true">
+              K
+            </span>
             <span>Kubelab</span>
           </Link>
         )}

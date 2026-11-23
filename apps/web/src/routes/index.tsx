@@ -111,7 +111,7 @@ export function HomePage() {
       >
         <div className={styles.heroGrid}>
           <div className={styles.heroCopy}>
-            <p className={styles.eyebrow}>Zero → certified · interactive</p>
+            <p className={styles.eyebrow}>Zero → certified</p>
             <h1 className={styles.title}>
               Learn Kubernetes by <span className={styles.titleAccent}>running it.</span>
             </h1>

@@ -56,11 +56,18 @@
 }
 
 .brand-mark {
-  display: block;
+  display: grid;
   width: 34px;
   height: 34px;
-  border-radius: 9px;
+  place-items: center;
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent-strong);
+  border-radius: 10px;
   box-shadow: 0 3px 0 var(--color-accent-strong);
+  color: var(--color-accent-ink);
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: 800;
 }
 
 .site-nav {

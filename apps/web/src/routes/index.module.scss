@@ -126,12 +126,21 @@
   box-shadow:
     0 4px 0 rgb(0 0 0 / 45%),
     var(--shadow-md);
-  transform: rotate(-1.2deg);
-  transition: transform var(--duration-normal) var(--ease-out);
+  transform: perspective(1000px) rotateY(-12deg) rotateX(5deg) translateY(0);
+  transform-origin: center;
+  animation: preview-float 6s ease-in-out infinite;
+  will-change: transform;
 }
 
-.preview:hover {
-  transform: rotate(0deg) translateY(-2px);
+@keyframes preview-float {
+  0%,
+  100% {
+    transform: perspective(1000px) rotateY(-12deg) rotateX(5deg) translateY(0);
+  }
+
+  50% {
+    transform: perspective(1000px) rotateY(-12deg) rotateX(5deg) translateY(-8px);
+  }
 }
 
 .previewBar {
@@ -516,8 +525,21 @@
 }
 
 .lessonCurrent {
-  background: var(--color-accent-soft);
+  margin: 0.15rem -0.45rem;
+  padding: 0.6rem 0.45rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-accent-strong);
+  border-radius: 2px;
+  box-shadow: inset 3px 0 0 var(--color-accent);
   color: var(--color-text);
+}
+
+.lessonCurrent:hover {
+  padding-left: 0.45rem;
+}
+
+.lessonCurrent .lessonXp {
+  color: var(--color-accent);
 }
 
 .lessonLocked,
@@ -569,7 +591,9 @@
   }
 
   .preview {
+    order: 0;
     transform: none;
+    animation: none;
   }
 }
 
