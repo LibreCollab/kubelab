@@ -1,4 +1,4 @@
-import { getLesson } from "@kubelab/content";
+import { getLesson, type LessonCheck } from "@kubelab/content";
 import { describe, expect, it } from "vitest";
 
 import { guardLessonCommand } from "./lesson-guard";
@@ -44,8 +44,102 @@ describe("lesson guard", () => {
     }
   });
 
-  it("does not guard non-run commands", () => {
+  it("does not guard reads", () => {
     expect(guardLessonCommand("kubectl get pods", checks).ok).toBe(true);
+  });
+
+  it("guards workload command targets", () => {
+    const workloads = getLesson("deployments-101")?.checks ?? [];
+
+    expect(
+      guardLessonCommand("kubectl create deployment web --image=nginx --replicas=3", workloads).ok,
+    ).toBe(true);
+    const wrong = guardLessonCommand(
+      "kubectl create deployment api --image=nginx --replicas=3",
+      workloads,
+    );
+    expect(wrong.ok).toBe(false);
+    if (!wrong.ok) {
+      expect(wrong.error).toContain('deployments "web"');
+    }
+  });
+
+  it("rejects a Service with the wrong type or name", () => {
+    const services = getLesson("services-101")?.checks ?? [];
+
+    expect(
+      guardLessonCommand("kubectl expose deployment web --port=80 --type=ClusterIP", services).ok,
+    ).toBe(true);
+
+    const wrongType = guardLessonCommand(
+      "kubectl expose deployment web --port=80 --type=NodePort",
+      services,
+    );
+    expect(wrongType.ok).toBe(false);
+    if (!wrongType.ok) {
+      expect(wrongType.error).toContain("service type ClusterIP");
+    }
+
+    const wrongName = guardLessonCommand(
+      "kubectl expose deployment web --port=80 --name=api",
+      services,
+    );
+    expect(wrongName.ok).toBe(false);
+    if (!wrongName.ok) {
+      expect(wrongName.error).toContain('service "web"');
+    }
+  });
+
+  it("rejects a scale or image update that contradicts the checkpoint", () => {
+    const workloads = getLesson("deployments-101")?.checks ?? [];
+
+    const wrongReplicas = guardLessonCommand(
+      "kubectl scale deployment web --replicas=4",
+      workloads,
+    );
+    expect(wrongReplicas.ok).toBe(false);
+    if (!wrongReplicas.ok) {
+      expect(wrongReplicas.error).toContain("5 replicas");
+    }
+
+    const wrongImage = guardLessonCommand(
+      "kubectl set image deployment/web nginx=httpd",
+      workloads,
+    );
+    expect(wrongImage.ok).toBe(false);
+    if (!wrongImage.ok) {
+      expect(wrongImage.error).toContain("image nginx:1.27");
+    }
+  });
+
+  it("matches name and namespace on the same check", () => {
+    const crossNamespace: LessonCheck[] = [
+      {
+        type: "command",
+        label: "web",
+        verb: "create",
+        resource: "deployments",
+        name: "web",
+        namespace: "default",
+      },
+      {
+        type: "command",
+        label: "api",
+        verb: "create",
+        resource: "deployments",
+        name: "api",
+        namespace: "other",
+      },
+    ];
+
+    const result = guardLessonCommand(
+      "kubectl create deployment web --image=nginx -n other",
+      crossNamespace,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("namespace");
+    }
   });
 
   it("validates each named pod in a multi-pod lesson", () => {

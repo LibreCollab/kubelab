@@ -136,11 +136,12 @@ cluster state.
   Everything — image pull delays, backoff, probe failures — is scheduled on
   virtual time, so lessons are fast but realistic.
 - **Controllers** (simplified but faithful):
-  - **MVP**: Deployment → ReplicaSet → Pods (rolling updates with
-    `maxSurge`/`maxUnavailable`); Scheduler (filter: resources, nodeSelector,
-    taints/tolerations → score: spread, least-allocated → bind); Kubelet (image
-    pull, lifecycle, probes, restart backoff, OOM/eviction); Service/Endpoints
-    (ClusterIP/NodePort) and DNS (`svc.ns.svc.cluster.local`).
+  - **MVP**: Deployment → ReplicaSet → Pods (atomic ReplicaSet swap on image
+    changes); Scheduler (filter: resources, nodeSelector, taints/tolerations →
+    score: spread, least-allocated → bind); Kubelet (image pull, lifecycle,
+    probes, restart backoff, OOM/eviction); Service/Endpoints
+    (ClusterIP/NodePort) and DNS (`svc.ns.svc.cluster.local`). Progressive
+    `maxSurge`/`maxUnavailable` stays deferred until a lesson needs it.
   - **Certification tracks**: PV/PVC + StorageClass, Job/CronJob, Ingress; later
     RBAC authorizer, NetworkPolicy, HPA.
 - **Event sourcing**: every command and controller action is an event → enables

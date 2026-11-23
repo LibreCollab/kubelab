@@ -69,7 +69,7 @@ mise run up
 ## Deployment
 
 Public preview: **https://kubelab.librecollab.org** (static SPA on GitHub Pages,
-deployed from `develop`). Custom-domain and DNS steps are in
+deployed from `main`). Custom-domain and DNS steps are in
 [`docs/deployment.md`](docs/deployment.md). This preview has no backend; auth,
 progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 
@@ -91,17 +91,18 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 ## Current scaffold
 
 - 34 lessons across 12 core units plus 5 certification readiness checks:
-  interactive kubectl lessons for Pods, labels, and lifecycle; theory +
-  knowledge-check quizzes for the remaining units.
-- Simulated `kubectl get nodes`, `get pods` (including `-l` selectors and
-  `--show-labels`), `run`, `describe`, `delete`, and `help`, with virtual-clock
-  pod updates.
+  interactive kubectl lessons for Pods, labels, lifecycle, Deployments, and
+  Services; theory + knowledge-check quizzes for the remaining units.
+- Simulated `kubectl get nodes|pods|deployments|replicasets|services|endpoints`,
+  `run`, `create deployment`, `expose`, `scale`, `set image`, `rollout`,
+  `describe`, `delete`, and `help`, with virtual-clock workload reconciliation.
 - Readline-style terminal editing: paste, insert at cursor, backspace/delete,
   Home/End, arrow keys, Ctrl/Alt word navigation, Ctrl+A/E/U/K/W, and ↑/↓ history.
 - Checkpoints stay pending on wrong values (name, labels, image, phase). Guided
   lessons also reject a `kubectl run` that does not match the required pod
-  name/namespace/labels/image **before** creating anything, and require the
-  verification command (e.g. `kubectl get pods`) before completion.
+  name/namespace/labels/image, or a workload command aimed at the wrong target,
+  **before** mutating the cluster, and require the verification command
+  (e.g. `kubectl get pods`) before completion.
 - The terminal stays sticky beside the theory on desktop while the lesson scrolls,
   with a live next-check / remaining-count strip and quiz cards.
 - Local progress in IndexedDB (Dexie): completion, XP, streaks, saved quiz

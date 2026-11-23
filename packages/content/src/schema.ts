@@ -13,10 +13,34 @@ export const podCheckSchema = z.object({
 export const commandCheckSchema = z.object({
   type: z.literal("command"),
   label: z.string().min(1),
-  verb: z.enum(["get", "run", "delete", "describe"]),
+  verb: z.enum(["get", "run", "delete", "describe", "create", "expose", "scale", "set", "rollout"]),
   resource: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   namespace: z.string().min(1).default("default"),
+  action: z.enum(["status", "undo"]).optional(),
+  replicas: z.number().int().nonnegative().optional(),
+  image: z.string().min(1).optional(),
+  container: z.string().min(1).optional(),
+});
+
+export const deploymentCheckSchema = z.object({
+  type: z.literal("deployment"),
+  label: z.string().min(1),
+  namespace: z.string().min(1).default("default"),
+  name: z.string().min(1),
+  replicas: z.number().int().nonnegative().optional(),
+  image: z.string().min(1).optional(),
+  ready: z.literal(true).optional(),
+  labels: z.record(z.string(), z.string()).default({}),
+});
+
+export const serviceCheckSchema = z.object({
+  type: z.literal("service"),
+  label: z.string().min(1),
+  namespace: z.string().min(1).default("default"),
+  name: z.string().min(1),
+  serviceType: z.enum(["ClusterIP", "NodePort", "LoadBalancer"]).optional(),
+  port: z.number().int().positive().optional(),
 });
 
 export const quizCheckSchema = z
@@ -40,6 +64,8 @@ export const quizCheckSchema = z
 export const checkSchema = z.discriminatedUnion("type", [
   podCheckSchema,
   commandCheckSchema,
+  deploymentCheckSchema,
+  serviceCheckSchema,
   quizCheckSchema,
 ]);
 

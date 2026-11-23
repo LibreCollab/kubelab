@@ -14,6 +14,25 @@ export interface TerminalProps {
 
 const FONT_FAMILY = '"JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace';
 
+function plainOutput(text: string): string {
+  let output = "";
+
+  for (const character of text) {
+    const code = character.codePointAt(0) ?? 0;
+    if (
+      code === 0x1b ||
+      code === 0x7f ||
+      (code < 0x20 && code !== 0x09) ||
+      (code >= 0x80 && code <= 0x9f)
+    ) {
+      continue;
+    }
+    output += character;
+  }
+
+  return output;
+}
+
 export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const executeRef = useRef(execute);
@@ -87,7 +106,7 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
       const printable = [...text]
         .filter((character) => {
           const code = character.codePointAt(0) ?? 0;
-          return code >= 0x20 && code !== 0x7f;
+          return code >= 0x20 && code !== 0x7f && (code < 0x80 || code > 0x9f);
         })
         .join("");
 
@@ -126,7 +145,7 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
           output = `error: ${error instanceof Error ? error.message : "command failed"}`;
         }
         for (const line of output.split("\n")) {
-          terminal.writeln(line);
+          terminal.writeln(plainOutput(line));
         }
       }
 

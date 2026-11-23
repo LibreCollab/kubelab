@@ -38,6 +38,57 @@ export interface Pod extends KubeObject {
   status: {
     phase: PodPhase;
     message?: string;
+    podIP?: string;
+  };
+}
+
+export interface PodTemplate {
+  labels: Record<string, string>;
+  containers: Array<{
+    name: string;
+    image: string;
+  }>;
+}
+
+export interface KubeReplicaSet extends KubeObject {
+  kind: "ReplicaSet";
+  spec: {
+    replicas: number;
+    revision: number;
+    template: PodTemplate;
+  };
+  status: {
+    replicas: number;
+    readyReplicas: number;
+  };
+}
+
+export interface KubeDeployment extends KubeObject {
+  kind: "Deployment";
+  spec: {
+    replicas: number;
+    template: PodTemplate;
+  };
+  status: {
+    replicas: number;
+    readyReplicas: number;
+    updatedReplicas: number;
+    availableReplicas: number;
+  };
+}
+
+export type ServiceType = "ClusterIP" | "NodePort" | "LoadBalancer";
+
+export interface KubeService extends KubeObject {
+  kind: "Service";
+  spec: {
+    type: ServiceType;
+    selector: Record<string, string>;
+    ports: Array<{
+      port: number;
+      targetPort: number;
+    }>;
+    clusterIP: string;
   };
 }
 

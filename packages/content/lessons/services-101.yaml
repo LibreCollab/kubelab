@@ -16,6 +16,33 @@ objectives:
   - ClusterIP
   - Service discovery
 checks:
+  - type: command
+    label: Created the backing Deployment
+    verb: create
+    resource: deployments
+    name: web
+    image: nginx
+    replicas: 2
+  - type: deployment
+    label: Deployment has two replicas
+    namespace: default
+    name: web
+    replicas: 2
+    image: nginx
+    ready: true
+    labels:
+      app: web
+  - type: command
+    label: Exposed the Deployment
+    verb: expose
+    resource: deployments
+    name: web
+  - type: service
+    label: ClusterIP Service exists
+    namespace: default
+    name: web
+    serviceType: ClusterIP
+    port: 80
   - type: quiz
     id: q1
     label: ClusterIP
@@ -35,5 +62,8 @@ checks:
       - Hard-coded IPs
     answer: 0
 hints:
-  - Read the try-it commands, then check the checkpoint for the next step.
-solution: ClusterIP is the default stable internal Service.
+  - "Create the backing workload: kubectl create deployment web --image=nginx --replicas=2"
+  - "Expose it with: kubectl expose deployment web --port=80"
+  - "Inspect the result with: kubectl get services"
+  - "Then inspect endpoints with: kubectl get endpoints web"
+solution: ClusterIP gives the Deployment a stable internal Service and Endpoints.

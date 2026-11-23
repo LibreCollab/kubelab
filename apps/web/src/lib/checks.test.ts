@@ -1,5 +1,13 @@
 import { getLesson, type LessonCheck } from "@kubelab/content";
-import { type ParsedCommand, type Pod, type PodPhase, parseKubectl } from "@kubelab/sim";
+import {
+  type KubeDeployment,
+  type KubeService,
+  type ParsedCommand,
+  type Pod,
+  type PodPhase,
+  parseKubectl,
+  SimEngine,
+} from "@kubelab/sim";
 import { describe, expect, it } from "vitest";
 
 import { type CheckContext, evaluateCheck, evaluateChecks } from "./checks";
@@ -43,6 +51,50 @@ function makeCheck(overrides: Partial<PodCheck> = {}): PodCheck {
     name: "web",
     labels: {},
     ...overrides,
+  };
+}
+
+function makeDeployment(overrides: { replicas?: number; image?: string } = {}): KubeDeployment {
+  return {
+    apiVersion: "apps/v1",
+    kind: "Deployment",
+    metadata: {
+      name: "web",
+      namespace: "default",
+      labels: { app: "web" },
+      uid: "deployment-1",
+      resourceVersion: 1,
+      creationTick: 0,
+    },
+    spec: {
+      replicas: overrides.replicas ?? 3,
+      template: {
+        labels: { app: "web" },
+        containers: [{ name: "nginx", image: overrides.image ?? "nginx" }],
+      },
+    },
+    status: { replicas: 3, readyReplicas: 3, updatedReplicas: 3, availableReplicas: 3 },
+  };
+}
+
+function makeService(): KubeService {
+  return {
+    apiVersion: "v1",
+    kind: "Service",
+    metadata: {
+      name: "web",
+      namespace: "default",
+      labels: { app: "web" },
+      uid: "service-1",
+      resourceVersion: 1,
+      creationTick: 0,
+    },
+    spec: {
+      type: "ClusterIP",
+      selector: { app: "web" },
+      ports: [{ port: 80, targetPort: 80 }],
+      clusterIP: "10.96.0.1",
+    },
   };
 }
 
@@ -144,6 +196,96 @@ describe("lesson checks", () => {
     expect(results.map((result) => result.pass)).toEqual([true, true, false, true, false]);
   });
 
+  it("checks Deployment replicas, image, and labels", () => {
+    const check: LessonCheck = {
+      type: "deployment",
+      label: "web rollout",
+      namespace: "default",
+      name: "web",
+      replicas: 3,
+      image: "nginx",
+      ready: true,
+      labels: { app: "web" },
+    };
+
+    expect(
+      evaluateCheck(check, { pods: [], commands: [], deployments: [makeDeployment()] }).pass,
+    ).toBe(true);
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [],
+        deployments: [makeDeployment({ replicas: 2 })],
+      }).pass,
+    ).toBe(false);
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [],
+        deployments: [makeDeployment({ image: "httpd" })],
+      }).pass,
+    ).toBe(false);
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [],
+        deployments: [
+          {
+            ...makeDeployment(),
+            status: { replicas: 3, readyReplicas: 2, updatedReplicas: 3, availableReplicas: 2 },
+          },
+        ],
+      }).pass,
+    ).toBe(false);
+  });
+
+  it("matches command actions and parameters", () => {
+    const check: LessonCheck = {
+      type: "command",
+      label: "Rollout checked",
+      verb: "rollout",
+      resource: "deployments",
+      name: "web",
+      action: "status",
+      namespace: "default",
+    };
+
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [command("kubectl rollout status deployment/web")],
+      }).pass,
+    ).toBe(true);
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [command("kubectl rollout undo deployment/web")],
+      }).pass,
+    ).toBe(false);
+  });
+
+  it("checks Service type and port", () => {
+    const check: LessonCheck = {
+      type: "service",
+      label: "web Service",
+      namespace: "default",
+      name: "web",
+      serviceType: "ClusterIP",
+      port: 80,
+    };
+
+    expect(evaluateCheck(check, { pods: [], commands: [], services: [makeService()] }).pass).toBe(
+      true,
+    );
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [],
+        services: [{ ...makeService(), spec: { ...makeService().spec, type: "NodePort" } }],
+      }).pass,
+    ).toBe(false);
+  });
+
   it("requires the verification command for a complete lesson", () => {
     const lesson = getLesson("pods-101");
     expect(lesson).toBeDefined();
@@ -157,5 +299,75 @@ describe("lesson checks", () => {
 
     const withCommand = evaluateChecks(lesson.checks, context(pods, [command("kubectl get pods")]));
     expect(withCommand.every((result) => result.pass)).toBe(true);
+  });
+});
+
+describe("lesson completability", () => {
+  function engine(): SimEngine {
+    const instance = new SimEngine({ intervalMs: 1_000 });
+    instance.seed({ nodes: [{ name: "node-1" }] });
+    return instance;
+  }
+
+  it("completes the deployment lesson with its documented commands", () => {
+    const lesson = getLesson("deployments-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const sim = engine();
+    sim.execute("kubectl create deployment web --image=nginx --replicas=3");
+    sim.execute("kubectl scale deployment web --replicas=5");
+    sim.execute("kubectl set image deployment/web nginx=nginx:1.27");
+    sim.execute("kubectl rollout status deployment/web");
+
+    const beforeRollout = evaluateChecks(lesson.checks, {
+      pods: sim.store.list<Pod>("Pod"),
+      deployments: sim.store.list<KubeDeployment>("Deployment"),
+      services: sim.store.list<KubeService>("Service"),
+      commands: sim.commands,
+      answers: { q1: 0 },
+    });
+    expect(
+      beforeRollout.find((result) => result.label === "Deployment scaled and updated")?.pass,
+    ).toBe(false);
+
+    sim.step();
+    sim.step();
+
+    const results = evaluateChecks(lesson.checks, {
+      pods: sim.store.list<Pod>("Pod"),
+      deployments: sim.store.list<KubeDeployment>("Deployment"),
+      services: sim.store.list<KubeService>("Service"),
+      commands: sim.commands,
+      answers: { q1: 0 },
+    });
+
+    expect(results.filter((result) => !result.pass)).toEqual([]);
+  });
+
+  it("completes the service lesson with its documented commands", () => {
+    const lesson = getLesson("services-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const sim = engine();
+    sim.execute("kubectl create deployment web --image=nginx --replicas=2");
+    sim.execute("kubectl expose deployment web --port=80");
+    sim.step();
+    sim.step();
+
+    const results = evaluateChecks(lesson.checks, {
+      pods: sim.store.list<Pod>("Pod"),
+      deployments: sim.store.list<KubeDeployment>("Deployment"),
+      services: sim.store.list<KubeService>("Service"),
+      commands: sim.commands,
+      answers: { q1: 0, q2: 0 },
+    });
+
+    expect(results.filter((result) => !result.pass)).toEqual([]);
   });
 });

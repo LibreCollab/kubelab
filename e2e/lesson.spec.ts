@@ -220,6 +220,80 @@ test("a wrong image is rejected before creating the pod", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("deployment lesson runs a scale and image rollout", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/deployments-101");
+
+  const terminalOutput = page.locator(".xterm-rows");
+  await expect(page.getByRole("button", { name: "Pause clock" })).toBeVisible();
+
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=3");
+  await page.keyboard.press("Enter");
+  await expect(terminalOutput).toContainText("deployment.apps/web created");
+  await expect(page.locator('[data-check="Created the Deployment"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+
+  await page.keyboard.type("kubectl scale deployment web --replicas=5");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl set image deployment/web nginx=nginx:1.27");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl rollout status deployment/web");
+  await page.keyboard.press("Enter");
+
+  await expect(page.locator('[data-check="Scaled the Deployment"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="Updated the image"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="Checked the rollout"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="Deployment scaled and updated"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  expect(pageErrors).toEqual([]);
+});
+
+test("service lesson exposes a deployment and shows endpoints", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/services-101");
+
+  const terminalOutput = page.locator(".xterm-rows");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=2");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl expose deployment web --port=80");
+  await page.keyboard.press("Enter");
+
+  await expect(terminalOutput).toContainText("service/web exposed");
+  await expect(page.locator('[data-check="Exposed the Deployment"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="ClusterIP Service exists"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+
+  await page.getByRole("button", { name: "Pause clock" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get endpoints web");
+  await page.keyboard.press("Enter");
+  await expect(terminalOutput).toContainText("10.244.0.");
+  expect(pageErrors).toEqual([]);
+});
+
 test("landing page fits a mobile viewport", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });

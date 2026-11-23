@@ -62,7 +62,7 @@ fixed below.
 | 39 | Long joined “Pending: …” text in the sticky strip was hard to scan | Compact `Next:` item, remaining count, and progress meter |
 | 40 | Only one lesson and no certification entry points | 34 lessons across 12 units + 5 cert readiness checks; dynamic roadmap |
 | 41 | Theory lessons had no way to complete | Quiz checks + knowledge-check UI |
-| 42 | Deployment/Service theory pointed at unsupported terminal commands | Removed “try it” blocks; concept lessons are quiz-only |
+| 42 | Deployment/Service theory pointed at unsupported terminal commands | Added Deployment/ReplicaSet/Service controllers and converted both lessons to interactive checkpoints |
 | 43 | Quiz-only lessons showed a dead terminal | Terminal omitted entirely; single-column theory/quiz with inline feedback |
 | 44 | CTA jumped into Unit 3 despite being labelled “first lesson” | CTA links to the actual first lesson (`containers-101`) |
 | 45 | Theory lessons still showed clock controls and ticked the simulator | Clock controls hidden; engine starts only for interactive lessons |
@@ -70,7 +70,7 @@ fixed below.
 | 47 | Rounded soft roadmap cards still read as generic/Claude-like | Blueprint-style cards: numbered tabs, dashed lesson rows, hard shadows, separate cert accent |
 | 48 | Lesson lists were bottom-aligned by `margin-top: auto`, so short units looked broken | Top-aligned lists with fixed title/description rows; E2E alignment test |
 | 49 | No persistence, XP, streaks, or lesson unlocking | Dexie local progress, saved quiz answers, linear unlocks, continue/next, reset; E2E reload test |
-| 50 | Pause/Resume clock was shown on command-only lessons where it had no visible effect | Clock controls only appear when a lesson has Pod/timing checks; E2E test |
+| 50 | Pause/Resume clock was shown on command-only lessons where it had no visible effect | Clock controls only appear when a lesson has Pod/workload timing checks; E2E test |
 | 51 | Lesson screen still used soft rounded cards and generic radio rows | Sharp briefing panel, A/B/C quiz keys, flat checkpoint rows, hard-shadow terminal |
 | 52 | Favicon was crude and the header used a typed K | Shared filled-K SVG mark and favicon |
 | 53 | Header K went to the roadmap instead of the primary lesson CTA | Brand link starts the first lesson |
@@ -85,8 +85,8 @@ references in the docs.
 
 | Item | Why deferred | Trigger |
 |---|---|---|
-| `apply`, `logs`, `exec`, `scale`, `rollout`, `-o yaml` | Not used by lesson 1; faking output would teach wrong behavior | First lesson that needs it |
-| Deployment/ReplicaSet/Service controllers | Simulator scope is pod lifecycle first | Unit 2 content |
+| `apply`, `logs`, `exec`, `-o yaml` | Not used by current lessons; faking output would teach wrong behavior | First lesson that needs it |
+| Progressive rollout (`maxSurge`, `maxUnavailable`) and full revision history | Workloads reconcile by swapping ReplicaSets atomically; enough for the first Deployment lessons | Lesson that teaches surge/unavailable math |
 | OAuth, Postgres schema, XP/streak persistence | Phase 2; anonymous-first IndexedDB comes first | Phase 2 |
 | Envoy TLS, rate limits, tracing, access logs | Local scaffold runs plain HTTP; minimal config by design | Deployment to Hetzner |
 | CSP | xterm injects inline styles; needs nonces/hashes, not a blind header | Before public launch |

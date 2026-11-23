@@ -6,12 +6,17 @@ export { filterPods, matchesLabels, type PodFilter, podMatches } from "./selecto
 export { ClusterStore } from "./store";
 export type {
   CommandResult,
+  KubeDeployment,
   KubeNode,
   KubeObject,
+  KubeReplicaSet,
+  KubeService,
   ObjectMeta,
   Pod,
   PodPhase,
+  PodTemplate,
   Scenario,
   ScenarioNode,
+  ServiceType,
   SimEvent,
 } from "./types";

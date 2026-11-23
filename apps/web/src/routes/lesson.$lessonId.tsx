@@ -1,5 +1,5 @@
 import { curriculumLessons, getLesson, type Lesson } from "@kubelab/content";
-import { type Pod, SimEngine } from "@kubelab/sim";
+import { type KubeDeployment, type KubeService, type Pod, SimEngine } from "@kubelab/sim";
 import { Button, cx } from "@kubelab/ui";
 import { Link, useParams } from "@tanstack/react-router";
 import { marked } from "marked";
@@ -114,7 +114,9 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   }, [lesson]);
 
   const interactive = lesson.checks.some((check) => check.type !== "quiz");
-  const timed = lesson.checks.some((check) => check.type === "pod");
+  const timed = lesson.checks.some(
+    (check) => check.type === "pod" || check.type === "deployment" || check.type === "service",
+  );
 
   useEffect(() => {
     if (savedAnswers !== undefined) {
@@ -146,6 +148,8 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   const readChecks = () =>
     evaluateChecks(lesson.checks, {
       pods: engine.store.list<Pod>("Pod"),
+      deployments: engine.store.list<KubeDeployment>("Deployment"),
+      services: engine.store.list<KubeService>("Service"),
       commands: engine.commands,
       answers,
     });

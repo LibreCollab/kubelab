@@ -16,6 +16,41 @@ objectives:
   - Deployment role
   - Rolling update
 checks:
+  - type: command
+    label: Created the Deployment
+    verb: create
+    resource: deployments
+    name: web
+    image: nginx
+    replicas: 3
+  - type: command
+    label: Scaled the Deployment
+    verb: scale
+    resource: deployments
+    name: web
+    replicas: 5
+  - type: command
+    label: Updated the image
+    verb: set
+    resource: deployments
+    name: web
+    container: nginx
+    image: nginx:1.27
+  - type: command
+    label: Checked the rollout
+    verb: rollout
+    resource: deployments
+    name: web
+    action: status
+  - type: deployment
+    label: Deployment scaled and updated
+    namespace: default
+    name: web
+    replicas: 5
+    image: nginx:1.27
+    ready: true
+    labels:
+      app: web
   - type: quiz
     id: q1
     label: Deployment role
@@ -25,15 +60,9 @@ checks:
       - Nodes
       - Services
     answer: 0
-  - type: quiz
-    id: q2
-    label: Rolling update
-    question: What does a rolling update preserve?
-    options:
-      - Availability while replacing Pods
-      - Node IP addresses
-      - etcd size
-    answer: 0
 hints:
-  - Read the try-it commands, then check the checkpoint for the next step.
-solution: Deployments own ReplicaSets and provide safe rollout strategies.
+  - "Create it with: kubectl create deployment web --image=nginx --replicas=3"
+  - "Scale it with: kubectl scale deployment web --replicas=5"
+  - "Update it with: kubectl set image deployment/web nginx=nginx:1.27"
+  - "Check progress with: kubectl rollout status deployment/web"
+solution: create, scale, set image, and rollout status teach the Deployment workflow.

@@ -18,6 +18,40 @@ export type ParsedCommand =
       labels: Record<string, string>;
       namespace: string;
     }
+  | {
+      verb: "create";
+      resource: "deployments";
+      name: string;
+      image: string;
+      replicas: number;
+      namespace: string;
+    }
+  | {
+      verb: "expose";
+      resource: "deployments" | "pods";
+      name: string;
+      serviceName: string;
+      port: number;
+      targetPort: number;
+      serviceType: "ClusterIP" | "NodePort" | "LoadBalancer";
+      namespace: string;
+    }
+  | { verb: "scale"; resource: "deployments"; name: string; replicas: number; namespace: string }
+  | {
+      verb: "set";
+      resource: "deployments";
+      name: string;
+      container: string;
+      image: string;
+      namespace: string;
+    }
+  | {
+      verb: "rollout";
+      action: "status" | "undo";
+      resource: "deployments";
+      name: string;
+      namespace: string;
+    }
   | { verb: "delete"; resource: string; name: string; namespace: string }
   | { verb: "describe"; resource: string; name: string; namespace: string }
   | { verb: "help" };
@@ -27,6 +61,7 @@ export interface ParseError {
 }
 
 const OUTPUT_FORMATS = ["table", "wide", "yaml"] as const;
+export const MAX_REPLICAS = 100;
 
 function parseOutput(value: string): OutputFormat | undefined {
   return (OUTPUT_FORMATS as readonly string[]).includes(value)
@@ -98,7 +133,9 @@ function parseLabels(raw: string): Record<string, string> | undefined {
 }
 
 function normalizeResource(resource: string): string {
-  switch (resource) {
+  const base = resource.split(".")[0] ?? resource;
+
+  switch (base) {
     case "po":
     case "pod":
       return "pods";
@@ -111,13 +148,43 @@ function normalizeResource(resource: string): string {
     case "deploy":
     case "deployment":
       return "deployments";
+    case "rs":
+    case "replicaset":
+      return "replicasets";
+    case "ep":
+    case "endpoint":
+      return "endpoints";
     default:
-      return resource;
+      return base;
   }
 }
 
 function unknownFlag(token: string): ParseError {
   return { error: `unknown flag: ${token.split("=")[0]}` };
+}
+
+function flagArgument(tokens: string[], index: number): string | undefined {
+  const value = tokens[index + 1];
+  return value === undefined || value.startsWith("-") ? undefined : value;
+}
+
+function parseNonNegativeInteger(value: string | undefined): number | undefined {
+  if (value === undefined || !/^\d+$/.test(value)) {
+    return undefined;
+  }
+
+  const parsed = Number(value);
+  return Number.isSafeInteger(parsed) ? parsed : undefined;
+}
+
+function parsePositiveInteger(value: string | undefined): number | undefined {
+  const parsed = parseNonNegativeInteger(value);
+  return parsed !== undefined && parsed > 0 ? parsed : undefined;
+}
+
+function parseReplicaCount(value: string | undefined): number | undefined {
+  const parsed = parseNonNegativeInteger(value);
+  return parsed !== undefined && parsed <= MAX_REPLICAS ? parsed : undefined;
 }
 
 function parseGet(tokens: string[]): ParsedCommand | ParseError {
@@ -214,16 +281,32 @@ function parseGet(tokens: string[]): ParsedCommand | ParseError {
     positional.push(token);
   }
 
-  const resource = positional[0];
-  if (resource === undefined) {
+  const resourceToken = positional[0];
+  if (resourceToken === undefined) {
     return { error: "you must specify the type of resource to get" };
   }
 
-  if (positional.length > 2) {
+  let resource = resourceToken;
+  let name = positional[1];
+
+  if (resourceToken.includes("/")) {
+    if (positional.length > 1) {
+      return { error: "accepts at most a resource/name target" };
+    }
+    const parts = resourceToken.split("/");
+    if (parts.length !== 2) {
+      return { error: "invalid resource/name target" };
+    }
+    resource = parts[0] ?? "";
+    name = parts[1] ?? "";
+  } else if (positional.length > 2) {
     return { error: "accepts at most 2 arguments: resource and name" };
   }
 
-  const name = positional[1];
+  if (resource.length === 0 || name === "") {
+    return { error: "invalid resource/name target" };
+  }
+
   return {
     verb: "get",
     resource: normalizeResource(resource),
@@ -355,19 +438,441 @@ function parseTarget(tokens: string[], verb: "delete" | "describe"): ParsedComma
     positional.push(token);
   }
 
-  const resource = positional[0];
-  const name = positional[1];
-  if (resource === undefined || name === undefined) {
-    return { error: `${verb} requires a resource and name: kubectl ${verb} pod <name>` };
+  const targetArguments = positional[0]?.includes("/") ? 1 : 2;
+  if (positional.length > targetArguments) {
+    return { error: `${verb} accepts a resource and name` };
   }
-
-  if (positional.length > 2) {
-    return { error: "accepts exactly 2 arguments: resource and name" };
+  const target = splitTarget(positional);
+  if ("error" in target) {
+    return target;
   }
 
   return verb === "delete"
-    ? { verb: "delete", resource: normalizeResource(resource), name, namespace }
-    : { verb: "describe", resource: normalizeResource(resource), name, namespace };
+    ? { verb: "delete", resource: normalizeResource(target.resource), name: target.name, namespace }
+    : {
+        verb: "describe",
+        resource: normalizeResource(target.resource),
+        name: target.name,
+        namespace,
+      };
+}
+
+function splitTarget(positional: string[]): { resource: string; name: string } | ParseError {
+  const first = positional[0];
+  if (first === undefined) {
+    return { error: "requires a resource and name" };
+  }
+
+  if (first.includes("/")) {
+    const parts = first.split("/");
+    if (parts.length !== 2) {
+      return { error: "invalid resource/name target" };
+    }
+    const [resource, name] = parts;
+    if (resource === undefined || name === undefined || name.length === 0) {
+      return { error: "invalid resource/name target" };
+    }
+    return { resource, name };
+  }
+
+  const name = positional[1];
+  if (name === undefined) {
+    return { error: "requires a resource and name" };
+  }
+  return { resource: first, name };
+}
+
+function parseCreate(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let image: string | undefined;
+  let replicas = 1;
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "--image" || token.startsWith("--image=")) {
+      const value =
+        token === "--image" ? flagArgument(tokens, index) : token.slice("--image=".length);
+      if (value === undefined) {
+        return { error: "flag needs an argument: --image" };
+      }
+      image = value;
+      if (token === "--image") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token === "--replicas" || token.startsWith("--replicas=")) {
+      const value =
+        token === "--replicas" ? flagArgument(tokens, index) : token.slice("--replicas=".length);
+      const parsed = parseReplicaCount(value);
+      if (parsed === undefined) {
+        return { error: `invalid --replicas value (max ${MAX_REPLICAS})` };
+      }
+      replicas = parsed;
+      if (token === "--replicas") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const resource = positional[0];
+  const name = positional[1];
+  if (resource === undefined || name === undefined) {
+    return {
+      error: "create deployment requires <name>: kubectl create deployment <name> --image=<image>",
+    };
+  }
+  if (positional.length > 2) {
+    return { error: "create deployment accepts exactly a Deployment name" };
+  }
+  if (normalizeResource(resource) !== "deployments") {
+    return { error: `creating ${resource} is not simulated yet` };
+  }
+  if (image === undefined || image.length === 0) {
+    return { error: "create deployment requires --image=<image>" };
+  }
+
+  return { verb: "create", resource: "deployments", name, image, replicas, namespace };
+}
+
+function parseExpose(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let port = 80;
+  let targetPort: number | undefined;
+  let serviceType: "ClusterIP" | "NodePort" | "LoadBalancer" = "ClusterIP";
+  let serviceName: string | undefined;
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    const flagValue = (name: string): string | undefined => {
+      if (token === name) {
+        return flagArgument(tokens, index);
+      }
+      if (token.startsWith(`${name}=`)) {
+        return token.slice(name.length + 1);
+      }
+      return undefined;
+    };
+
+    if (token === "--port" || token.startsWith("--port=")) {
+      const parsed = parsePositiveInteger(flagValue("--port"));
+      if (parsed === undefined) {
+        return { error: "invalid --port value" };
+      }
+      port = parsed;
+      if (token === "--port") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token === "--target-port" || token.startsWith("--target-port=")) {
+      const parsed = parsePositiveInteger(flagValue("--target-port"));
+      if (parsed === undefined) {
+        return { error: "invalid --target-port value" };
+      }
+      targetPort = parsed;
+      if (token === "--target-port") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token === "--type" || token.startsWith("--type=")) {
+      const value = flagValue("--type");
+      if (value !== "ClusterIP" && value !== "NodePort" && value !== "LoadBalancer") {
+        return { error: "invalid --type value" };
+      }
+      serviceType = value;
+      if (token === "--type") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token === "--name" || token.startsWith("--name=")) {
+      const value = flagValue("--name");
+      if (value === undefined || value.length === 0) {
+        return { error: "flag needs an argument: --name" };
+      }
+      serviceName = value;
+      if (token === "--name") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const targetArguments = positional[0]?.includes("/") ? 1 : 2;
+  if (positional.length > targetArguments) {
+    return { error: "expose accepts a resource and name" };
+  }
+  const target = splitTarget(positional);
+  if ("error" in target) {
+    return target;
+  }
+  const normalized = normalizeResource(target.resource);
+  if (normalized !== "deployments" && normalized !== "pods") {
+    return { error: `exposing ${target.resource} is not simulated yet` };
+  }
+
+  return {
+    verb: "expose",
+    resource: normalized as "deployments" | "pods",
+    name: target.name,
+    serviceName: serviceName ?? target.name,
+    port,
+    targetPort: targetPort ?? port,
+    serviceType,
+    namespace,
+  };
+}
+
+function parseScale(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let replicas: number | undefined;
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "--replicas" || token.startsWith("--replicas=")) {
+      const value =
+        token === "--replicas" ? flagArgument(tokens, index) : token.slice("--replicas=".length);
+      const parsed = parseReplicaCount(value);
+      if (parsed === undefined) {
+        return { error: `invalid --replicas value (max ${MAX_REPLICAS})` };
+      }
+      replicas = parsed;
+      if (token === "--replicas") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const targetArguments = positional[0]?.includes("/") ? 1 : 2;
+  if (positional.length > targetArguments) {
+    return { error: "scale accepts a Deployment and optional name" };
+  }
+  const target = splitTarget(positional);
+  if ("error" in target) {
+    return target;
+  }
+  if (normalizeResource(target.resource) !== "deployments") {
+    return { error: `scaling ${target.resource} is not simulated yet` };
+  }
+  if (replicas === undefined) {
+    return { error: "scale requires --replicas=<n>" };
+  }
+
+  return { verb: "scale", resource: "deployments", name: target.name, replicas, namespace };
+}
+
+function parseSet(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  if (positional[0] !== "image") {
+    return { error: "only `kubectl set image` is simulated" };
+  }
+
+  const rest = positional.slice(1);
+  const target = splitTarget(rest);
+  if ("error" in target) {
+    return target;
+  }
+  if (normalizeResource(target.resource) !== "deployments") {
+    return { error: "only Deployment image updates are simulated" };
+  }
+
+  const slashTarget = rest[0]?.includes("/") ?? false;
+  if (rest.length > (slashTarget ? 2 : 3)) {
+    return { error: "set image accepts one <container>=<image> assignment" };
+  }
+  const assignment = slashTarget ? rest[1] : rest[2];
+  if (assignment === undefined) {
+    return { error: "set image requires <container>=<image>" };
+  }
+  const equals = assignment.indexOf("=");
+  if (equals <= 0 || equals === assignment.length - 1) {
+    return { error: "set image requires <container>=<image>" };
+  }
+  const container = assignment.slice(0, equals);
+  const image = assignment.slice(equals + 1);
+
+  return {
+    verb: "set",
+    resource: "deployments",
+    name: target.name,
+    container,
+    image,
+    namespace,
+  };
+}
+
+function parseRollout(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const action = positional[0];
+  if (action !== "status" && action !== "undo") {
+    return { error: "rollout supports: status, undo" };
+  }
+  const targetPositional = positional.slice(1);
+  const targetArguments = targetPositional[0]?.includes("/") ? 1 : 2;
+  if (targetPositional.length > targetArguments) {
+    return { error: "rollout accepts a Deployment and optional name" };
+  }
+  const target = splitTarget(targetPositional);
+  if ("error" in target) {
+    return target;
+  }
+  if (normalizeResource(target.resource) !== "deployments") {
+    return { error: "only Deployment rollouts are simulated" };
+  }
+
+  return {
+    verb: "rollout",
+    action,
+    resource: "deployments",
+    name: target.name,
+    namespace,
+  };
 }
 
 export function parseKubectl(input: string): ParsedCommand | ParseError {
@@ -392,6 +897,16 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
       return parseGet(tokens);
     case "run":
       return parseRun(tokens);
+    case "create":
+      return parseCreate(tokens);
+    case "expose":
+      return parseExpose(tokens);
+    case "scale":
+      return parseScale(tokens);
+    case "set":
+      return parseSet(tokens);
+    case "rollout":
+      return parseRollout(tokens);
     case "delete":
     case "describe":
       return parseTarget(tokens, verb);

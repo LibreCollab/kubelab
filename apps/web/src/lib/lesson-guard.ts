@@ -4,14 +4,113 @@ import { parseKubectl } from "@kubelab/sim";
 export type LessonGuardResult = { ok: true } | { ok: false; error: string };
 
 /**
- * Guided lessons can validate a `kubectl run` against the lesson's pod checks
- * before mutating the simulated cluster. This keeps a valid-but-wrong command
- * from looking like success while still teaching real kubectl syntax.
+ * Guided lessons validate `kubectl run` and workload commands against the
+ * lesson's checks before mutating the simulated cluster. This keeps a
+ * valid-but-wrong target, namespace, or Service shape from looking like success
+ * while still teaching real kubectl syntax.
  */
 export function guardLessonCommand(input: string, checks: LessonCheck[]): LessonGuardResult {
   const parsed = parseKubectl(input);
 
-  if ("error" in parsed || parsed.verb !== "run") {
+  if ("error" in parsed || parsed.verb === "help" || parsed.verb === "get") {
+    return { ok: true };
+  }
+
+  if (parsed.verb !== "run") {
+    const expected = checks.filter(
+      (check): check is Extract<LessonCheck, { type: "command" }> =>
+        check.type === "command" &&
+        check.verb === parsed.verb &&
+        check.resource === parsed.resource &&
+        check.name !== undefined,
+    );
+
+    if (expected.length > 0) {
+      const nameMatches = expected.filter((check) => check.name === parsed.name);
+      if (nameMatches.length === 0) {
+        const names = [...new Set(expected.flatMap((check) => (check.name ? [check.name] : [])))];
+        return {
+          ok: false,
+          error: `error: this lesson expects ${parsed.resource} ${names.map((name) => `"${name}"`).join(" or ")} (got "${parsed.name}")`,
+        };
+      }
+
+      if (!nameMatches.some((check) => check.namespace === parsed.namespace)) {
+        const namespaces = [...new Set(nameMatches.map((check) => check.namespace))];
+        return {
+          ok: false,
+          error: `error: this lesson expects namespace ${namespaces.map((namespace) => `"${namespace}"`).join(" or ")} (got "${parsed.namespace}")`,
+        };
+      }
+
+      const deploymentChecks = checks.filter(
+        (check): check is Extract<LessonCheck, { type: "deployment" }> =>
+          check.type === "deployment" &&
+          check.name === parsed.name &&
+          check.namespace === parsed.namespace,
+      );
+
+      if (parsed.verb === "scale" && deploymentChecks.length > 0) {
+        const replicas = [
+          ...new Set(
+            deploymentChecks.flatMap((check) =>
+              check.replicas === undefined ? [] : [check.replicas],
+            ),
+          ),
+        ];
+        if (replicas.length > 0 && !replicas.includes(parsed.replicas)) {
+          return {
+            ok: false,
+            error: `error: this lesson expects ${replicas.join(" or ")} replicas (got ${parsed.replicas})`,
+          };
+        }
+      }
+
+      if (parsed.verb === "set" && deploymentChecks.length > 0) {
+        const images = [
+          ...new Set(
+            deploymentChecks.flatMap((check) => (check.image === undefined ? [] : [check.image])),
+          ),
+        ];
+        if (images.length > 0 && !images.includes(parsed.image)) {
+          return {
+            ok: false,
+            error: `error: this lesson expects image ${images.join(" or ")} (got ${parsed.image})`,
+          };
+        }
+      }
+
+      if (parsed.verb === "expose") {
+        const serviceChecks = checks.filter(
+          (check): check is Extract<LessonCheck, { type: "service" }> =>
+            check.type === "service" && check.namespace === parsed.namespace,
+        );
+
+        if (serviceChecks.length > 0) {
+          const service = serviceChecks.find((check) => check.name === parsed.serviceName);
+          if (service === undefined) {
+            const names = serviceChecks.map((check) => `"${check.name}"`);
+            return {
+              ok: false,
+              error: `error: this lesson expects service ${names.join(" or ")} (got "${parsed.serviceName}")`,
+            };
+          }
+          if (service.serviceType !== undefined && service.serviceType !== parsed.serviceType) {
+            return {
+              ok: false,
+              error: `error: this lesson expects service type ${service.serviceType} (got ${parsed.serviceType})`,
+            };
+          }
+          if (service.port !== undefined && service.port !== parsed.port) {
+            return {
+              ok: false,
+              error: `error: this lesson expects service port ${service.port} (got ${parsed.port})`,
+            };
+          }
+        }
+      }
+    }
+
     return { ok: true };
   }
 
