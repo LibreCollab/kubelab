@@ -96,6 +96,8 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 - Simulated `kubectl get nodes|pods|deployments|replicasets|services|endpoints`,
   `run`, `create deployment`, `expose`, `scale`, `set image`, `rollout`,
   `describe`, `delete`, and `help`, with virtual-clock workload reconciliation.
+- Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →
+  Pods plus Service endpoint selection, updating with the virtual clock.
 - Readline-style terminal editing: paste, insert at cursor, backspace/delete,
   Home/End, arrow keys, Ctrl/Alt word navigation, Ctrl+A/E/U/K/W, and ↑/↓ history.
 - Checkpoints stay pending on wrong values (name, labels, image, phase). Guided
@@ -110,7 +112,8 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 - Terminal UI, dynamic roadmap with per-lesson completion/current/locked states,
   every unit and certification track, and quiz cards for knowledge checks.
 - Playwright E2E covering landing, quizzes, terminal/checkpoint, strict label and
-  image validation, sticky terminal, editing/history, and the API proxy.
+  image validation, the live cluster map, sticky terminal, editing/history, and
+  the API proxy.
 - Go API with `/api/healthz`, SPA embedding, graceful shutdown.
 - Envoy + Compose config and a CI workflow.
 

@@ -75,6 +75,7 @@ fixed below.
 | 52 | Favicon was crude and the header used a typed K | Shared filled-K SVG mark and favicon |
 | 53 | Header K went to the roadmap instead of the primary lesson CTA | Brand link starts the first lesson |
 | 54 | No public deployment path for the Kubelab subdomain | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS docs |
+| 55 | Landing page promised under-the-hood animations; lessons only showed text terminal output | Live cluster map for Nodes → Deployments → ReplicaSets → Pods and Services → Endpoints |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

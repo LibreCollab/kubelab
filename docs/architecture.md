@@ -225,10 +225,10 @@ Skill tree (prereq graph) with unit gates:
 13. **Certification tracks** — see [Certification targets](#certification-targets).
 
 **Content now spans units 1–12 plus five certification readiness checks.**
-Units 1–4 include interactive kubectl lessons (Pods, labels, lifecycle, nodes,
-kubectl); later units are theory + quiz checks until their simulator subsystems
-land. Timed mock exams remain Phase 3; the current cert lessons are readiness
-checks.
+Units 1–4 include interactive kubectl lessons (Pods, labels, lifecycle,
+Deployments, Services, nodes, kubectl) with a live cluster map; later units are
+theory + quiz checks until their simulator subsystems land. Timed mock exams
+remain Phase 3; the current cert lessons are readiness checks.
 
 ### Certification targets
 

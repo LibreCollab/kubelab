@@ -1,10 +1,18 @@
 import { curriculumLessons, getLesson, type Lesson } from "@kubelab/content";
-import { type KubeDeployment, type KubeService, type Pod, SimEngine } from "@kubelab/sim";
+import {
+  type KubeDeployment,
+  type KubeNode,
+  type KubeReplicaSet,
+  type KubeService,
+  type Pod,
+  SimEngine,
+} from "@kubelab/sim";
 import { Button, cx } from "@kubelab/ui";
 import { Link, useParams } from "@tanstack/react-router";
 import { marked } from "marked";
 import { useEffect, useMemo, useReducer, useState } from "react";
 
+import { ClusterMap } from "../components/ClusterMap";
 import { Terminal } from "../components/Terminal";
 import { type CheckResult, evaluateChecks } from "../lib/checks";
 import { guardLessonCommand } from "../lib/lesson-guard";
@@ -316,29 +324,38 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
         </article>
 
         {interactive ? (
-          <section className={styles.terminalPanel} data-testid="terminal-panel">
-            <h2 className={styles.srOnly}>Simulated cluster terminal</h2>
-            <div className={styles.terminalHead}>
-              <span className={styles.dot} aria-hidden="true" />
-              <span>cluster: kubelab</span>
-              <span className={`${styles.liveStatus} ${running ? "" : styles.paused}`}>
-                {running ? "live" : "paused"}
-              </span>
-            </div>
-            <Terminal execute={execute} />
-            <CheckpointFeedback
-              allPassed={allPassed}
-              passedCount={passedCount}
-              total={checks.length}
-              nextCheck={nextCheck}
-              pendingCount={pendingLabels.length}
-              hints={lesson.hints}
+          <div className={styles.terminalRail}>
+            <section className={styles.terminalPanel} data-testid="terminal-panel">
+              <h2 className={styles.srOnly}>Simulated cluster terminal</h2>
+              <div className={styles.terminalHead}>
+                <span className={styles.dot} aria-hidden="true" />
+                <span>cluster: kubelab</span>
+                <span className={`${styles.liveStatus} ${running ? "" : styles.paused}`}>
+                  {running ? "live" : "paused"}
+                </span>
+              </div>
+              <Terminal execute={execute} />
+              <CheckpointFeedback
+                allPassed={allPassed}
+                passedCount={passedCount}
+                total={checks.length}
+                nextCheck={nextCheck}
+                pendingCount={pendingLabels.length}
+                hints={lesson.hints}
+              />
+              <p className={styles.hint}>
+                Simulated cluster · {lesson.scenario.nodes.length} node · commands never leave your
+                browser.
+              </p>
+            </section>
+            <ClusterMap
+              nodes={engine.store.list<KubeNode>("Node")}
+              deployments={engine.store.list<KubeDeployment>("Deployment")}
+              replicaSets={engine.store.list<KubeReplicaSet>("ReplicaSet")}
+              pods={engine.store.list<Pod>("Pod")}
+              services={engine.store.list<KubeService>("Service")}
             />
-            <p className={styles.hint}>
-              Simulated cluster · {lesson.scenario.nodes.length} node · commands never leave your
-              browser.
-            </p>
-          </section>
+          </div>
         ) : null}
       </div>
 

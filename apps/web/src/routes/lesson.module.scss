@@ -492,6 +492,13 @@
   font-size: 0.8rem;
 }
 
+.terminalRail {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
 .terminalPanel {
   overflow: hidden;
   background: #10131b;
@@ -547,10 +554,14 @@
 }
 
 @media (width >= 981px) {
-  .terminalPanel {
+  .terminalRail {
     position: sticky;
     top: 88px;
     z-index: 1;
+    max-height: calc(100vh - 104px);
+    overflow-y: auto;
+    scrollbar-color: var(--color-border-strong) transparent;
+    scrollbar-width: thin;
   }
 }
 

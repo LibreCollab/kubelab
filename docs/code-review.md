@@ -41,6 +41,7 @@
 | Brand | Crude favicon and K went to the roadmap instead of the primary CTA | Shared filled-K mark; K opens the first lesson |
 | Deployment | No public Kubelab subdomain path | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS guide |
 | Content | Deployment/Service theory linked to terminal commands the simulator does not support | Simulator now runs create/scale/set/expose/rollout; both lessons have terminal checkpoints |
+| Lesson UI | Terminal output was the only view of cluster state | Live cluster map shows workload ownership, Pod phases, and Service endpoints |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
 | Go | SPA handler re-read `index.html` per request and repeated header logic | Index pre-read once; `cacheControl` / `writeHTML` helpers |
