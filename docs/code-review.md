@@ -36,6 +36,8 @@
 | Lesson checks | Theory lessons had no completion mechanism | `quiz` check type + knowledge-check UI, validated at load time |
 | Lesson layout | Quiz-only lessons showed an unusable terminal | Terminal omitted; inline feedback for theory lessons |
 | Progress | No persistence, XP, streaks, or unlocks | Dexie-backed local progress, quiz-answer persistence, and linear unlocking with E2E coverage |
+| Lesson UI | Clock controls on command-only lessons had no visible effect | Controls shown only for Pod/timing lessons |
+| Lesson UI | Soft rounded cards/radios still felt generic | Sharp briefing panel, A/B/C keys, flat checkpoint rows |
 | Content | Deployment/Service theory linked to terminal commands the simulator does not support | Removed those “try it” blocks; concept lessons are quiz-only |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
@@ -98,4 +100,4 @@
 ## Verification
 
 `mise run lint`, `typecheck`, 56 Vitest tests, Go tests, `gofmt`, `go vet`,
-`mise run build`, and 13 Playwright E2E tests all pass.
+`mise run build`, and 14 Playwright E2E tests all pass.
