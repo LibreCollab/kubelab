@@ -26,12 +26,19 @@
 | Simulator | Pod matching (namespace/name/labels/phase) duplicated between `get pods` and lesson checks | New `selectors.ts` (`PodFilter`, `filterPods`, `matchesLabels`) used by both; semantics can no longer drift |
 | Simulator | Repeated NotFound/not-simulated error construction | `notFound` / `notSimulated` helpers |
 | Parser | `-o <format>` was cast without validation, so `-o json` silently behaved like `table` | Explicit `parseOutput` validation; supports `-o`, `--output`, `-o=`, `--output=`; tests added |
+| Parser | Unknown flags, extra args, and malformed labels/selectors were silently accepted | Per-verb parsers now return explicit errors; tests cover each case |
+| Parser | A label typo like `app=webb` was invisible in `get pods` | Real `--show-labels` column plus lesson hints; checkpoint already stayed pending |
+| Terminal | Append-only input broke paste, backspace, and cursor editing | `LineEditor` with readline-style navigation/editing, full-line redraw, paste support, and unit + E2E tests |
+| Lesson feedback | `pod/web created` looked like success even when a checkpoint failed | Every command now prints the live `[checkpoint] … pending: …` line; tests cover wrong label/image |
+| Lesson guard | Guided lessons still created a Pod from a mismatched `kubectl run` | Strict pre-execution guard rejects wrong name/namespace/labels/image without mutating state; unit + E2E tests |
+| Lesson checks | State-only checks completed the lesson without the verification command | Command checks + engine command log; lesson now requires `kubectl get pods` |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
 | Go | SPA handler re-read `index.html` per request and repeated header logic | Index pre-read once; `cacheControl` / `writeHTML` helpers |
 | Go | Repeated test logger setup; `io.Discard` boilerplate | `newTestHandler` helper using `slog.DiscardHandler` |
 | Go/Compose | API declared a dependency on Postgres it does not use yet | Removed the false `depends_on`; Postgres remains provisioned for Phase 2 |
 | Go | Unknown `/api/*` paths fell through to the SPA and wrong methods bypassed `405` | JSON `404` for unknown API paths, explicit `405` + `Allow` via `onlyMethod`; tests added |
+| E2E | Reused stale dev servers on shared ports, masking a wrong proxy target | Dedicated E2E ports (5174 / 18081) and `reuseExistingServer: false` |
 | E2E | Mobile test did not fail on uncaught page errors | Page-error tracking added for consistency |
 
 ## SOLID / patterns check
@@ -85,5 +92,5 @@
 
 ## Verification
 
-`mise run lint`, `typecheck`, 21 Vitest tests, Go tests, `gofmt`, `go vet`,
-`mise run build`, and 4 Playwright E2E tests all pass.
+`mise run lint`, `typecheck`, 47 Vitest tests, Go tests, `gofmt`, `go vet`,
+`mise run build`, and 9 Playwright E2E tests all pass.

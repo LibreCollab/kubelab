@@ -159,21 +159,27 @@ cluster state.
 matter for teaching.
 
 **Scaffold now**: object store, virtual clock, scheduler/kubelet stub, `get`
-(table, wide, label selectors), `describe`, `run`, `delete`, and `help`. The
-wider command set above is the Phase 1 target; `apply`, `logs`, `exec`, and
-`-o yaml` are intentionally not faked yet.
+(table, wide, label selectors, `--show-labels`), `describe`, `run`, `delete`, and
+`help`. The wider command set above is the Phase 1 target; `apply`, `logs`,
+`exec`, and `-o yaml` are intentionally not faked yet.
 
 ### Lesson validation
 
-MVP checks are **structured predicates over cluster state** — no expression
-language (that was over-engineering for v1):
+MVP checks are **structured predicates** — no expression language (that was
+over-engineering for v1):
 
-1. **Pod checks** — namespace, name, labels, and phase, with a human-readable
-   label rendered in the checkpoint list.
-2. **Command intent** (Phase 2) — did the learner use an acceptable approach?
+1. **Pod checks** — namespace, name, image, labels, and phase, with a
+   human-readable label rendered in the checkpoint list.
+2. **Command checks** — require that the learner actually executed a command
+   (e.g. `kubectl get pods`) before the lesson can complete.
 3. **Output assertions** (Phase 2) — regex/DOM checks on terminal output.
 
 Checks run after each command and tick; hints stay in the lesson spec.
+
+Guided lessons (`strict: true`, the default) also run a **pre-execution guard**
+for `kubectl run`: a mismatched pod name, namespace, label, or image is rejected
+with the expected vs. actual value, and nothing is created. Non-run commands and
+lessons with `strict: false` keep real kubectl behavior.
 
 ## 6. Animation system
 
@@ -273,14 +279,15 @@ Complementary tracks (post-launch, optional): **PCA** (Prometheus), **CCA**
 id: pods-101
 unit: fundamentals
 xp: 20
+strict: true
 prereqs: [containers-102]
-theory: ./pods-101.mdx
+theory: ./pods-101.md
 scenario:
   nodes: [{ name: node-1, cpu: 4, memory: 8Gi }]
   objects: []
 objectives:
   - Create a pod running nginx
-  - Verify it is Running
+  - Verify it with kubectl get pods
 checks:
   - type: pod
     name: web
@@ -292,8 +299,16 @@ checks:
     label: "Label app=web"
   - type: pod
     name: web
+    image: nginx
+    label: "Image is nginx"
+  - type: pod
+    name: web
     phase: Running
     label: "Phase is Running"
+  - type: command
+    verb: get
+    resource: pods
+    label: "Run kubectl get pods"
 hints:
   - "Try kubectl run …"
   - "Add --labels=app=web"

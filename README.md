@@ -84,8 +84,18 @@ mise run up
 
 - One sample lesson (`pods-101`) with YAML spec + Markdown theory and
   structured checkpoint checks.
-- Simulated `kubectl get nodes`, `get pods` (including `-l` selectors),
-  `run`, `describe`, `delete`, and `help`, with virtual-clock pod updates.
+- Simulated `kubectl get nodes`, `get pods` (including `-l` selectors and
+  `--show-labels`), `run`, `describe`, `delete`, and `help`, with virtual-clock
+  pod updates.
+- Readline-style terminal editing: paste, insert at cursor, backspace/delete,
+  Home/End, arrow keys, Ctrl/Alt word navigation, Ctrl+A/E/U/K/W, and ↑/↓ history.
+- Checkpoints stay pending on wrong values (name, labels, image, phase). Guided
+  lessons also reject a `kubectl run` that does not match the required pod
+  name/namespace/labels/image **before** creating anything, and require the
+  verification command (e.g. `kubectl get pods`) before completion.
+- The terminal stays sticky beside the theory on desktop while the lesson scrolls,
+  with a live checkpoint counter and the exact pending checks in the terminal
+  panel.
 - Terminal UI, roadmap landing page, and a lazy-loaded lesson route.
 - Playwright E2E covering landing → lesson, terminal → checkpoint, and the API
   health check through the dev proxy.

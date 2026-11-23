@@ -10,7 +10,7 @@ The scaffold matches the Lean v1 plan: pnpm workspace, Vite/React SPA, pure-TS
 sim engine, YAML/Markdown content, Go API with embedded SPA, Envoy + Compose,
 mise tasks, and CI. No new infrastructure was introduced.
 
-**Fixed:** 26 findings. **Deferred:** 9, all phase- or trigger-gated. No
+**Fixed:** 39 findings. **Deferred:** 9, all phase- or trigger-gated. No
 blocking issues.
 
 A second round ran the real UI in Chromium. It caught a duplicate `<h1>`, an
@@ -47,6 +47,19 @@ fixed below.
 | 24 | Dead Go config/env fields and duplicated test setup | Removed unused config; `slog.DiscardHandler` test helper |
 | 25 | SPA re-read index per request; API declared an unused Postgres dependency | Pre-read index + helpers; removed false `depends_on` |
 | 26 | Unknown `/api/*` paths returned SPA HTML and wrong methods bypassed 405 | JSON 404 for unknown API paths; 405 + `Allow` via `onlyMethod`; tests |
+| 27 | E2E reused whatever occupied 5173/18081, masking a stale proxy | Dedicated E2E ports (5174/18081) and `reuseExistingServer: false` |
+| 28 | Malformed label selectors/labels were silently accepted | Strict label parsing with parser tests |
+| 29 | Unknown flags and extra positional args were ignored | Per-verb parsers reject both with tests |
+| 30 | Label typos were invisible in the terminal, so a pending checkpoint looked wrong | Real `--show-labels` output, lesson hints, and an E2E typo test |
+| 31 | Terminal scrolled out of view on long lessons | Sticky terminal on desktop with an E2E scroll test |
+| 32 | Checkpoint status sat below the fold while using the sticky terminal, so a pending label looked accepted | Live “2/3 · Pending: Label app=web” strip inside the terminal panel with hints |
+| 33 | Lessons did not check the container image, so a different image still passed | `image` predicate + lesson check + tests |
+| 34 | Feedback/hints sat above the terminal | Moved the live checkpoint strip and hints below the terminal |
+| 35 | Terminal input was append-only; paste/cursor editing could overwrite the prompt | `LineEditor` with readline keys, full-line redraw, paste handling, unit + E2E tests |
+| 36 | `pod/web created` looked like success even with a wrong label/image | Every command prints `[checkpoint] … pending: …` in the terminal, with tests |
+| 37 | Guided lessons still created a Pod from a mismatched `kubectl run` | Strict pre-execution guard rejects wrong name/namespace/labels/image; unit + E2E tests |
+| 38 | State-only checks completed a lesson without the verification command | Command checks + engine command log; `kubectl get pods` is now required |
+| 39 | Long joined “Pending: …” text in the sticky strip was hard to scan | Compact `Next:` item, remaining count, and progress meter |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -83,9 +96,11 @@ references in the docs.
 
 - `mise run lint` — Biome + Stylelint clean.
 - `mise run typecheck` — all four TS packages clean.
-- `mise run test` — 21 Vitest tests pass (sim, selectors, content, lesson checks).
-- `mise run e2e` — 4 Playwright tests pass (navigation, terminal/checkpoint,
-  mobile viewport, API proxy), with no page errors.
+- `mise run test` — 47 Vitest tests pass (sim, selectors, history, line editor,
+  content, lesson checks, lesson guard).
+- `mise run e2e` — 9 Playwright tests pass (navigation, correct + mistyped labels,
+  wrong image, paste/cursor editing, sticky terminal, history recall, mobile
+  viewport, API proxy), with no page errors.
 - `mise run api-test` — Go tests pass, including SPA fallback and method
   rejection; `gofmt` and `go vet` clean.
 - `mise run build` — Vite build clean; no chunk-size warning.
