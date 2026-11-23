@@ -2,6 +2,7 @@ import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
 
 const apiTarget = process.env.KUBELAB_API_PROXY ?? "http://localhost:8080";
+const webPort = Number(process.env.KUBELAB_WEB_PORT ?? "5173");
 
 export default defineConfig({
   plugins: [react()],
@@ -10,7 +11,7 @@ export default defineConfig({
   },
   server: {
     host: "127.0.0.1",
-    port: 5173,
+    port: webPort,
     strictPort: true,
     proxy: {
       "/api": apiTarget,

@@ -2,6 +2,7 @@ id: pods-101
 unit: fundamentals
 title: Your first Pod
 xp: 20
+strict: true
 prereqs: []
 theory: ./pods-101.md
 scenario:
@@ -24,9 +25,19 @@ checks:
     label: "Label app=web"
   - type: pod
     name: web
+    image: nginx
+    label: "Image is nginx"
+  - type: pod
+    name: web
     phase: Running
     label: "Phase is Running"
+  - type: command
+    verb: get
+    resource: pods
+    label: "Run kubectl get pods"
 hints:
-  - "Try kubectl run ..."
-  - "Add --labels=app=web"
+  - "Try kubectl run web --image=nginx --labels=app=web"
+  - "Inspect the actual labels with kubectl get pods --show-labels"
+  - "Labels are case- and value-sensitive: app=webb is not app=web"
+  - "The image is checked too: use --image=nginx"
 solution: kubectl run web --image=nginx --labels=app=web

@@ -12,7 +12,7 @@ export interface SimEngineOptions {
 const HELP = `kubectl controls the Kubelab simulated cluster.
 
 Supported in this scaffold:
-  kubectl get pods [-n namespace] [-A] [name]
+  kubectl get pods [-n namespace] [-A] [-l selector] [--show-labels] [name]
   kubectl get nodes [name]
   kubectl run <name> --image=<image> [--labels=key=value]
   kubectl describe pod <name>
@@ -20,6 +20,13 @@ Supported in this scaffold:
   kubectl help
 
 Coming next: apply, exec, logs, services, deployments.`;
+
+function formatLabels(labels: Record<string, string>): string {
+  const entries = Object.entries(labels).sort(([left], [right]) => left.localeCompare(right));
+  return entries.length === 0
+    ? "<none>"
+    : entries.map(([key, value]) => `${key}=${value}`).join(",");
+}
 
 function formatTable(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) =>
@@ -50,6 +57,7 @@ export class SimEngine {
   readonly store = new ClusterStore();
   readonly clock: VirtualClock;
   readonly events = new EventBus();
+  #commands: ParsedCommand[] = [];
   #uid = 0;
 
   constructor(options: SimEngineOptions = {}) {
@@ -57,6 +65,10 @@ export class SimEngine {
     this.clock.onTick(() => {
       this.#reconcile();
     });
+  }
+
+  get commands(): readonly ParsedCommand[] {
+    return this.#commands;
   }
 
   seed(scenario: Scenario): void {
@@ -103,6 +115,8 @@ export class SimEngine {
     if ("error" in parsed) {
       return { ok: false, output: `error: ${parsed.error}` };
     }
+
+    this.#commands.push(parsed);
 
     switch (parsed.verb) {
       case "help":
@@ -157,6 +171,9 @@ export class SimEngine {
     if (wide) {
       headers.push("NODE");
     }
+    if (command.showLabels) {
+      headers.push("LABELS");
+    }
 
     const rows = [...pods]
       .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
@@ -169,6 +186,9 @@ export class SimEngine {
         const row = [name, `${ready}/${pod.spec.containers.length}`, pod.status.phase, "0", age];
         if (wide) {
           row.push(pod.spec.nodeName ?? "<none>");
+        }
+        if (command.showLabels) {
+          row.push(formatLabels(pod.metadata.labels));
         }
         return row;
       });

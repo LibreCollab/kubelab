@@ -46,4 +46,9 @@ describe("pod selectors", () => {
     expect(filterPods([pod], { labels: { app: "web" } })).toHaveLength(1);
     expect(filterPods([pod], { labels: { app: "api" } })).toHaveLength(0);
   });
+
+  it("matches container images", () => {
+    expect(podMatches(pod, { image: "nginx" })).toBe(true);
+    expect(podMatches(pod, { image: "httpd" })).toBe(false);
+  });
 });

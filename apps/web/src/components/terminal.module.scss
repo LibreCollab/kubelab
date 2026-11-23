@@ -1,8 +1,8 @@
 .terminal {
-  height: clamp(360px, 52vh, 540px);
+  height: clamp(300px, 46vh, 500px);
   padding: 0.75rem;
   overflow: hidden;
-  background: #050a14;
+  background: #10131b;
   border-top: 1px solid var(--color-border);
 }
 
@@ -11,6 +11,6 @@
 }
 
 .terminal :global(.xterm-viewport) {
-  scrollbar-color: #243455 transparent;
+  scrollbar-color: var(--color-border-strong) transparent;
   scrollbar-width: thin;
 }

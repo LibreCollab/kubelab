@@ -1,7 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const apiPort = process.env.KUBELAB_E2E_API_PORT ?? "18081";
+const webPort = process.env.KUBELAB_E2E_WEB_PORT ?? "5174";
 const apiUrl = `http://127.0.0.1:${apiPort}`;
+const webUrl = `http://127.0.0.1:${webPort}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -11,7 +13,7 @@ export default defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:5173",
+    baseURL: webUrl,
     trace: "on-first-retry",
   },
   webServer: [
@@ -19,14 +21,14 @@ export default defineConfig({
       command: "go -C apps/api run ./cmd/api",
       url: `${apiUrl}/api/healthz`,
       env: { PORT: apiPort },
-      reuseExistingServer: !process.env.CI,
+      reuseExistingServer: false,
       timeout: 120_000,
     },
     {
       command: "pnpm dev",
-      url: "http://127.0.0.1:5173",
-      env: { KUBELAB_API_PROXY: apiUrl },
-      reuseExistingServer: !process.env.CI,
+      url: webUrl,
+      env: { KUBELAB_API_PROXY: apiUrl, KUBELAB_WEB_PORT: webPort },
+      reuseExistingServer: false,
       timeout: 120_000,
     },
   ],

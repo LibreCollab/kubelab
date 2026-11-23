@@ -3,6 +3,8 @@ import { Terminal as XTerm } from "@xterm/xterm";
 import "@xterm/xterm/css/xterm.css";
 import { useEffect, useRef } from "react";
 
+import { CommandHistory } from "../lib/command-history";
+import { LineEditor } from "../lib/line-editor";
 import styles from "./terminal.module.scss";
 
 export interface TerminalProps {
@@ -34,19 +36,19 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
       lineHeight: 1.4,
       scrollback: 2000,
       theme: {
-        background: "#050a14",
-        foreground: "#d6e2f5",
-        cursor: "#7aa8ff",
-        selectionBackground: "#1f3a68",
-        black: "#050a14",
-        brightBlack: "#5b6b85",
-        green: "#3ddc97",
-        yellow: "#ffc857",
-        red: "#ff6b6b",
-        blue: "#7aa8ff",
-        magenta: "#c792ea",
-        cyan: "#6fd3ff",
-        white: "#e8eef9",
+        background: "#10131b",
+        foreground: "#edf2f7",
+        cursor: "#4ad99b",
+        selectionBackground: "#2d3748",
+        black: "#171923",
+        brightBlack: "#718096",
+        green: "#4ad99b",
+        yellow: "#f1c40f",
+        red: "#ff2d55",
+        blue: "#5ac8fa",
+        magenta: "#bb86fc",
+        cyan: "#5ac8fa",
+        white: "#edf2f7",
       },
     });
 
@@ -69,62 +71,178 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
 
     requestAnimationFrame(safeFit);
 
-    let buffer = "";
+    const history = new CommandHistory();
+    const editor = new LineEditor();
 
-    const writePrompt = () => {
-      terminal.write(`\x1b[38;5;111m${promptRef.current}\x1b[0m `);
+    const promptText = () => `\x1b[38;2;74;217;155m${promptRef.current}\x1b[0m `;
+
+    const render = () => {
+      const remaining = editor.value.length - editor.cursor;
+      terminal.write(
+        `\r${promptText()}${editor.value}\x1b[K${remaining > 0 ? `\x1b[${remaining}D` : ""}`,
+      );
+    };
+
+    const insert = (text: string) => {
+      const printable = [...text]
+        .filter((character) => {
+          const code = character.codePointAt(0) ?? 0;
+          return code >= 0x20 && code !== 0x7f;
+        })
+        .join("");
+
+      if (printable.length === 0) {
+        return;
+      }
+      editor.insert(printable);
+      render();
+    };
+
+    const recall = (value: string | undefined) => {
+      if (value === undefined) {
+        return;
+      }
+      editor.reset(value);
+      render();
+    };
+
+    const submit = () => {
+      const input = editor.value.trim();
+      const trailing = editor.value.length - editor.cursor;
+
+      if (trailing > 0) {
+        terminal.write(`\x1b[${trailing}C`);
+      }
+      terminal.write("\r\n");
+
+      history.push(input);
+      editor.reset();
+
+      if (input.length > 0) {
+        let output: string;
+        try {
+          output = executeRef.current(input);
+        } catch (error) {
+          output = `error: ${error instanceof Error ? error.message : "command failed"}`;
+        }
+        for (const line of output.split("\n")) {
+          terminal.writeln(line);
+        }
+      }
+
+      render();
     };
 
     terminal.writeln("Kubelab simulated cluster — type `kubectl help` to begin.");
-    writePrompt();
+    render();
 
     const dataSubscription = terminal.onData((data) => {
-      if (data === "\r") {
-        const input = buffer.trim();
-        buffer = "";
-        terminal.write("\r\n");
-
-        if (input.length > 0) {
-          let output: string;
-          try {
-            output = executeRef.current(input);
-          } catch (error) {
-            output = `error: ${error instanceof Error ? error.message : "command failed"}`;
-          }
-          for (const line of output.split("\n")) {
-            terminal.writeln(line);
-          }
-        }
-
-        writePrompt();
+      if (data === "\x1b[A" || data === "\x1bOA" || data === "\u0010") {
+        recall(history.previous(editor.value));
         return;
       }
 
-      if (data === "\u007f") {
-        if (buffer.length > 0) {
-          buffer = buffer.slice(0, -1);
-          terminal.write("\b \b");
-        }
+      if (data === "\x1b[B" || data === "\x1bOB" || data === "\u000e") {
+        recall(history.next());
+        return;
+      }
+
+      if (data === "\r") {
+        submit();
+        return;
+      }
+
+      if (data === "\x7f" || data === "\b") {
+        editor.backspace();
+        render();
+        return;
+      }
+
+      if (data === "\x1b[3~") {
+        editor.deleteForward();
+        render();
+        return;
+      }
+
+      if (data === "\x1b[D" || data === "\x1bOD" || data === "\u0002") {
+        editor.moveLeft();
+        render();
+        return;
+      }
+
+      if (data === "\x1b[C" || data === "\x1bOC" || data === "\u0006") {
+        editor.moveRight();
+        render();
+        return;
+      }
+
+      if (data === "\x1b[1;5D" || data === "\x1b[5D" || data === "\x1b[1;3D" || data === "\x1bb") {
+        editor.moveWordLeft();
+        render();
+        return;
+      }
+
+      if (data === "\x1b[1;5C" || data === "\x1b[5C" || data === "\x1b[1;3C" || data === "\x1bf") {
+        editor.moveWordRight();
+        render();
+        return;
+      }
+
+      if (data === "\x1b[H" || data === "\x1b[1~" || data === "\x1bOH" || data === "\u0001") {
+        editor.moveHome();
+        render();
+        return;
+      }
+
+      if (data === "\x1b[F" || data === "\x1b[4~" || data === "\x1bOF" || data === "\u0005") {
+        editor.moveEnd();
+        render();
+        return;
+      }
+
+      if (data === "\u0017" || data === "\x1b\x7f") {
+        editor.deleteWordBefore();
+        render();
+        return;
+      }
+
+      if (data === "\u0015") {
+        editor.deleteToStart();
+        render();
+        return;
+      }
+
+      if (data === "\u000b") {
+        editor.deleteToEnd();
+        render();
         return;
       }
 
       if (data === "\u0003") {
-        buffer = "";
+        editor.reset();
         terminal.write("^C\r\n");
-        writePrompt();
+        render();
         return;
       }
 
       if (data === "\u000c") {
         terminal.clear();
-        writePrompt();
+        render();
         return;
       }
 
-      if (data >= " ") {
-        buffer += data;
-        terminal.write(data);
+      if (data.startsWith("\x1b[200~")) {
+        const close = "\x1b[201~";
+        const pasted = data.slice("\x1b[200~".length);
+        insert(pasted.endsWith(close) ? pasted.slice(0, -close.length) : pasted);
+        return;
       }
+
+      if (data === "\x1b[201~" || data.startsWith("\x1b")) {
+        return;
+      }
+
+      insert(data);
     });
 
     const observer = new ResizeObserver(() => {

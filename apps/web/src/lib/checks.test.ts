@@ -1,13 +1,16 @@
-import type { LessonCheck } from "@kubelab/content";
-import type { Pod, PodPhase } from "@kubelab/sim";
+import { getLesson, type LessonCheck } from "@kubelab/content";
+import { type ParsedCommand, type Pod, type PodPhase, parseKubectl } from "@kubelab/sim";
 import { describe, expect, it } from "vitest";
 
-import { evaluateCheck } from "./checks";
+import { type CheckContext, evaluateCheck, evaluateChecks } from "./checks";
+
+type PodCheck = Extract<LessonCheck, { type: "pod" }>;
 
 function makePod(
   overrides: {
     name?: string;
     namespace?: string;
+    image?: string;
     labels?: Record<string, string>;
     phase?: PodPhase;
   } = {},
@@ -24,7 +27,7 @@ function makePod(
       creationTick: 0,
     },
     spec: {
-      containers: [{ name: "web", image: "nginx" }],
+      containers: [{ name: "web", image: overrides.image ?? "nginx" }],
     },
     status: {
       phase: overrides.phase ?? "Running",
@@ -32,7 +35,7 @@ function makePod(
   };
 }
 
-function check(overrides: Partial<LessonCheck> = {}): LessonCheck {
+function makeCheck(overrides: Partial<PodCheck> = {}): PodCheck {
   return {
     type: "pod",
     label: "web is ready",
@@ -43,23 +46,98 @@ function check(overrides: Partial<LessonCheck> = {}): LessonCheck {
   };
 }
 
+function command(input: string): ParsedCommand {
+  const parsed = parseKubectl(input);
+  if ("error" in parsed) {
+    throw new Error(parsed.error);
+  }
+  return parsed;
+}
+
+function context(pods: Pod[] = [], commands: ParsedCommand[] = []): CheckContext {
+  return { pods, commands };
+}
+
 describe("lesson checks", () => {
   it("passes when the pod matches name, namespace, labels, and phase", () => {
-    const result = evaluateCheck(check({ labels: { app: "web" }, phase: "Running" }), [makePod()]);
+    const result = evaluateCheck(
+      makeCheck({ labels: { app: "web" }, phase: "Running" }),
+      context([makePod()]),
+    );
     expect(result.pass).toBe(true);
   });
 
   it("fails on a missing label", () => {
-    expect(evaluateCheck(check({ labels: { app: "api" } }), [makePod()]).pass).toBe(false);
-  });
-
-  it("fails on the wrong phase", () => {
-    expect(evaluateCheck(check({ phase: "Running" }), [makePod({ phase: "Pending" })]).pass).toBe(
+    expect(evaluateCheck(makeCheck({ labels: { app: "api" } }), context([makePod()])).pass).toBe(
       false,
     );
   });
 
+  it("fails on the wrong phase", () => {
+    expect(
+      evaluateCheck(makeCheck({ phase: "Running" }), context([makePod({ phase: "Pending" })])).pass,
+    ).toBe(false);
+  });
+
   it("fails on a namespace mismatch", () => {
-    expect(evaluateCheck(check({ namespace: "other" }), [makePod()]).pass).toBe(false);
+    expect(evaluateCheck(makeCheck({ namespace: "other" }), context([makePod()])).pass).toBe(false);
+  });
+
+  it("passes a command check for the executed command", () => {
+    const check: LessonCheck = {
+      type: "command",
+      label: "Run kubectl get pods",
+      verb: "get",
+      resource: "pods",
+      namespace: "default",
+    };
+
+    expect(evaluateCheck(check, context([], [command("kubectl get pods")])).pass).toBe(true);
+    expect(evaluateCheck(check, context([], [command("kubectl get nodes")])).pass).toBe(false);
+  });
+
+  it("uses the real lesson checks against a mistyped label", () => {
+    const lesson = getLesson("pods-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const results = evaluateChecks(
+      lesson.checks,
+      context([makePod({ labels: { run: "web", app: "webb" } })]),
+    );
+
+    expect(results.map((result) => result.pass)).toEqual([true, false, true, true, false]);
+  });
+
+  it("fails the real image check for a different image", () => {
+    const lesson = getLesson("pods-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const results = evaluateChecks(
+      lesson.checks,
+      context([makePod({ image: "httpd", labels: { run: "web", app: "web" } })]),
+    );
+
+    expect(results.map((result) => result.pass)).toEqual([true, true, false, true, false]);
+  });
+
+  it("requires the verification command for a complete lesson", () => {
+    const lesson = getLesson("pods-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const pods = [makePod({ labels: { run: "web", app: "web" } })];
+    const withoutCommand = evaluateChecks(lesson.checks, context(pods));
+    expect(withoutCommand.every((result) => result.pass)).toBe(false);
+
+    const withCommand = evaluateChecks(lesson.checks, context(pods, [command("kubectl get pods")]));
+    expect(withCommand.every((result) => result.pass)).toBe(true);
   });
 });

@@ -18,7 +18,13 @@
 .back {
   align-self: flex-start;
   color: var(--color-muted);
-  font-size: 0.875rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.back:hover {
+  color: var(--color-accent);
+  text-decoration: none;
 }
 
 .heading {
@@ -30,17 +36,23 @@
 }
 
 .unit {
-  color: var(--color-accent-strong);
+  display: inline-flex;
+  padding: 0.22rem 0.65rem;
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-strong);
+  border-radius: var(--radius-full);
+  color: var(--color-accent);
   font-family: var(--font-mono);
-  font-size: 0.76rem;
-  letter-spacing: 0.12em;
+  font-size: 0.7rem;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .heading h1 {
-  font-size: clamp(1.9rem, 4vw, 2.8rem);
-  letter-spacing: -0.03em;
-  line-height: 1.1;
+  margin-top: 0.4rem;
+  font-size: clamp(2rem, 4.5vw, 3rem);
+  letter-spacing: -0.045em;
+  line-height: 1.05;
 }
 
 .controls {
@@ -63,6 +75,7 @@
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--edge);
 }
 
 .theory {
@@ -78,13 +91,21 @@
 
 .theory h2 {
   margin-top: var(--space-2);
-  font-size: 1.05rem;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .theory p,
 .theory li {
   color: var(--color-muted);
   font-size: 0.94rem;
+}
+
+.theory strong {
+  color: var(--color-text);
 }
 
 .theory ol,
@@ -100,15 +121,17 @@
   padding: 0.1rem 0.35rem;
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
-  border-radius: 4px;
+  border-radius: 5px;
+  color: var(--color-accent);
   font-size: 0.85em;
 }
 
 .theory pre {
   padding: var(--space-3);
   overflow-x: auto;
-  background: #050a14;
+  background: #10131b;
   border: 1px solid var(--color-border);
+  border-left: 3px solid var(--color-accent);
   border-radius: var(--radius-md);
 }
 
@@ -116,18 +139,25 @@
   padding: 0;
   background: transparent;
   border: 0;
+  color: var(--color-text);
 }
 
 .objectives {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
-  padding-top: var(--space-4);
-  border-top: 1px solid var(--color-border);
+  padding: var(--space-4);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
 }
 
 .objectives h2 {
-  font-size: 1rem;
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
 }
 
 .objectives ul {
@@ -143,8 +173,12 @@
   display: flex;
   gap: 0.6rem;
   align-items: center;
+  padding: 0.5rem 0.65rem;
+  background: var(--color-bg-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
   color: var(--color-muted);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
 }
 
 .check {
@@ -153,52 +187,149 @@
   width: 20px;
   height: 20px;
   place-items: center;
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
   border-radius: 50%;
-  font-size: 0.7rem;
+  color: var(--color-accent-ink);
+  font-size: 0.72rem;
+  font-weight: 800;
 }
 
 .pass {
+  background: var(--color-accent-soft);
+  border-color: var(--color-accent-strong);
   color: var(--color-text);
 }
 
 .pass .check {
-  background: rgb(61 220 151 / 15%);
-  border-color: var(--color-success);
-  color: var(--color-success);
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+}
+
+.feedback {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+  padding: 0.55rem 1rem;
+  background: var(--color-surface-2);
+  border-top: 1px solid var(--color-border);
+}
+
+.feedback[data-feedback="pass"] {
+  background: var(--color-accent-soft);
+}
+
+.feedbackRow {
+  display: flex;
+  gap: 0.6rem;
+  align-items: center;
+}
+
+.feedbackCount {
+  padding: 0.12rem 0.5rem;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.feedback[data-feedback="pass"] .feedbackCount {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
+.feedbackText {
+  color: var(--color-muted);
+  font-size: 0.8rem;
+}
+
+.feedback[data-feedback="pass"] .feedbackText {
+  color: var(--color-text);
+}
+
+.feedbackRemaining {
+  margin-left: auto;
+  padding: 0.1rem 0.45rem;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  white-space: nowrap;
+}
+
+.feedbackMeter {
+  height: 4px;
+  overflow: hidden;
+  background: var(--color-surface-3);
+  border-radius: var(--radius-full);
+}
+
+.feedbackMeterFill {
+  display: block;
+  height: 100%;
+  background: var(--color-accent);
+  border-radius: inherit;
+  transition: width var(--duration-normal) var(--ease-out);
+}
+
+.feedbackHints summary {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.feedbackHints ul {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin: 0.4rem 0 0;
+  padding-left: 1.1rem;
+  color: var(--color-muted);
+  font-size: 0.8rem;
 }
 
 .terminalPanel {
   overflow: hidden;
-  background: var(--color-bg-elevated);
+  background: #10131b;
   border: 1px solid var(--color-border);
   border-radius: var(--radius-lg);
+  box-shadow: var(--edge);
 }
 
 .terminalHead {
   display: flex;
   gap: 0.6rem;
   align-items: center;
-  padding: 0.75rem 1rem;
+  padding: 0.7rem 1rem;
+  background: var(--color-surface-2);
+  border-bottom: 1px solid var(--color-border);
   color: var(--color-muted);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: 0.75rem;
 }
 
 .dot {
   width: 8px;
   height: 8px;
-  background: var(--color-success);
+  background: var(--color-accent);
   border-radius: 50%;
-  box-shadow: 0 0 8px var(--color-success);
+  box-shadow: 0 0 0 3px var(--color-accent-soft);
 }
 
 .liveStatus {
   margin-left: auto;
-  color: var(--color-success);
-  font-size: 0.68rem;
-  letter-spacing: 0.08em;
+  color: var(--color-accent);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
   text-transform: uppercase;
 }
 
@@ -208,8 +339,17 @@
 
 .hint {
   padding: 0.6rem 1rem;
-  color: var(--color-muted);
-  font-size: 0.78rem;
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+@media (width >= 981px) {
+  .terminalPanel {
+    position: sticky;
+    top: 88px;
+    z-index: 1;
+  }
 }
 
 @media (width <= 980px) {

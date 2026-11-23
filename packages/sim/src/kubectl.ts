@@ -8,6 +8,7 @@ export type ParsedCommand =
       namespace: string;
       allNamespaces: boolean;
       selector: Record<string, string>;
+      showLabels: boolean;
       output: OutputFormat;
     }
   | {
@@ -76,14 +77,21 @@ function tokenize(input: string): string[] {
   return tokens;
 }
 
-function parseLabels(raw: string): Record<string, string> {
+function parseLabels(raw: string): Record<string, string> | undefined {
   const labels: Record<string, string> = {};
 
   for (const pair of raw.split(",")) {
-    const [key, value] = pair.split("=");
-    if (key !== undefined && value !== undefined && key.length > 0) {
-      labels[key] = value;
+    const parts = pair.split("=");
+    if (parts.length !== 2) {
+      return undefined;
     }
+
+    const [key, value] = parts;
+    if (key === undefined || key.length === 0 || value === undefined) {
+      return undefined;
+    }
+
+    labels[key] = value;
   }
 
   return labels;
@@ -108,27 +116,16 @@ function normalizeResource(resource: string): string {
   }
 }
 
-export function parseKubectl(input: string): ParsedCommand | ParseError {
-  const tokens = tokenize(input);
+function unknownFlag(token: string): ParseError {
+  return { error: `unknown flag: ${token.split("=")[0]}` };
+}
 
-  if (tokens.length === 0) {
-    return { verb: "help" };
-  }
-
-  const binary = tokens[0];
-  if (binary !== "kubectl" && binary !== "k") {
-    return { error: `unknown command "${binary ?? ""}" — try "kubectl help"` };
-  }
-
-  const verb = tokens[1];
-  if (verb === undefined || verb === "help") {
-    return { verb: "help" };
-  }
-
+function parseGet(tokens: string[]): ParsedCommand | ParseError {
   let namespace = "default";
   let allNamespaces = false;
   let output: OutputFormat = "table";
   let selector: Record<string, string> = {};
+  let showLabels = false;
   const positional: string[] = [];
 
   for (let index = 2; index < tokens.length; index += 1) {
@@ -152,23 +149,32 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
       continue;
     }
 
-    if (token.startsWith("--namespace=")) {
-      namespace = token.slice("--namespace=".length);
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
       continue;
     }
 
-    if (verb === "get" && (token === "-l" || token === "--selector")) {
+    if (token === "-l" || token === "--selector") {
       const value = tokens[index + 1];
       if (value === undefined) {
         return { error: `flag needs an argument: ${token}` };
       }
-      selector = { ...selector, ...parseLabels(value) };
+      const labels = parseLabels(value);
+      if (labels === undefined) {
+        return { error: `invalid label selector: "${value}"` };
+      }
+      selector = { ...selector, ...labels };
       index += 1;
       continue;
     }
 
     if (token.startsWith("--selector=")) {
-      selector = { ...selector, ...parseLabels(token.slice("--selector=".length)) };
+      const value = token.slice("--selector=".length);
+      const labels = parseLabels(value);
+      if (labels === undefined) {
+        return { error: `invalid label selector: "${value}"` };
+      }
+      selector = { ...selector, ...labels };
       continue;
     }
 
@@ -196,95 +202,200 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
       continue;
     }
 
-    if (token.startsWith("-")) {
+    if (token === "--show-labels") {
+      showLabels = true;
       continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
     }
 
     positional.push(token);
   }
 
-  if (verb === "get") {
-    const resource = positional[0];
-    if (resource === undefined) {
-      return { error: "you must specify the type of resource to get" };
-    }
-
-    const name = positional[1];
-    return {
-      verb: "get",
-      resource: normalizeResource(resource),
-      ...(name === undefined ? {} : { name }),
-      namespace,
-      allNamespaces,
-      selector,
-      output,
-    };
+  const resource = positional[0];
+  if (resource === undefined) {
+    return { error: "you must specify the type of resource to get" };
   }
 
-  if (verb === "run") {
-    const name = positional[0];
-    if (name === undefined) {
-      return { error: "run requires a name: kubectl run <name> --image=<image>" };
-    }
-
-    let image: string | undefined;
-    const labels: Record<string, string> = {};
-
-    for (let index = 3; index < tokens.length; index += 1) {
-      const token = tokens[index];
-      if (token === undefined) {
-        continue;
-      }
-
-      if (token.startsWith("--image=")) {
-        image = token.slice("--image=".length);
-        continue;
-      }
-
-      if (token === "--image") {
-        image = tokens[index + 1];
-        index += 1;
-        continue;
-      }
-
-      if (token.startsWith("--labels=")) {
-        Object.assign(labels, parseLabels(token.slice("--labels=".length)));
-        continue;
-      }
-
-      if (token === "--labels" || token === "-l") {
-        const value = tokens[index + 1];
-        if (value !== undefined) {
-          Object.assign(labels, parseLabels(value));
-        }
-        index += 1;
-      }
-    }
-
-    if (image === undefined || image.length === 0) {
-      return { error: "run requires --image=<image>" };
-    }
-
-    return { verb: "run", name, image, labels, namespace };
+  if (positional.length > 2) {
+    return { error: "accepts at most 2 arguments: resource and name" };
   }
 
-  if (verb === "delete") {
-    const resource = positional[0];
-    const name = positional[1];
-    if (resource === undefined || name === undefined) {
-      return { error: "delete requires a resource and name: kubectl delete pod <name>" };
+  const name = positional[1];
+  return {
+    verb: "get",
+    resource: normalizeResource(resource),
+    ...(name === undefined ? {} : { name }),
+    namespace,
+    allNamespaces,
+    selector,
+    showLabels,
+    output,
+  };
+}
+
+function parseRun(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let name: string | undefined;
+  let image: string | undefined;
+  const labels: Record<string, string> = {};
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
     }
-    return { verb: "delete", resource: normalizeResource(resource), name, namespace };
+
+    if (token === "-n" || token === "--namespace") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "--image") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      image = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("--image=")) {
+      image = token.slice("--image=".length);
+      continue;
+    }
+
+    if (token === "--labels" || token === "-l") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      const parsed = parseLabels(value);
+      if (parsed === undefined) {
+        return { error: `invalid labels: "${value}"` };
+      }
+      Object.assign(labels, parsed);
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("--labels=")) {
+      const value = token.slice("--labels=".length);
+      const parsed = parseLabels(value);
+      if (parsed === undefined) {
+        return { error: `invalid labels: "${value}"` };
+      }
+      Object.assign(labels, parsed);
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    if (name !== undefined) {
+      return { error: `unexpected argument: ${token}` };
+    }
+    name = token;
   }
 
-  if (verb === "describe") {
-    const resource = positional[0];
-    const name = positional[1];
-    if (resource === undefined || name === undefined) {
-      return { error: "describe requires a resource and name: kubectl describe pod <name>" };
-    }
-    return { verb: "describe", resource: normalizeResource(resource), name, namespace };
+  if (name === undefined) {
+    return { error: "run requires a name: kubectl run <name> --image=<image>" };
   }
 
-  return { error: `unknown command "${verb}" for "kubectl" — try "kubectl help"` };
+  if (image === undefined || image.length === 0) {
+    return { error: "run requires --image=<image>" };
+  }
+
+  return { verb: "run", name, image, labels, namespace };
+}
+
+function parseTarget(tokens: string[], verb: "delete" | "describe"): ParsedCommand | ParseError {
+  let namespace = "default";
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = tokens[index + 1];
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const resource = positional[0];
+  const name = positional[1];
+  if (resource === undefined || name === undefined) {
+    return { error: `${verb} requires a resource and name: kubectl ${verb} pod <name>` };
+  }
+
+  if (positional.length > 2) {
+    return { error: "accepts exactly 2 arguments: resource and name" };
+  }
+
+  return verb === "delete"
+    ? { verb: "delete", resource: normalizeResource(resource), name, namespace }
+    : { verb: "describe", resource: normalizeResource(resource), name, namespace };
+}
+
+export function parseKubectl(input: string): ParsedCommand | ParseError {
+  const tokens = tokenize(input);
+
+  if (tokens.length === 0) {
+    return { verb: "help" };
+  }
+
+  const binary = tokens[0];
+  if (binary !== "kubectl" && binary !== "k") {
+    return { error: `unknown command "${binary ?? ""}" — try "kubectl help"` };
+  }
+
+  const verb = tokens[1];
+  if (verb === undefined || verb === "help" || verb === "--help" || verb === "-h") {
+    return { verb: "help" };
+  }
+
+  switch (verb) {
+    case "get":
+      return parseGet(tokens);
+    case "run":
+      return parseRun(tokens);
+    case "delete":
+    case "describe":
+      return parseTarget(tokens, verb);
+    default:
+      return { error: `unknown command "${verb}" for "kubectl" — try "kubectl help"` };
+  }
 }

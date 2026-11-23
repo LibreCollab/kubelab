@@ -8,6 +8,7 @@ import type { Pod, PodPhase } from "./types";
 export interface PodFilter {
   namespace?: string;
   name?: string;
+  image?: string;
   labels?: Record<string, string>;
   phase?: PodPhase;
 }
@@ -24,6 +25,12 @@ export function podMatches(pod: Pod, filter: PodFilter): boolean {
     return false;
   }
   if (filter.name !== undefined && pod.metadata.name !== filter.name) {
+    return false;
+  }
+  if (
+    filter.image !== undefined &&
+    !pod.spec.containers.some((container) => container.image === filter.image)
+  ) {
     return false;
   }
   if (filter.labels !== undefined && !matchesLabels(pod.metadata.labels, filter.labels)) {

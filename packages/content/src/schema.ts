@@ -5,17 +5,28 @@ export const podCheckSchema = z.object({
   label: z.string().min(1),
   namespace: z.string().min(1).default("default"),
   name: z.string().min(1).optional(),
+  image: z.string().min(1).optional(),
   labels: z.record(z.string(), z.string()).default({}),
   phase: z.enum(["Pending", "Running", "Succeeded", "Failed"]).optional(),
 });
 
-export const checkSchema = podCheckSchema;
+export const commandCheckSchema = z.object({
+  type: z.literal("command"),
+  label: z.string().min(1),
+  verb: z.enum(["get", "run", "delete", "describe"]),
+  resource: z.string().min(1).optional(),
+  name: z.string().min(1).optional(),
+  namespace: z.string().min(1).default("default"),
+});
+
+export const checkSchema = z.discriminatedUnion("type", [podCheckSchema, commandCheckSchema]);
 
 export const lessonSpecSchema = z.object({
   id: z.string().min(1),
   unit: z.string().min(1),
   title: z.string().min(1),
   xp: z.number().int().positive(),
+  strict: z.boolean().default(true),
   prereqs: z.array(z.string()).default([]),
   theory: z.string().min(1),
   scenario: z.object({

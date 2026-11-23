@@ -49,6 +49,24 @@ describe("kubectl parser", () => {
       expect(parsed.output).toBe("wide");
     }
   });
+
+  it("parses --show-labels", () => {
+    const parsed = parseKubectl("kubectl get pods --show-labels");
+    expect("error" in parsed).toBe(false);
+    if (!("error" in parsed) && parsed.verb === "get") {
+      expect(parsed.showLabels).toBe(true);
+    }
+  });
+
+  it("rejects malformed labels and selectors", () => {
+    expect("error" in parseKubectl("kubectl run web --image=nginx --labels=app")).toBe(true);
+    expect("error" in parseKubectl("kubectl get pods -l app")).toBe(true);
+  });
+
+  it("rejects unknown flags and extra arguments", () => {
+    expect("error" in parseKubectl("kubectl run web --image=nginx --labls=app=web")).toBe(true);
+    expect("error" in parseKubectl("kubectl run web api --image=nginx")).toBe(true);
+  });
 });
 
 describe("engine", () => {
@@ -101,5 +119,25 @@ describe("engine", () => {
     const result = engine.execute("kubectl get pods -l app=web");
     expect(result.output).toContain("web");
     expect(result.output).not.toContain("api");
+  });
+
+  it("shows labels and keeps a mistyped label visible", () => {
+    const engine = createEngine();
+    engine.execute("kubectl run web --image=nginx --labels=app=webb");
+
+    const result = engine.execute("kubectl get pods --show-labels");
+    expect(result.output).toContain("LABELS");
+    expect(result.output).toContain("app=webb");
+
+    const filtered = engine.execute("kubectl get pods -l app=web");
+    expect(filtered.output).toContain("No resources found");
+  });
+
+  it("records executed commands", () => {
+    const engine = createEngine();
+    engine.execute("kubectl get pods");
+    engine.execute("kubectl run web --image=nginx");
+
+    expect(engine.commands.map((command) => command.verb)).toEqual(["get", "run"]);
   });
 });

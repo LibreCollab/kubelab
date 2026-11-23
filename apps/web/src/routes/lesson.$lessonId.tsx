@@ -6,8 +6,18 @@ import { marked } from "marked";
 import { useEffect, useMemo, useReducer, useState } from "react";
 
 import { Terminal } from "../components/Terminal";
-import { evaluateChecks } from "../lib/checks";
+import { type CheckResult, evaluateChecks } from "../lib/checks";
+import { guardLessonCommand } from "../lib/lesson-guard";
 import styles from "./lesson.module.scss";
+
+function checkpointStatus(checks: CheckResult[]): string {
+  const passed = checks.filter((check) => check.pass).length;
+  const pending = checks.filter((check) => !check.pass).map((check) => check.label);
+
+  return pending.length === 0
+    ? `[checkpoint] complete (${passed}/${checks.length})`
+    : `[checkpoint] ${passed}/${checks.length} — next: ${pending[0] ?? ""}`;
+}
 
 export function LessonPage() {
   const { lessonId } = useParams({ from: "/lesson/$lessonId" });
@@ -55,10 +65,27 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
     };
   }, [engine]);
 
+  const readChecks = () =>
+    evaluateChecks(lesson.checks, {
+      pods: engine.store.list<Pod>("Pod"),
+      commands: engine.commands,
+    });
+
   const execute = (input: string): string => {
+    if (lesson.strict) {
+      const guard = guardLessonCommand(input, lesson.checks);
+      if (!guard.ok) {
+        const nextChecks = readChecks();
+        forceUpdate();
+        return `${guard.error}\n${checkpointStatus(nextChecks)}`;
+      }
+    }
+
     const result = engine.execute(input);
+    const status = checkpointStatus(readChecks());
+
     forceUpdate();
-    return result.output;
+    return `${result.output}\n${status}`;
   };
 
   const toggleClock = () => {
@@ -80,8 +107,11 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
     forceUpdate();
   };
 
-  const pods = engine.store.list<Pod>("Pod");
-  const checks = evaluateChecks(lesson.checks, pods);
+  const checks = readChecks();
+  const passedCount = checks.filter((check) => check.pass).length;
+  const pendingLabels = checks.filter((check) => !check.pass).map((check) => check.label);
+  const allPassed = pendingLabels.length === 0;
+  const nextCheck = pendingLabels[0] ?? "";
 
   const theoryHtml = useMemo(
     () => marked.parse(lesson.theoryMarkdown, { async: false }) as string,
@@ -136,7 +166,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
           </div>
         </article>
 
-        <section className={styles.terminalPanel}>
+        <section className={styles.terminalPanel} data-testid="terminal-panel">
           <h2 className={styles.srOnly}>Simulated cluster terminal</h2>
           <div className={styles.terminalHead}>
             <span className={styles.dot} aria-hidden="true" />
@@ -146,6 +176,40 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
             </span>
           </div>
           <Terminal execute={execute} />
+          <div
+            className={styles.feedback}
+            data-feedback={allPassed ? "pass" : "pending"}
+            data-next-check={nextCheck}
+            aria-live="polite"
+          >
+            <div className={styles.feedbackRow}>
+              <span className={styles.feedbackCount}>
+                {passedCount}/{checks.length}
+              </span>
+              <span className={styles.feedbackText}>
+                {allPassed ? "All checks passed" : `Next: ${nextCheck}`}
+              </span>
+              {!allPassed ? (
+                <span className={styles.feedbackRemaining}>{pendingLabels.length} left</span>
+              ) : null}
+            </div>
+            <div className={styles.feedbackMeter} aria-hidden="true">
+              <span
+                className={styles.feedbackMeterFill}
+                style={{ width: `${(passedCount / checks.length) * 100}%` }}
+              />
+            </div>
+            {!allPassed && lesson.hints.length > 0 ? (
+              <details className={styles.feedbackHints}>
+                <summary>Need a hint?</summary>
+                <ul>
+                  {lesson.hints.map((hint) => (
+                    <li key={hint}>{hint}</li>
+                  ))}
+                </ul>
+              </details>
+            ) : null}
+          </div>
           <p className={styles.hint}>
             Simulated cluster · {lesson.scenario.nodes.length} node · commands never leave your
             browser.
