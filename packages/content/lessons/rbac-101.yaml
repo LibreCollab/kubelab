@@ -1,0 +1,29 @@
+id: rbac-101
+unit: security
+title: RBAC
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./rbac-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - RoleBinding
+checks:
+  - type: quiz
+    id: q1
+    label: RoleBinding
+    question: A RoleBinding connects a Role to…
+    options:
+      - subjects in a namespace
+      - nodes
+      - containers
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: RoleBindings bind roles to subjects.

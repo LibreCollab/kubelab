@@ -1,0 +1,29 @@
+id: helm-101
+unit: helm
+title: Helm
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./helm-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Helm chart
+checks:
+  - type: quiz
+    id: q1
+    label: Helm chart
+    question: A Helm chart is…
+    options:
+      - a packaged set of templates and values
+      - a container image
+      - a CNI plugin
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Charts package templates with values.

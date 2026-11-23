@@ -1,0 +1,29 @@
+id: ingress-101
+unit: services
+title: Ingress
+xp: 10
+order: 3
+strict: true
+prereqs: []
+theory: ./ingress-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Ingress routing
+checks:
+  - type: quiz
+    id: q1
+    label: Ingress routing
+    question: Ingress routes traffic by…
+    options:
+      - HTTP host and path
+      - TCP node port
+      - DNS only
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Ingress is HTTP(S) host/path routing implemented by a controller.

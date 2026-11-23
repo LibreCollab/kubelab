@@ -96,6 +96,24 @@ describe("lesson checks", () => {
     expect(evaluateCheck(check, context([], [command("kubectl get nodes")])).pass).toBe(false);
   });
 
+  it("requires the correct quiz answer", () => {
+    const lesson = getLesson("containers-101");
+    const quizCheck = lesson?.checks.find((check) => check.type === "quiz");
+    expect(quizCheck).toBeDefined();
+    if (quizCheck === undefined || quizCheck.type !== "quiz") {
+      return;
+    }
+
+    expect(evaluateCheck(quizCheck, { pods: [], commands: [], answers: {} }).pass).toBe(false);
+    expect(
+      evaluateCheck(quizCheck, {
+        pods: [],
+        commands: [],
+        answers: { [quizCheck.id]: quizCheck.answer },
+      }).pass,
+    ).toBe(true);
+  });
+
   it("uses the real lesson checks against a mistyped label", () => {
     const lesson = getLesson("pods-101");
     expect(lesson).toBeDefined();

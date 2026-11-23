@@ -1,0 +1,29 @@
+id: images-101
+unit: containers
+title: Images, tags, and registries
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./images-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Reproducible image
+checks:
+  - type: quiz
+    id: q1
+    label: Reproducible image
+    question: Which image reference is the most reproducible?
+    options:
+      - nginx@sha256:…
+      - nginx:latest
+      - nginx
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Use a digest when you need exact bytes.

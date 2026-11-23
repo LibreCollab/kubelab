@@ -1,0 +1,29 @@
+id: gitops-101
+unit: gitops
+title: GitOps
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./gitops-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - GitOps
+checks:
+  - type: quiz
+    id: q1
+    label: GitOps
+    question: GitOps uses Git as…
+    options:
+      - the desired-state source of truth
+      - a CI cache
+      - a container runtime
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Git is the desired-state source of truth.

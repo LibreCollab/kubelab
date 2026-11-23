@@ -1,0 +1,49 @@
+id: cka-readiness
+unit: certification
+title: CKA readiness
+xp: 50
+order: 3
+strict: true
+prereqs: []
+theory: ./cka-readiness.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Node status
+  - Pending pods
+  - etcd backup
+checks:
+  - type: quiz
+    id: q1
+    label: Node status
+    question: Which command checks node status?
+    options:
+      - kubectl get nodes
+      - kubectl logs
+      - kubectl expose
+    answer: 0
+  - type: quiz
+    id: q2
+    label: Pending pods
+    question: A Pod stuck Pending most likely…
+    options:
+      - cannot be scheduled
+      - has no logs
+      - is Running
+    answer: 0
+  - type: quiz
+    id: q3
+    label: etcd backup
+    question: etcd backup uses…
+    options:
+      - etcdctl snapshot save
+      - kubectl cp
+      - helm package
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Troubleshooting is 30% of CKA; practice cluster repair.

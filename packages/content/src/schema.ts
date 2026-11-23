@@ -19,13 +19,36 @@ export const commandCheckSchema = z.object({
   namespace: z.string().min(1).default("default"),
 });
 
-export const checkSchema = z.discriminatedUnion("type", [podCheckSchema, commandCheckSchema]);
+export const quizCheckSchema = z
+  .object({
+    type: z.literal("quiz"),
+    id: z.string().min(1),
+    label: z.string().min(1),
+    question: z.string().min(1),
+    options: z.array(z.string().min(1)).min(2),
+    answer: z.number().int().nonnegative(),
+  })
+  .refine((check) => check.answer < check.options.length, {
+    message: "answer index is out of range",
+    path: ["answer"],
+  })
+  .refine((check) => new Set(check.options).size === check.options.length, {
+    message: "quiz options must be unique",
+    path: ["options"],
+  });
+
+export const checkSchema = z.discriminatedUnion("type", [
+  podCheckSchema,
+  commandCheckSchema,
+  quizCheckSchema,
+]);
 
 export const lessonSpecSchema = z.object({
   id: z.string().min(1),
   unit: z.string().min(1),
   title: z.string().min(1),
   xp: z.number().int().positive(),
+  order: z.number().int().nonnegative().default(0),
   strict: z.boolean().default(true),
   prereqs: z.array(z.string()).default([]),
   theory: z.string().min(1),

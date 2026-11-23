@@ -1,0 +1,29 @@
+id: logs-events-101
+unit: observability
+title: Logs and events
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./logs-events-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Logs
+checks:
+  - type: quiz
+    id: q1
+    label: Logs
+    question: kubectl logs shows…
+    options:
+      - container stdout/stderr
+      - node kernel logs
+      - etcd logs by default
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Logs are container output; describe shows events.

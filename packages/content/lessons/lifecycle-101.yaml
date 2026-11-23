@@ -1,0 +1,39 @@
+id: lifecycle-101
+unit: workloads
+title: Pod lifecycle
+xp: 20
+order: 3
+strict: true
+prereqs: []
+theory: ./lifecycle-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - web is Running
+  - List pods
+  - Describe web
+checks:
+  - type: pod
+    label: web is Running
+    name: web
+    image: nginx
+    phase: Running
+  - type: command
+    label: List pods
+    verb: get
+    resource: pods
+  - type: command
+    label: Describe web
+    verb: describe
+    resource: pods
+    name: web
+hints:
+  - Read the try-it commands, then check the checkpoint for the next step.
+solution: |-
+  kubectl run web --image=nginx
+  kubectl get pods
+  kubectl describe pod web

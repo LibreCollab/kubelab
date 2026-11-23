@@ -1,0 +1,39 @@
+id: services-101
+unit: services
+title: Services
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./services-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - ClusterIP
+  - Service discovery
+checks:
+  - type: quiz
+    id: q1
+    label: ClusterIP
+    question: Which Service type gives a stable cluster-internal IP?
+    options:
+      - ClusterIP
+      - NodePort
+      - LoadBalancer
+    answer: 0
+  - type: quiz
+    id: q2
+    label: Service discovery
+    question: How does a Service find its Pods?
+    options:
+      - Label selector
+      - Pod name
+      - Hard-coded IPs
+    answer: 0
+hints:
+  - Read the try-it commands, then check the checkpoint for the next step.
+solution: ClusterIP is the default stable internal Service.

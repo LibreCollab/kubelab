@@ -1,0 +1,29 @@
+id: scheduling-101
+unit: scheduling
+title: Scheduling and taints
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./scheduling-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Taints
+checks:
+  - type: quiz
+    id: q1
+    label: Taints
+    question: A taint plus matching toleration…
+    options:
+      - allows scheduling onto that node
+      - forces all Pods there
+      - deletes the Pod
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Taints repel; tolerations allow scheduling.

@@ -1,0 +1,29 @@
+id: probes-101
+unit: observability
+title: Probes and health
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./probes-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Readiness
+checks:
+  - type: quiz
+    id: q1
+    label: Readiness
+    question: A failed readiness probe…
+    options:
+      - removes the Pod from Service endpoints
+      - restarts the container
+      - deletes the Pod
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Readiness controls endpoint membership.

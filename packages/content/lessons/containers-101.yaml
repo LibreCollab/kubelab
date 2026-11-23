@@ -1,0 +1,29 @@
+id: containers-101
+unit: containers
+title: Containers, images, and Pods
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./containers-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Image vs container
+checks:
+  - type: quiz
+    id: q1
+    label: Image vs container
+    question: What is the difference between an image and a container?
+    options:
+      - An image is the template; a container is a running instance
+      - A container is stored in a registry
+      - They are the same thing
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: An image is the template; a container is a running instance.

@@ -1,0 +1,29 @@
+id: storageclasses-101
+unit: storage
+title: StorageClasses
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./storageclasses-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Dynamic provisioning
+checks:
+  - type: quiz
+    id: q1
+    label: Dynamic provisioning
+    question: A StorageClass provides…
+    options:
+      - dynamic volume provisioning
+      - DNS records
+      - RBAC rules
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: StorageClasses drive dynamic provisioning.

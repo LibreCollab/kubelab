@@ -1,0 +1,29 @@
+id: kubectl-101
+unit: architecture
+title: kubectl basics
+xp: 15
+order: 3
+strict: true
+prereqs: []
+theory: ./kubectl-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - List nodes
+  - List pods
+checks:
+  - type: command
+    label: List nodes
+    verb: get
+    resource: nodes
+  - type: command
+    label: List pods
+    verb: get
+    resource: pods
+hints:
+  - Read the try-it commands, then check the checkpoint for the next step.
+solution: kubectl get nodes && kubectl get pods

@@ -1,0 +1,40 @@
+id: labels-101
+unit: workloads
+title: Labels and selectors
+xp: 25
+order: 2
+strict: true
+prereqs: []
+theory: ./labels-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - web has app=web
+  - api has app=api
+  - List pods
+checks:
+  - type: pod
+    label: web has app=web
+    name: web
+    labels:
+      app: web
+    phase: Running
+  - type: pod
+    label: api has app=api
+    name: api
+    labels:
+      app: api
+    phase: Running
+  - type: command
+    label: List pods
+    verb: get
+    resource: pods
+hints:
+  - Read the try-it commands, then check the checkpoint for the next step.
+solution: |-
+  kubectl run web --image=nginx --labels=app=web
+  kubectl run api --image=nginx --labels=app=api

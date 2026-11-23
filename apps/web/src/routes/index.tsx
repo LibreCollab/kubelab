@@ -1,11 +1,12 @@
-import { lessons } from "@kubelab/content";
-import { Card, cx } from "@kubelab/ui";
+import { certificationTracks, lessons, units } from "@kubelab/content";
+import { cx } from "@kubelab/ui";
 import { Link } from "@tanstack/react-router";
 import { motion, useReducedMotion } from "motion/react";
 
 import styles from "./index.module.scss";
 
-const firstLesson = lessons[0];
+const coreUnits = units.filter((unit) => unit.number <= 12);
+const firstLesson = coreUnits[0]?.lessons[0] ?? lessons[0];
 
 export function HomePage() {
   const reduceMotion = useReducedMotion();
@@ -77,56 +78,90 @@ export function HomePage() {
 
       <section className={styles.stats} aria-label="Project facts">
         <div className={styles.stat}>
-          <div className={styles.statValue}>5</div>
-          <div className={styles.statLabel}>certifications mapped</div>
+          <div className={styles.statValue}>{coreUnits.length}</div>
+          <div className={styles.statLabel}>core units</div>
         </div>
         <div className={styles.stat}>
-          <div className={styles.statValue}>12–15</div>
-          <div className={styles.statLabel}>lessons in the MVP</div>
+          <div className={styles.statValue}>{lessons.length}</div>
+          <div className={styles.statLabel}>lessons and readiness checks</div>
         </div>
         <div className={styles.stat}>
-          <div className={styles.statValue}>0</div>
-          <div className={styles.statLabel}>servers running your commands</div>
+          <div className={styles.statValue}>{certificationTracks.length}</div>
+          <div className={styles.statLabel}>certification tracks</div>
         </div>
       </section>
 
       <section className={styles.section}>
         <div className={styles.sectionHead}>
-          <h2>Roadmap</h2>
-          <span>4 units planned for the MVP</span>
+          <h2>Core roadmap</h2>
+          <span>
+            {coreUnits.length} units · {lessons.length} lessons
+          </span>
         </div>
         <div className={styles.grid}>
-          <Card className={styles.unitCard}>
-            <span className={styles.unitLabel}>Unit 01 · Foundations</span>
-            <h3>Containers, Pods, Deployments</h3>
-            <p>
-              Understand why orchestration exists, then create and inspect your first workload in a
-              simulated cluster.
-            </p>
-            {lessons.map((lesson) => (
-              <Link
-                key={lesson.id}
-                className={styles.lessonLink}
-                to="/lesson/$lessonId"
-                params={{ lessonId: lesson.id }}
-              >
-                <span>{lesson.title}</span>
-                <span>{lesson.xp} XP</span>
-              </Link>
-            ))}
-          </Card>
-          <Card className={cx(styles.unitCard, styles.locked)}>
-            <span className={styles.unitLabel}>Unit 02 · Services</span>
-            <h3>Networking &amp; exposure</h3>
-            <p>Services, DNS, and request flow — coming in Phase 2.</p>
-            <span className={styles.lockedBadge}>Locked</span>
-          </Card>
-          <Card className={cx(styles.unitCard, styles.locked)}>
-            <span className={styles.unitLabel}>Unit 03 · Config</span>
-            <h3>Configuration &amp; storage</h3>
-            <p>ConfigMaps, Secrets, volumes, and persistence — coming in Phase 2.</p>
-            <span className={styles.lockedBadge}>Locked</span>
-          </Card>
+          {coreUnits.map((unit) => (
+            <article
+              key={unit.id}
+              className={styles.unitCard}
+              aria-label={`Unit ${unit.number}: ${unit.title}`}
+            >
+              <div className={styles.unitMeta}>
+                <span className={styles.unitNumber}>{String(unit.number).padStart(2, "0")}</span>
+                <span className={styles.unitLabel}>Unit</span>
+              </div>
+              <h3>{unit.title}</h3>
+              <p>{unit.description}</p>
+              <div className={styles.lessonList}>
+                {unit.lessons.map((lesson) => (
+                  <Link
+                    key={lesson.id}
+                    className={styles.lessonLink}
+                    to="/lesson/$lessonId"
+                    params={{ lessonId: lesson.id }}
+                  >
+                    <span>{lesson.title}</span>
+                    <span className={styles.lessonXp}>{lesson.xp} XP</span>
+                  </Link>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+      </section>
+
+      <section className={styles.section}>
+        <div className={styles.sectionHead}>
+          <h2>Certification tracks</h2>
+          <span>Readiness checks for the CNCF path</span>
+        </div>
+        <div className={styles.grid}>
+          {certificationTracks.map((track, index) => (
+            <article
+              key={track.id}
+              className={cx(styles.unitCard, styles.trackCard)}
+              aria-label={`${track.name} certification track`}
+            >
+              <div className={styles.unitMeta}>
+                <span className={styles.unitNumber}>{String(index + 1).padStart(2, "0")}</span>
+                <span className={styles.unitLabel}>Certification</span>
+              </div>
+              <h3>{track.name}</h3>
+              <p>{track.description}</p>
+              <div className={styles.lessonList}>
+                {track.lessons.map((lesson) => (
+                  <Link
+                    key={lesson.id}
+                    className={styles.lessonLink}
+                    to="/lesson/$lessonId"
+                    params={{ lessonId: lesson.id }}
+                  >
+                    <span>{lesson.title}</span>
+                    <span className={styles.lessonXp}>{lesson.xp} XP</span>
+                  </Link>
+                ))}
+              </div>
+            </article>
+          ))}
         </div>
       </section>
     </div>

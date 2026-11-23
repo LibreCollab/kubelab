@@ -1,0 +1,29 @@
+id: orchestration-101
+unit: containers
+title: Why orchestration
+xp: 10
+order: 3
+strict: true
+prereqs: []
+theory: ./orchestration-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Desired state
+checks:
+  - type: quiz
+    id: q1
+    label: Desired state
+    question: What is Kubernetes' core operating model?
+    options:
+      - Declare desired state; controllers reconcile
+      - Run docker run on every node manually
+      - Treat YAML as documentation only
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Controllers continuously reconcile actual state toward desired state.

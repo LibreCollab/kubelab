@@ -1,0 +1,34 @@
+id: nodes-101
+unit: architecture
+title: Nodes and kubelet
+xp: 15
+order: 2
+strict: true
+prereqs: []
+theory: ./nodes-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - List nodes
+  - Kubelet role
+checks:
+  - type: command
+    label: List nodes
+    verb: get
+    resource: nodes
+  - type: quiz
+    id: q1
+    label: Kubelet role
+    question: What runs on every node and starts containers?
+    options:
+      - kubelet
+      - kube-scheduler
+      - etcd
+    answer: 0
+hints:
+  - Read the try-it commands, then check the checkpoint for the next step.
+solution: kubectl get nodes

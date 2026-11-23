@@ -1,6 +1,6 @@
 import { getLesson, type Lesson } from "@kubelab/content";
 import { type Pod, SimEngine } from "@kubelab/sim";
-import { Button } from "@kubelab/ui";
+import { Button, cx } from "@kubelab/ui";
 import { Link, useParams } from "@tanstack/react-router";
 import { marked } from "marked";
 import { useEffect, useMemo, useReducer, useState } from "react";
@@ -17,6 +17,61 @@ function checkpointStatus(checks: CheckResult[]): string {
   return pending.length === 0
     ? `[checkpoint] complete (${passed}/${checks.length})`
     : `[checkpoint] ${passed}/${checks.length} — next: ${pending[0] ?? ""}`;
+}
+
+interface CheckpointFeedbackProps {
+  allPassed: boolean;
+  passedCount: number;
+  total: number;
+  nextCheck: string;
+  pendingCount: number;
+  hints: string[];
+  inline?: boolean;
+}
+
+function CheckpointFeedback({
+  allPassed,
+  passedCount,
+  total,
+  nextCheck,
+  pendingCount,
+  hints,
+  inline = false,
+}: CheckpointFeedbackProps) {
+  return (
+    <div
+      className={cx(styles.feedback, inline && styles.feedbackInline)}
+      data-feedback={allPassed ? "pass" : "pending"}
+      data-next-check={nextCheck}
+      aria-live="polite"
+    >
+      <div className={styles.feedbackRow}>
+        <span className={styles.feedbackCount}>
+          {passedCount}/{total}
+        </span>
+        <span className={styles.feedbackText}>
+          {allPassed ? "All checks passed" : `Next: ${nextCheck}`}
+        </span>
+        {!allPassed ? <span className={styles.feedbackRemaining}>{pendingCount} left</span> : null}
+      </div>
+      <div className={styles.feedbackMeter} aria-hidden="true">
+        <span
+          className={styles.feedbackMeterFill}
+          style={{ width: `${(passedCount / total) * 100}%` }}
+        />
+      </div>
+      {!allPassed && hints.length > 0 ? (
+        <details className={styles.feedbackHints}>
+          <summary>Need a hint?</summary>
+          <ul>
+            {hints.map((hint) => (
+              <li key={hint}>{hint}</li>
+            ))}
+          </ul>
+        </details>
+      ) : null}
+    </div>
+  );
 }
 
 export function LessonPage() {
@@ -38,6 +93,7 @@ export function LessonPage() {
 
 function LessonPlayer({ lesson }: { lesson: Lesson }) {
   const [running, setRunning] = useState(true);
+  const [answers, setAnswers] = useState<Record<string, number>>({});
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
 
   const engine = useMemo(() => {
@@ -52,7 +108,13 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
     return instance;
   }, [lesson]);
 
+  const interactive = lesson.checks.some((check) => check.type !== "quiz");
+
   useEffect(() => {
+    if (!interactive) {
+      return;
+    }
+
     const unsubscribe = engine.clock.onTick(() => {
       forceUpdate();
     });
@@ -63,12 +125,13 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
       unsubscribe();
       engine.pause();
     };
-  }, [engine]);
+  }, [engine, interactive]);
 
   const readChecks = () =>
     evaluateChecks(lesson.checks, {
       pods: engine.store.list<Pod>("Pod"),
       commands: engine.commands,
+      answers,
     });
 
   const execute = (input: string): string => {
@@ -112,6 +175,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   const pendingLabels = checks.filter((check) => !check.pass).map((check) => check.label);
   const allPassed = pendingLabels.length === 0;
   const nextCheck = pendingLabels[0] ?? "";
+  const quizChecks = lesson.checks.filter((check) => check.type === "quiz");
 
   const theoryHtml = useMemo(
     () => marked.parse(lesson.theoryMarkdown, { async: false }) as string,
@@ -131,20 +195,53 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
           </p>
           <h1>{lesson.title}</h1>
         </div>
-        <div className={styles.controls}>
-          <Button variant="secondary" size="sm" onClick={toggleClock}>
-            {running ? "Pause clock" : "Resume clock"}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={stepClock}>
-            Step
-          </Button>
-        </div>
+        {interactive ? (
+          <div className={styles.controls}>
+            <Button variant="secondary" size="sm" onClick={toggleClock}>
+              {running ? "Pause clock" : "Resume clock"}
+            </Button>
+            <Button variant="ghost" size="sm" onClick={stepClock}>
+              Step
+            </Button>
+          </div>
+        ) : null}
       </div>
 
-      <div className={styles.layout}>
+      <div className={cx(styles.layout, !interactive && styles.singleColumn)}>
         <article className={styles.panel}>
           {/* biome-ignore lint/security/noDangerouslySetInnerHtml: lesson Markdown is trusted, in-repo content */}
           <div className={styles.theory} dangerouslySetInnerHTML={{ __html: theoryHtml }} />
+          {quizChecks.length > 0 ? (
+            <section className={styles.quiz}>
+              <h2>Knowledge check</h2>
+              {quizChecks.map((quiz) => (
+                <fieldset key={quiz.id} className={styles.quizQuestion}>
+                  <legend>{quiz.question}</legend>
+                  <div className={styles.quizOptions}>
+                    {quiz.options.map((option, index) => {
+                      const selected = answers[quiz.id] === index;
+                      return (
+                        <label
+                          key={option}
+                          className={cx(styles.quizOption, selected && styles.quizSelected)}
+                        >
+                          <input
+                            type="radio"
+                            name={quiz.id}
+                            checked={selected}
+                            onChange={() =>
+                              setAnswers((current) => ({ ...current, [quiz.id]: index }))
+                            }
+                          />
+                          <span>{option}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </fieldset>
+              ))}
+            </section>
+          ) : null}
           <div className={styles.objectives}>
             <h2>Checkpoint</h2>
             <ul aria-live="polite">
@@ -164,57 +261,44 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
               ))}
             </ul>
           </div>
+          {!interactive ? (
+            <CheckpointFeedback
+              allPassed={allPassed}
+              passedCount={passedCount}
+              total={checks.length}
+              nextCheck={nextCheck}
+              pendingCount={pendingLabels.length}
+              hints={lesson.hints}
+              inline
+            />
+          ) : null}
         </article>
 
-        <section className={styles.terminalPanel} data-testid="terminal-panel">
-          <h2 className={styles.srOnly}>Simulated cluster terminal</h2>
-          <div className={styles.terminalHead}>
-            <span className={styles.dot} aria-hidden="true" />
-            <span>cluster: kubelab</span>
-            <span className={`${styles.liveStatus} ${running ? "" : styles.paused}`}>
-              {running ? "live" : "paused"}
-            </span>
-          </div>
-          <Terminal execute={execute} />
-          <div
-            className={styles.feedback}
-            data-feedback={allPassed ? "pass" : "pending"}
-            data-next-check={nextCheck}
-            aria-live="polite"
-          >
-            <div className={styles.feedbackRow}>
-              <span className={styles.feedbackCount}>
-                {passedCount}/{checks.length}
+        {interactive ? (
+          <section className={styles.terminalPanel} data-testid="terminal-panel">
+            <h2 className={styles.srOnly}>Simulated cluster terminal</h2>
+            <div className={styles.terminalHead}>
+              <span className={styles.dot} aria-hidden="true" />
+              <span>cluster: kubelab</span>
+              <span className={`${styles.liveStatus} ${running ? "" : styles.paused}`}>
+                {running ? "live" : "paused"}
               </span>
-              <span className={styles.feedbackText}>
-                {allPassed ? "All checks passed" : `Next: ${nextCheck}`}
-              </span>
-              {!allPassed ? (
-                <span className={styles.feedbackRemaining}>{pendingLabels.length} left</span>
-              ) : null}
             </div>
-            <div className={styles.feedbackMeter} aria-hidden="true">
-              <span
-                className={styles.feedbackMeterFill}
-                style={{ width: `${(passedCount / checks.length) * 100}%` }}
-              />
-            </div>
-            {!allPassed && lesson.hints.length > 0 ? (
-              <details className={styles.feedbackHints}>
-                <summary>Need a hint?</summary>
-                <ul>
-                  {lesson.hints.map((hint) => (
-                    <li key={hint}>{hint}</li>
-                  ))}
-                </ul>
-              </details>
-            ) : null}
-          </div>
-          <p className={styles.hint}>
-            Simulated cluster · {lesson.scenario.nodes.length} node · commands never leave your
-            browser.
-          </p>
-        </section>
+            <Terminal execute={execute} />
+            <CheckpointFeedback
+              allPassed={allPassed}
+              passedCount={passedCount}
+              total={checks.length}
+              nextCheck={nextCheck}
+              pendingCount={pendingLabels.length}
+              hints={lesson.hints}
+            />
+            <p className={styles.hint}>
+              Simulated cluster · {lesson.scenario.nodes.length} node · commands never leave your
+              browser.
+            </p>
+          </section>
+        ) : null}
       </div>
     </div>
   );

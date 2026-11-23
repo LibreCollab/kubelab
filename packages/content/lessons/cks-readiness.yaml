@@ -1,0 +1,49 @@
+id: cks-readiness
+unit: certification
+title: CKS readiness
+xp: 50
+order: 5
+strict: true
+prereqs: []
+theory: ./cks-readiness.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Supply chain
+  - Runtime security
+  - Default deny
+checks:
+  - type: quiz
+    id: q1
+    label: Supply chain
+    question: Supply chain security includes…
+    options:
+      - signing and scanning images
+      - only RBAC
+      - only DNS
+    answer: 0
+  - type: quiz
+    id: q2
+    label: Runtime security
+    question: Runtime security detects…
+    options:
+      - unexpected process, file, and network behavior
+      - only pod counts
+      - only node CPU
+    answer: 0
+  - type: quiz
+    id: q3
+    label: Default deny
+    question: A default-deny NetworkPolicy…
+    options:
+      - blocks traffic not explicitly allowed
+      - allows all traffic
+      - disables DNS
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Combine cluster hardening, supply chain, and runtime controls.

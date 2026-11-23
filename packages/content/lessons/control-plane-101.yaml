@@ -1,0 +1,29 @@
+id: control-plane-101
+unit: architecture
+title: The control plane
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./control-plane-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - State store
+checks:
+  - type: quiz
+    id: q1
+    label: State store
+    question: Which component stores cluster state?
+    options:
+      - etcd
+      - kubelet
+      - kube-proxy
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: etcd is the cluster's source of truth.

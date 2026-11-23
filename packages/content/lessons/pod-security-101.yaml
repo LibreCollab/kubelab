@@ -1,0 +1,29 @@
+id: pod-security-101
+unit: security
+title: Pod hardening
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./pod-security-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - PSA levels
+checks:
+  - type: quiz
+    id: q1
+    label: PSA levels
+    question: Pod Security Standards levels are…
+    options:
+      - privileged, baseline, restricted
+      - dev, test, prod
+      - low, medium, high
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: PSS defines privileged, baseline, and restricted levels.

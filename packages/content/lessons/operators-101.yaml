@@ -1,0 +1,29 @@
+id: operators-101
+unit: gitops
+title: Operators and CRDs
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./operators-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Operator
+checks:
+  - type: quiz
+    id: q1
+    label: Operator
+    question: An operator…
+    options:
+      - encodes operational knowledge in a controller and CRDs
+      - is a kubectl plugin
+      - only schedules Pods
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Operators combine CRDs with reconciliation logic.

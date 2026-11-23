@@ -1,0 +1,39 @@
+id: deployments-101
+unit: workloads
+title: Deployments and rollouts
+xp: 15
+order: 4
+strict: true
+prereqs: []
+theory: ./deployments-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Deployment role
+  - Rolling update
+checks:
+  - type: quiz
+    id: q1
+    label: Deployment role
+    question: What does a Deployment manage?
+    options:
+      - ReplicaSets and Pods
+      - Nodes
+      - Services
+    answer: 0
+  - type: quiz
+    id: q2
+    label: Rolling update
+    question: What does a rolling update preserve?
+    options:
+      - Availability while replacing Pods
+      - Node IP addresses
+      - etcd size
+    answer: 0
+hints:
+  - Read the try-it commands, then check the checkpoint for the next step.
+solution: Deployments own ReplicaSets and provide safe rollout strategies.

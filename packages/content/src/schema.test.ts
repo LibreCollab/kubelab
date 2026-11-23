@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 import pods101Spec from "../lessons/pods-101.yaml?raw";
-import { getLesson, lessons } from "./index";
+import { certificationTracks, getLesson, lessons, units } from "./index";
 import { lessonSpecSchema } from "./schema";
 
 describe("content", () => {
@@ -26,5 +26,12 @@ describe("content", () => {
       const labels = lesson.checks.map((check) => check.label);
       expect(new Set(labels).size).toBe(labels.length);
     }
+  });
+
+  it("covers every core unit and certification track", () => {
+    const coreUnits = units.filter((unit) => unit.number <= 12);
+    expect(coreUnits.every((unit) => unit.lessons.length > 0)).toBe(true);
+    expect(certificationTracks.every((track) => track.lessons.length > 0)).toBe(true);
+    expect(lessons.length).toBeGreaterThanOrEqual(30);
   });
 });

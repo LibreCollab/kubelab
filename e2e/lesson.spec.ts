@@ -19,8 +19,42 @@ test("landing page navigates into the first lesson", async ({ page }) => {
 
   await page.getByRole("link", { name: "Start the first lesson" }).click();
 
-  await expect(page).toHaveURL(/\/lesson\/pods-101$/);
-  await expect(page.getByRole("heading", { name: "Your first Pod" })).toBeVisible();
+  await expect(page).toHaveURL(/\/lesson\/containers-101$/);
+  await expect(page.getByRole("heading", { name: "Containers, images, and Pods" })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("roadmap exposes core units and certification tracks", async ({ page }) => {
+  await page.goto("/");
+
+  await expect(page.getByRole("heading", { name: "Core roadmap" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Certification tracks" })).toBeVisible();
+  await expect(page.getByRole("article", { name: /Unit 12:/ })).toBeVisible();
+
+  await page.getByRole("link", { name: /KCNA readiness/ }).click();
+  await expect(page).toHaveURL(/\/lesson\/kcna-readiness$/);
+  await expect(page.getByRole("heading", { name: "KCNA readiness" })).toBeVisible();
+});
+
+test("knowledge checks complete a theory lesson", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/containers-101");
+
+  await expect(page.getByRole("heading", { name: "Containers, images, and Pods" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause clock" })).toHaveCount(0);
+  await expect(page.getByTestId("terminal-panel")).toHaveCount(0);
+  await expect(page.locator('[data-check="Image vs container"]')).toHaveAttribute(
+    "data-state",
+    "pending",
+  );
+
+  await page.getByLabel("An image is the template; a container is a running instance").check();
+
+  await expect(page.locator('[data-check="Image vs container"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-feedback="pass"]')).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
 

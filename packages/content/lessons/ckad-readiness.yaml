@@ -1,0 +1,49 @@
+id: ckad-readiness
+unit: certification
+title: CKAD readiness
+xp: 50
+order: 4
+strict: true
+prereqs: []
+theory: ./ckad-readiness.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Readiness
+  - Update strategy
+  - ConfigMap usage
+checks:
+  - type: quiz
+    id: q1
+    label: Readiness
+    question: A readiness probe controls…
+    options:
+      - Service endpoint membership
+      - image pulls
+      - namespace creation
+    answer: 0
+  - type: quiz
+    id: q2
+    label: Update strategy
+    question: Deployment update strategies include…
+    options:
+      - RollingUpdate and Recreate
+      - only Recreate
+      - only blue/green
+    answer: 0
+  - type: quiz
+    id: q3
+    label: ConfigMap usage
+    question: A ConfigMap can be consumed as…
+    options:
+      - env vars or mounted files
+      - only images
+      - only Secrets
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Practice app configuration, probes, and rollouts.

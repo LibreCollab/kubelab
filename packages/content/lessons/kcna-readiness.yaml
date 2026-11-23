@@ -1,0 +1,49 @@
+id: kcna-readiness
+unit: certification
+title: KCNA readiness
+xp: 50
+order: 1
+strict: true
+prereqs: []
+theory: ./kcna-readiness.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Pod definition
+  - Scheduler
+  - KCNA scope
+checks:
+  - type: quiz
+    id: q1
+    label: Pod definition
+    question: What is a Pod?
+    options:
+      - The smallest deployable unit
+      - A node
+      - A namespace
+    answer: 0
+  - type: quiz
+    id: q2
+    label: Scheduler
+    question: Which component schedules Pods?
+    options:
+      - kube-scheduler
+      - kubelet
+      - etcd
+    answer: 0
+  - type: quiz
+    id: q3
+    label: KCNA scope
+    question: KCNA focuses on…
+    options:
+      - Kubernetes and cloud native fundamentals
+      - only CKA labs
+      - only security
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Review fundamentals, orchestration, and cloud native delivery.

@@ -47,4 +47,18 @@ describe("lesson guard", () => {
   it("does not guard non-run commands", () => {
     expect(guardLessonCommand("kubectl get pods", checks).ok).toBe(true);
   });
+
+  it("validates each named pod in a multi-pod lesson", () => {
+    const multi = getLesson("labels-101")?.checks ?? [];
+
+    expect(guardLessonCommand("kubectl run web --image=nginx --labels=app=web", multi).ok).toBe(
+      true,
+    );
+    expect(guardLessonCommand("kubectl run api --image=nginx --labels=app=api", multi).ok).toBe(
+      true,
+    );
+    expect(guardLessonCommand("kubectl run web --image=nginx --labels=app=api", multi).ok).toBe(
+      false,
+    );
+  });
 });

@@ -1,7 +1,8 @@
 id: pods-101
-unit: fundamentals
+unit: workloads
 title: Your first Pod
 xp: 20
+order: 1
 strict: true
 prereqs: []
 theory: ./pods-101.md

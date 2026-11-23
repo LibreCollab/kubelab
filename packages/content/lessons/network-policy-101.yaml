@@ -1,0 +1,29 @@
+id: network-policy-101
+unit: networking
+title: NetworkPolicy
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./network-policy-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Default deny
+checks:
+  - type: quiz
+    id: q1
+    label: Default deny
+    question: A default-deny NetworkPolicy…
+    options:
+      - blocks traffic not explicitly allowed
+      - allows all traffic
+      - disables DNS
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Default deny blocks traffic unless explicitly allowed.

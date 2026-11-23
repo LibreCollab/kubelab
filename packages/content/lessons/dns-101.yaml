@@ -1,0 +1,29 @@
+id: dns-101
+unit: services
+title: Cluster DNS
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./dns-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Service DNS
+checks:
+  - type: quiz
+    id: q1
+    label: Service DNS
+    question: What is the DNS name for Service web in namespace demo?
+    options:
+      - web.demo.svc.cluster.local
+      - web.svc.demo.local
+      - demo.web.cluster
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: web.demo.svc.cluster.local

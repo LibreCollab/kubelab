@@ -1,0 +1,29 @@
+id: configmaps-101
+unit: config
+title: ConfigMaps
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./configmaps-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - ConfigMap purpose
+checks:
+  - type: quiz
+    id: q1
+    label: ConfigMap purpose
+    question: ConfigMaps store…
+    options:
+      - non-secret configuration
+      - passwords only
+      - container images
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: ConfigMaps are for non-secret configuration.

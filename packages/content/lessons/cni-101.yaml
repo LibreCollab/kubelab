@@ -1,0 +1,29 @@
+id: cni-101
+unit: networking
+title: CNI and Pod networking
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./cni-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - CNI role
+checks:
+  - type: quiz
+    id: q1
+    label: CNI role
+    question: A CNI plugin provides…
+    options:
+      - Pod networking
+      - storage classes
+      - DNS records only
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: CNI provides Pod IPs and routing.

@@ -1,0 +1,49 @@
+id: kcsa-readiness
+unit: certification
+title: KCSA readiness
+xp: 50
+order: 2
+strict: true
+prereqs: []
+theory: ./kcsa-readiness.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - RBAC
+  - PSA levels
+  - Secret storage
+checks:
+  - type: quiz
+    id: q1
+    label: RBAC
+    question: RBAC controls…
+    options:
+      - who can do what on which resources
+      - image layers
+      - DNS records
+    answer: 0
+  - type: quiz
+    id: q2
+    label: PSA levels
+    question: Pod Security Standards levels are…
+    options:
+      - privileged, baseline, restricted
+      - dev, test, prod
+      - low, medium, high
+    answer: 0
+  - type: quiz
+    id: q3
+    label: Secret storage
+    question: Kubernetes Secrets are…
+    options:
+      - base64-encoded, not encrypted by default
+      - always encrypted
+      - public
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: Focus on identity, authorization, and Pod hardening.

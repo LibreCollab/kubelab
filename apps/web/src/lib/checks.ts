@@ -4,6 +4,7 @@ import { filterPods, type ParsedCommand, type Pod } from "@kubelab/sim";
 export interface CheckContext {
   pods: Pod[];
   commands: readonly ParsedCommand[];
+  answers?: Record<string, number>;
 }
 
 export interface CheckResult {
@@ -24,6 +25,13 @@ export function evaluateCheck(check: LessonCheck, context: CheckContext): CheckR
     return {
       label: check.label,
       pass: matches.length > 0,
+    };
+  }
+
+  if (check.type === "quiz") {
+    return {
+      label: check.label,
+      pass: context.answers?.[check.id] === check.answer,
     };
   }
 

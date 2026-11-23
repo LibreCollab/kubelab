@@ -1,0 +1,29 @@
+id: autoscaling-101
+unit: scheduling
+title: Quotas and HPA
+xp: 10
+order: 2
+strict: true
+prereqs: []
+theory: ./autoscaling-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - HPA
+checks:
+  - type: quiz
+    id: q1
+    label: HPA
+    question: The HorizontalPodAutoscaler scales…
+    options:
+      - replicas from metrics
+      - node counts only
+      - PVC size
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: HPA scales replicas using metrics.

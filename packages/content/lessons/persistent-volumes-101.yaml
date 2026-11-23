@@ -1,0 +1,29 @@
+id: persistent-volumes-101
+unit: storage
+title: Volumes and PVCs
+xp: 10
+order: 1
+strict: true
+prereqs: []
+theory: ./persistent-volumes-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - PVC meaning
+checks:
+  - type: quiz
+    id: q1
+    label: PVC meaning
+    question: A PersistentVolumeClaim is…
+    options:
+      - a request for storage
+      - a node disk
+      - a Secret
+    answer: 0
+hints:
+  - Re-read the theory card and eliminate one option at a time.
+solution: A PVC requests storage from a PV or StorageClass.
