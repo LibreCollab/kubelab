@@ -29,7 +29,7 @@ p {
 }
 
 a {
-  color: var(--color-accent-strong);
+  color: var(--color-accent);
   text-decoration: none;
 }
 
@@ -57,12 +57,12 @@ svg {
 
 ::selection {
   background: var(--color-accent);
-  color: #fff;
+  color: var(--color-accent-ink);
 }
 
 :focus-visible {
-  outline: 2px solid var(--color-accent-strong);
-  outline-offset: 2px;
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
 }
 
 @media (prefers-reduced-motion: reduce) {

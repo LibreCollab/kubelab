@@ -2,9 +2,13 @@
   display: flex;
   flex-direction: column;
   min-height: 100vh;
-  background:
-    radial-gradient(900px 500px at 12% -10%, rgb(79 140 255 / 14%), transparent 60%),
-    radial-gradient(700px 420px at 100% 0%, rgb(122 92 255 / 10%), transparent 55%);
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(720px 380px at 100% -10%, rgb(74 217 155 / 8%), transparent 60%),
+    radial-gradient(rgb(160 174 192 / 10%) 1px, transparent 1px);
+  background-size:
+    auto,
+    24px 24px;
 }
 
 .skip-link {
@@ -15,7 +19,8 @@
   padding: 0.5rem 0.9rem;
   background: var(--color-accent);
   border-radius: var(--radius-md);
-  color: #fff;
+  color: var(--color-accent-ink);
+  font-weight: 700;
   transform: translateY(-200%);
   transition: transform var(--duration-fast) var(--ease-out);
 }
@@ -32,7 +37,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.9rem clamp(1rem, 5vw, 3rem);
-  background: rgb(8 14 27 / 76%);
+  background: rgb(23 25 35 / 85%);
   border-bottom: 1px solid var(--color-border);
   backdrop-filter: blur(14px);
 }
@@ -42,8 +47,8 @@
   gap: 0.65rem;
   align-items: center;
   color: var(--color-text);
-  font-weight: 700;
-  letter-spacing: -0.01em;
+  font-weight: 800;
+  letter-spacing: -0.02em;
 }
 
 .brand:hover {
@@ -52,15 +57,17 @@
 
 .brand-mark {
   display: grid;
-  width: 32px;
-  height: 32px;
+  width: 34px;
+  height: 34px;
   place-items: center;
-  background: linear-gradient(135deg, var(--color-accent), #7a5cff);
+  background: var(--color-accent);
+  border: 1px solid var(--color-accent-strong);
   border-radius: 10px;
-  color: #fff;
+  box-shadow: 0 3px 0 var(--color-accent-strong);
+  color: var(--color-accent-ink);
   font-family: var(--font-mono);
   font-size: 0.95rem;
-  box-shadow: var(--shadow-glow);
+  font-weight: 800;
 }
 
 .site-nav {
@@ -71,28 +78,29 @@
 
 .site-nav a {
   color: var(--color-muted);
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .site-nav a:hover,
 .site-nav a.is-active {
-  color: var(--color-text);
+  color: var(--color-accent);
   text-decoration: none;
 }
 
 .badge {
   display: inline-flex;
-  padding: 0.15rem 0.6rem;
+  padding: 0.2rem 0.65rem;
   border-radius: var(--radius-full);
-  font-size: 0.75rem;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
   font-weight: 600;
   letter-spacing: 0.02em;
 }
 
 .badge-muted {
-  background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  color: var(--color-muted);
+  background: var(--color-accent-soft);
+  border: 1px solid var(--color-accent-strong);
+  color: var(--color-accent);
 }
 
 .site-main {
@@ -109,8 +117,9 @@
   margin: 0 auto;
   padding: 1.5rem 0 2.5rem;
   border-top: 1px solid var(--color-border);
-  color: var(--color-muted);
-  font-size: 0.875rem;
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
 }
 
 @media (width <= 640px) {

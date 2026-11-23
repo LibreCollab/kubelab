@@ -18,23 +18,60 @@ export function HomePage() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5, ease: "easeOut" }}
       >
-        <p className={styles.eyebrow}>Zero → certified · interactive</p>
-        <h1 className={styles.title}>Learn Kubernetes by running it.</h1>
-        <p className={styles.lede}>
-          Short theory, real kubectl in a simulated cluster, and animations that show what happens
-          under the hood — from your first Pod to CKA-level troubleshooting.
-        </p>
-        <div className={styles.actions}>
-          {firstLesson ? (
-            <Link
-              className={styles.cta}
-              to="/lesson/$lessonId"
-              params={{ lessonId: firstLesson.id }}
-            >
-              Start the first lesson
-            </Link>
-          ) : null}
-          <span className={styles.meta}>No signup · runs in your browser</span>
+        <div className={styles.heroGrid}>
+          <div className={styles.heroCopy}>
+            <p className={styles.eyebrow}>Zero → certified · interactive</p>
+            <h1 className={styles.title}>
+              Learn Kubernetes by <span className={styles.titleAccent}>running it.</span>
+            </h1>
+            <p className={styles.lede}>
+              Short theory, real kubectl in a simulated cluster, and animations that show what
+              happens under the hood — from your first Pod to CKA-level troubleshooting.
+            </p>
+            <div className={styles.actions}>
+              {firstLesson ? (
+                <Link
+                  className={styles.cta}
+                  to="/lesson/$lessonId"
+                  params={{ lessonId: firstLesson.id }}
+                >
+                  Start the first lesson
+                </Link>
+              ) : null}
+              <span className={styles.meta}>No signup · runs in your browser</span>
+            </div>
+            <div className={styles.heroTags} aria-hidden="true">
+              <span>kubectl</span>
+              <span>simulated cluster</span>
+              <span>CKA → CKS</span>
+            </div>
+          </div>
+
+          <aside className={styles.preview} aria-hidden="true">
+            <div className={styles.previewBar}>
+              <span className={styles.windowDots}>
+                <i />
+                <i />
+                <i />
+              </span>
+              <span className={styles.previewTitle}>cluster: kubelab</span>
+              <span className={styles.live}>live</span>
+            </div>
+            <pre className={styles.previewCode}>
+              <span className={styles.prompt}>$</span> kubectl get pods{"\n"}
+              NAME{"   "}READY{"   "}STATUS{"\n"}
+              web{"    "}1/1{"     "}
+              <span className={styles.ok}>Running</span>
+              {"\n"}
+              api{"    "}1/1{"     "}
+              <span className={styles.ok}>Running</span>
+            </pre>
+            <div className={styles.previewFooter}>
+              <span className={styles.chip}>3 nodes</span>
+              <span className={styles.chip}>2 pods</span>
+              <span className={styles.xp}>+20 XP</span>
+            </div>
+          </aside>
         </div>
       </motion.section>
 
