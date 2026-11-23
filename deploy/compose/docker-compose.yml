@@ -1,0 +1,38 @@
+name: kubelab
+
+services:
+  envoy:
+    image: envoyproxy/envoy:v1.38-latest
+    restart: unless-stopped
+    ports:
+      - "${ENVOY_PORT:-8080}:8080"
+    volumes:
+      - ../envoy/envoy.yaml:/etc/envoy/envoy.yaml:ro
+    depends_on:
+      - api
+
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    restart: unless-stopped
+    environment:
+      PORT: "8080"
+
+  postgres:
+    image: postgres:18-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-kubelab}
+      POSTGRES_USER: ${POSTGRES_USER:-kubelab}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-kubelab}
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:
