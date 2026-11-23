@@ -38,6 +38,8 @@
 | Progress | No persistence, XP, streaks, or unlocks | Dexie-backed local progress, quiz-answer persistence, and linear unlocking with E2E coverage |
 | Lesson UI | Clock controls on command-only lessons had no visible effect | Controls shown only for Pod/timing lessons |
 | Lesson UI | Soft rounded cards/radios still felt generic | Sharp briefing panel, A/B/C keys, flat checkpoint rows |
+| Brand | Crude favicon and K went to the roadmap instead of the primary CTA | Shared filled-K mark; K opens the first lesson |
+| Deployment | No public Kubelab subdomain path | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS guide |
 | Content | Deployment/Service theory linked to terminal commands the simulator does not support | Removed those “try it” blocks; concept lessons are quiz-only |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
@@ -100,4 +102,4 @@
 ## Verification
 
 `mise run lint`, `typecheck`, 56 Vitest tests, Go tests, `gofmt`, `go vet`,
-`mise run build`, and 14 Playwright E2E tests all pass.
+`mise run build`, and 15 Playwright E2E tests all pass.

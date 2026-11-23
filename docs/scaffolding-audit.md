@@ -10,7 +10,7 @@ The scaffold matches the Lean v1 plan: pnpm workspace, Vite/React SPA, pure-TS
 sim engine, YAML/Markdown content, Go API with embedded SPA, Envoy + Compose,
 mise tasks, and CI. No new infrastructure was introduced.
 
-**Fixed:** 51 findings. **Deferred:** 9, all phase- or trigger-gated. No
+**Fixed:** 54 findings. **Deferred:** 9, all phase- or trigger-gated. No
 blocking issues.
 
 A second round ran the real UI in Chromium. It caught a duplicate `<h1>`, an
@@ -72,6 +72,9 @@ fixed below.
 | 49 | No persistence, XP, streaks, or lesson unlocking | Dexie local progress, saved quiz answers, linear unlocks, continue/next, reset; E2E reload test |
 | 50 | Pause/Resume clock was shown on command-only lessons where it had no visible effect | Clock controls only appear when a lesson has Pod/timing checks; E2E test |
 | 51 | Lesson screen still used soft rounded cards and generic radio rows | Sharp briefing panel, A/B/C quiz keys, flat checkpoint rows, hard-shadow terminal |
+| 52 | Favicon was crude and the header used a typed K | Shared filled-K SVG mark and favicon |
+| 53 | Header K went to the roadmap instead of the primary lesson CTA | Brand link starts the first lesson |
+| 54 | No public deployment path for the Kubelab subdomain | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS docs |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -110,10 +113,11 @@ references in the docs.
 - `mise run typecheck` — all four TS packages clean.
 - `mise run test` — 56 Vitest tests pass (sim, selectors, history, line editor,
   content, lesson checks, lesson guard, curriculum coverage, progress/streaks).
-- `mise run e2e` — 14 Playwright tests pass (progress persistence/unlock/reset,
-  roadmap/cert tracks, top-aligned lesson lists, quiz completion, clock-control
-  visibility, correct/mistyped labels, wrong image, paste/cursor editing, sticky
-  terminal, history recall, mobile viewport, API proxy), with no page errors.
+- `mise run e2e` — 15 Playwright tests pass (progress persistence/unlock/reset,
+  brand → first lesson, roadmap/cert tracks, top-aligned lesson lists, quiz
+  completion, clock-control visibility, correct/mistyped labels, wrong image,
+  paste/cursor editing, sticky terminal, history recall, mobile viewport, API
+  proxy), with no page errors.
 - `mise run api-test` — Go tests pass, including SPA fallback and method
   rejection; `gofmt` and `go vet` clean.
 - `mise run build` — Vite build clean; no chunk-size warning.

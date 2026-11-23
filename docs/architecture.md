@@ -377,6 +377,10 @@ per the triggers in §14. Routes:
 via lego/certbot + Envoy SDS (Envoy Gateway on Kubernetes only if we ever move
 there).
 
+The current public preview is the static SPA on GitHub Pages at
+`kubelab.librecollab.org` (see `docs/deployment.md`). The Hetzner/Envoy stack
+remains the plan for the API, auth, and Postgres.
+
 ## 9. Gamification
 
 Duolingo-inspired, not cloned. **Implemented locally:** XP per completed

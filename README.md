@@ -8,8 +8,8 @@ that take a learner from zero to certification-ready.
 > being built. See [`docs/architecture.md`](docs/architecture.md) for the plan,
 > [`docs/architecture-audit.md`](docs/architecture-audit.md) for scope
 > decisions, [`docs/scaffolding-audit.md`](docs/scaffolding-audit.md) for the
-> scaffold review, and [`docs/code-review.md`](docs/code-review.md) for the
-> design/Go review.
+> scaffold review, [`docs/code-review.md`](docs/code-review.md) for the
+> design/Go review, and [`docs/deployment.md`](docs/deployment.md) for hosting.
 
 ## Stack
 
@@ -65,6 +65,13 @@ mise run up
 # http://localhost:8080 (set ENVOY_PORT if 8080 is taken)
 # creates .env from .env.example on first run
 ```
+
+## Deployment
+
+Public preview: **https://kubelab.librecollab.org** (static SPA on GitHub Pages,
+deployed from `develop`). Custom-domain and DNS steps are in
+[`docs/deployment.md`](docs/deployment.md). This preview has no backend; auth,
+progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 
 ## Scripts
 
