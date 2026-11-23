@@ -1,0 +1,32 @@
+id: pods-101
+unit: fundamentals
+title: Your first Pod
+xp: 20
+prereqs: []
+theory: ./pods-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects: []
+objectives:
+  - Create a Pod running nginx
+  - Confirm it reaches Running
+checks:
+  - type: pod
+    name: web
+    label: "Pod web exists"
+  - type: pod
+    name: web
+    labels:
+      app: web
+    label: "Label app=web"
+  - type: pod
+    name: web
+    phase: Running
+    label: "Phase is Running"
+hints:
+  - "Try kubectl run ..."
+  - "Add --labels=app=web"
+solution: kubectl run web --image=nginx --labels=app=web
