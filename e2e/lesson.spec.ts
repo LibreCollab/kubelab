@@ -36,7 +36,7 @@ test("progress persists and unlocks the next lesson", async ({ page }) => {
     "locked",
   );
 
-  await page.getByRole("link", { name: "Start the first lesson" }).click();
+  await page.getByRole("link", { name: "Start the first lesson", exact: true }).click();
   await page.getByLabel("An image is the template; a container is a running instance").check();
 
   await expect(page.getByText("Lesson complete")).toBeVisible();
@@ -61,6 +61,12 @@ test("progress persists and unlocks the next lesson", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("brand mark starts the first lesson", async ({ page }) => {
+  await page.goto("/");
+  await page.getByRole("link", { name: /Kubelab — start the first lesson/ }).click();
+  await expect(page).toHaveURL(/\/lesson\/containers-101$/);
+});
+
 test("landing page navigates into the first lesson", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
 
@@ -70,7 +76,7 @@ test("landing page navigates into the first lesson", async ({ page }) => {
     page.getByRole("heading", { name: "Learn Kubernetes by running it." }),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "Start the first lesson" }).click();
+  await page.getByRole("link", { name: "Start the first lesson", exact: true }).click();
 
   await expect(page).toHaveURL(/\/lesson\/containers-101$/);
   await expect(page.getByRole("heading", { name: "Containers, images, and Pods" })).toBeVisible();
@@ -219,7 +225,9 @@ test("landing page fits a mobile viewport", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/");
 
-  await expect(page.getByRole("link", { name: "Start the first lesson" })).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Start the first lesson", exact: true }),
+  ).toBeVisible();
 
   const overflows = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
