@@ -172,7 +172,9 @@ over-engineering for v1):
    human-readable label rendered in the checkpoint list.
 2. **Command checks** — require that the learner actually executed a command
    (e.g. `kubectl get pods`) before the lesson can complete.
-3. **Output assertions** (Phase 2) — regex/DOM checks on terminal output.
+3. **Quiz checks** — multiple-choice knowledge checks for theory and
+   certification readiness.
+4. **Output assertions** (Phase 2) — regex/DOM checks on terminal output.
 
 Checks run after each command and tick; hints stay in the lesson spec.
 
@@ -221,8 +223,11 @@ Skill tree (prereq graph) with unit gates:
 12. GitOps & operators
 13. **Certification tracks** — see [Certification targets](#certification-targets).
 
-**MVP content is units 1–4** (12–15 lessons). Units 5–13 and the certification
-tracks land in Phases 2–3.
+**Content now spans units 1–12 plus five certification readiness checks.**
+Units 1–4 include interactive kubectl lessons (Pods, labels, lifecycle, nodes,
+kubectl); later units are theory + quiz checks until their simulator subsystems
+land. Timed mock exams remain Phase 3; the current cert lessons are readiness
+checks.
 
 ### Certification targets
 
@@ -309,6 +314,12 @@ checks:
     verb: get
     resource: pods
     label: "Run kubectl get pods"
+  - type: quiz
+    id: q1
+    label: "Deployment role"
+    question: "What does a Deployment manage?"
+    options: ["ReplicaSets and Pods", "Nodes", "Services"]
+    answer: 0
 hints:
   - "Try kubectl run …"
   - "Add --labels=app=web"
@@ -380,9 +391,10 @@ picker on small screens).
 
 - **Phase 0 — spike (1–2 wks)**: sim core + terminal + one lesson + pod-lifecycle
   animation. Proves the whole bet.
-- **Phase 1 — MVP (4–6 wks)**: 12–15 lessons across units 1–4, roadmap UI,
-  XP/streaks, local progress (IndexedDB, no backend), static build behind Envoy
-  on a single 8 GB VPS.
+- **Phase 1 — MVP (4–6 wks)**: roadmap UI, XP/streaks, local progress
+  (IndexedDB, no backend), static build behind Envoy on a single 8 GB VPS. The
+  content scaffold already covers all core units and cert readiness checks;
+  interactive depth is focused on Pods/labels/lifecycle.
 - **Phase 2**: Go API + Postgres on a single VPS (accounts, sync); request-flow +
   rolling-update visualizations; fault-injection debugging lessons;
   quizzes/spaced repetition.
@@ -720,8 +732,8 @@ Full audit: [`docs/architecture-audit.md`](./architecture-audit.md).
 **Ship (Lean v1)**: one VPS (8 GB static-only Phase 1; 16 GB with the API in
 Phase 2), Compose (`envoy` + `api` + `postgres`), 3 packages (`sim` incl.
 kubectl parser, `content`, `ui`), GitHub OAuth + `/me` + `/progress` +
-`/healthz`, 4 units / 12–15 lessons, pod-lifecycle visualization, Vitest + 2–3
-Playwright smoke tests.
+`/healthz`, 34 lessons across 12 core units + 5 certification readiness checks,
+pod-lifecycle visualization, Vitest + Playwright E2E.
 
 **Explicitly deferred**: Redis, PgBouncer, read replica, partitioning, CDN,
 Loki, Tempo, Alloy, Orval, Storybook, service worker, leaderboards, Kubernetes,

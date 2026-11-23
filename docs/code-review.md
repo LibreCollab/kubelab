@@ -32,6 +32,10 @@
 | Lesson feedback | `pod/web created` looked like success even when a checkpoint failed | Every command now prints the live `[checkpoint] … pending: …` line; tests cover wrong label/image |
 | Lesson guard | Guided lessons still created a Pod from a mismatched `kubectl run` | Strict pre-execution guard rejects wrong name/namespace/labels/image without mutating state; unit + E2E tests |
 | Lesson checks | State-only checks completed the lesson without the verification command | Command checks + engine command log; lesson now requires `kubectl get pods` |
+| Content | Only one lesson and no certification entry points | Glob-loaded curriculum: 34 lessons, 12 units, 5 cert readiness checks, dynamic roadmap |
+| Lesson checks | Theory lessons had no completion mechanism | `quiz` check type + knowledge-check UI, validated at load time |
+| Lesson layout | Quiz-only lessons showed an unusable terminal | Checkpoint-only panel for theory lessons |
+| Content | Deployment/Service theory linked to terminal commands the simulator does not support | Removed those “try it” blocks; concept lessons are quiz-only |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
 | Go | SPA handler re-read `index.html` per request and repeated header logic | Index pre-read once; `cacheControl` / `writeHTML` helpers |
@@ -92,5 +96,5 @@
 
 ## Verification
 
-`mise run lint`, `typecheck`, 47 Vitest tests, Go tests, `gofmt`, `go vet`,
-`mise run build`, and 9 Playwright E2E tests all pass.
+`mise run lint`, `typecheck`, 50 Vitest tests, Go tests, `gofmt`, `go vet`,
+`mise run build`, and 11 Playwright E2E tests all pass.

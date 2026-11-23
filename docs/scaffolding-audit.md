@@ -10,7 +10,7 @@ The scaffold matches the Lean v1 plan: pnpm workspace, Vite/React SPA, pure-TS
 sim engine, YAML/Markdown content, Go API with embedded SPA, Envoy + Compose,
 mise tasks, and CI. No new infrastructure was introduced.
 
-**Fixed:** 39 findings. **Deferred:** 9, all phase- or trigger-gated. No
+**Fixed:** 47 findings. **Deferred:** 9, all phase- or trigger-gated. No
 blocking issues.
 
 A second round ran the real UI in Chromium. It caught a duplicate `<h1>`, an
@@ -60,6 +60,14 @@ fixed below.
 | 37 | Guided lessons still created a Pod from a mismatched `kubectl run` | Strict pre-execution guard rejects wrong name/namespace/labels/image; unit + E2E tests |
 | 38 | State-only checks completed a lesson without the verification command | Command checks + engine command log; `kubectl get pods` is now required |
 | 39 | Long joined “Pending: …” text in the sticky strip was hard to scan | Compact `Next:` item, remaining count, and progress meter |
+| 40 | Only one lesson and no certification entry points | 34 lessons across 12 units + 5 cert readiness checks; dynamic roadmap |
+| 41 | Theory lessons had no way to complete | Quiz checks + knowledge-check UI |
+| 42 | Deployment/Service theory pointed at unsupported terminal commands | Removed “try it” blocks; concept lessons are quiz-only |
+| 43 | Quiz-only lessons showed a dead terminal | Terminal omitted entirely; single-column theory/quiz with inline feedback |
+| 44 | CTA jumped into Unit 3 despite being labelled “first lesson” | CTA links to the actual first lesson (`containers-101`) |
+| 45 | Theory lessons still showed clock controls and ticked the simulator | Clock controls hidden; engine starts only for interactive lessons |
+| 46 | Theory repeated a “Knowledge check” heading above the quiz component | Removed the duplicate section from 27 lessons |
+| 47 | Rounded soft roadmap cards still read as generic/Claude-like | Blueprint-style cards: numbered tabs, dashed lesson rows, hard shadows, separate cert accent |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -96,11 +104,11 @@ references in the docs.
 
 - `mise run lint` — Biome + Stylelint clean.
 - `mise run typecheck` — all four TS packages clean.
-- `mise run test` — 47 Vitest tests pass (sim, selectors, history, line editor,
-  content, lesson checks, lesson guard).
-- `mise run e2e` — 9 Playwright tests pass (navigation, correct + mistyped labels,
-  wrong image, paste/cursor editing, sticky terminal, history recall, mobile
-  viewport, API proxy), with no page errors.
+- `mise run test` — 50 Vitest tests pass (sim, selectors, history, line editor,
+  content, lesson checks, lesson guard, curriculum coverage).
+- `mise run e2e` — 11 Playwright tests pass (roadmap/cert tracks, quiz
+  completion, correct/mistyped labels, wrong image, paste/cursor editing, sticky
+  terminal, history recall, mobile viewport, API proxy), with no page errors.
 - `mise run api-test` — Go tests pass, including SPA fallback and method
   rejection; `gofmt` and `go vet` clean.
 - `mise run build` — Vite build clean; no chunk-size warning.

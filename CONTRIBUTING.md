@@ -35,10 +35,17 @@ Rules:
 
 - The YAML must validate against `lessonSpecSchema` in
   `packages/content/src/schema.ts`.
-- The solution must be a real command the simulator supports.
-- Keep theory short and task-focused; the terminal is the teacher.
-- Add the lesson to `packages/content/src/index.ts` and a test that loads it.
+- Lessons are auto-discovered from `packages/content/lessons/`; no index edit is
+  needed. The `unit` must exist in `packages/content/src/curriculum.ts`.
+- Checks may be `pod` (cluster state), `command` (must be executed), or `quiz`
+  (multiple-choice knowledge check). Quiz `id`s and check labels must be unique
+  per lesson.
+- The solution must be a real command the simulator supports, or a short
+  explanation for quiz-only lessons.
+- Keep theory short and task-focused; the terminal is the teacher for interactive
+  lessons.
 - Simulated behavior must be labelled honestly when it diverges from Kubernetes.
+- Run `mise run test`; the loader validates every lesson and its theory file.
 
 ## Simulator changes
 

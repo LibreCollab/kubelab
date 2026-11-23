@@ -54,8 +54,9 @@ mise run dev        # web at http://localhost:5173
 mise run api-dev    # Go API at http://localhost:8080 (separate terminal)
 ```
 
-The web dev server proxies `/api` to the Go API. The lesson page shows the
-simulated terminal; Phase 1 works fully client-side.
+The web dev server proxies `/api` to the Go API. Interactive lessons show the
+simulated terminal; theory and certification lessons hide it and show quiz /
+checkpoint feedback inline. The app works fully client-side.
 
 ### Full stack
 
@@ -82,8 +83,9 @@ mise run up
 
 ## Current scaffold
 
-- One sample lesson (`pods-101`) with YAML spec + Markdown theory and
-  structured checkpoint checks.
+- 34 lessons across 12 core units plus 5 certification readiness checks:
+  interactive kubectl lessons for Pods, labels, and lifecycle; theory +
+  knowledge-check quizzes for the remaining units.
 - Simulated `kubectl get nodes`, `get pods` (including `-l` selectors and
   `--show-labels`), `run`, `describe`, `delete`, and `help`, with virtual-clock
   pod updates.
@@ -94,11 +96,11 @@ mise run up
   name/namespace/labels/image **before** creating anything, and require the
   verification command (e.g. `kubectl get pods`) before completion.
 - The terminal stays sticky beside the theory on desktop while the lesson scrolls,
-  with a live checkpoint counter and the exact pending checks in the terminal
-  panel.
-- Terminal UI, roadmap landing page, and a lazy-loaded lesson route.
-- Playwright E2E covering landing → lesson, terminal → checkpoint, and the API
-  health check through the dev proxy.
+  with a live next-check / remaining-count strip and quiz cards.
+- Terminal UI, dynamic roadmap with every unit and certification track, quiz
+  cards for knowledge checks, and a lazy-loaded lesson route.
+- Playwright E2E covering landing, quizzes, terminal/checkpoint, strict label and
+  image validation, sticky terminal, editing/history, and the API proxy.
 - Go API with `/api/healthz`, SPA embedding, graceful shutdown.
 - Envoy + Compose config and a CI workflow.
 
