@@ -1,6 +1,10 @@
 import { Link, Outlet } from "@tanstack/react-router";
 
+import { useProgress } from "../lib/progress-context";
+
 export function RootLayout() {
+  const { xp, streak } = useProgress();
+
   return (
     <div className="app-shell">
       <a className="skip-link" href="#main">
@@ -14,6 +18,12 @@ export function RootLayout() {
           <span>Kubelab</span>
         </Link>
         <nav className="site-nav" aria-label="Main">
+          <span className="header-stat" title="Total XP">
+            {xp} XP
+          </span>
+          <span className="header-stat" title="Current streak">
+            {streak}d streak
+          </span>
           <Link to="/" activeProps={{ className: "is-active" }}>
             Roadmap
           </Link>

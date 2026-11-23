@@ -76,6 +76,13 @@
   align-items: center;
 }
 
+.header-stat {
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  white-space: nowrap;
+}
+
 .site-nav a {
   color: var(--color-muted);
   font-weight: 600;
@@ -123,6 +130,10 @@
 }
 
 @media (width <= 640px) {
+  .header-stat {
+    display: none;
+  }
+
   .site-footer {
     flex-direction: column;
     gap: 0.35rem;

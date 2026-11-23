@@ -8,6 +8,59 @@ function trackPageErrors(page: Page): Error[] {
   return errors;
 }
 
+test("roadmap lesson lists align at the top", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/");
+
+  const offsets = await page.locator("article").evaluateAll((cards) => {
+    return cards.slice(0, 4).map((card) => {
+      const list = card.querySelector('[data-testid^="unit-lessons-"]');
+      if (list === null) {
+        return Number.NaN;
+      }
+      return list.getBoundingClientRect().top - card.getBoundingClientRect().top;
+    });
+  });
+
+  expect(Math.max(...offsets) - Math.min(...offsets)).toBeLessThan(2);
+});
+
+test("progress persists and unlocks the next lesson", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/");
+
+  const summary = page.getByTestId("progress-summary");
+  await expect(summary).toHaveAttribute("data-completed", "0");
+  await expect(page.locator('[data-lesson-id="images-101"]')).toHaveAttribute(
+    "data-state",
+    "locked",
+  );
+
+  await page.getByRole("link", { name: "Start the first lesson" }).click();
+  await page.getByLabel("An image is the template; a container is a running instance").check();
+
+  await expect(page.getByText("Lesson complete")).toBeVisible();
+  await page.reload();
+  await expect(
+    page.getByLabel("An image is the template; a container is a running instance"),
+  ).toBeChecked();
+  await expect(page.getByText("Lesson complete")).toBeVisible();
+
+  await page.goto("/");
+  await expect(summary).toHaveAttribute("data-completed", "1");
+  await expect(summary).toHaveAttribute("data-xp", "10");
+  await expect(summary).toHaveAttribute("data-streak", "1");
+  await expect(page.locator('[data-lesson-id="images-101"]')).toHaveAttribute(
+    "data-state",
+    "current",
+  );
+
+  page.once("dialog", (dialog) => void dialog.accept());
+  await page.getByRole("button", { name: "Reset progress" }).click();
+  await expect(summary).toHaveAttribute("data-completed", "0");
+  expect(pageErrors).toEqual([]);
+});
+
 test("landing page navigates into the first lesson", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
 
@@ -30,10 +83,7 @@ test("roadmap exposes core units and certification tracks", async ({ page }) => 
   await expect(page.getByRole("heading", { name: "Core roadmap" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Certification tracks" })).toBeVisible();
   await expect(page.getByRole("article", { name: /Unit 12:/ })).toBeVisible();
-
-  await page.getByRole("link", { name: /KCNA readiness/ }).click();
-  await expect(page).toHaveURL(/\/lesson\/kcna-readiness$/);
-  await expect(page.getByRole("heading", { name: "KCNA readiness" })).toBeVisible();
+  await expect(page.getByRole("article", { name: "KCNA certification track" })).toBeVisible();
 });
 
 test("knowledge checks complete a theory lesson", async ({ page }) => {

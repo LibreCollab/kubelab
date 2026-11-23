@@ -88,6 +88,8 @@ export const units: Unit[] = unitDefinitions.map((unit) => ({
     .sort((left, right) => left.order - right.order || left.id.localeCompare(right.id)),
 }));
 
+export const curriculumLessons: Lesson[] = units.flatMap((unit) => unit.lessons);
+
 export const certificationTracks: CertificationTrack[] = certificationTrackDefinitions.map(
   (track) => ({
     ...track,

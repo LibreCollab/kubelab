@@ -1,4 +1,4 @@
-import { getLesson, type Lesson } from "@kubelab/content";
+import { curriculumLessons, getLesson, type Lesson } from "@kubelab/content";
 import { type Pod, SimEngine } from "@kubelab/sim";
 import { Button, cx } from "@kubelab/ui";
 import { Link, useParams } from "@tanstack/react-router";
@@ -8,6 +8,8 @@ import { useEffect, useMemo, useReducer, useState } from "react";
 import { Terminal } from "../components/Terminal";
 import { type CheckResult, evaluateChecks } from "../lib/checks";
 import { guardLessonCommand } from "../lib/lesson-guard";
+import { nextLessonId } from "../lib/progress";
+import { useProgress } from "../lib/progress-context";
 import styles from "./lesson.module.scss";
 
 function checkpointStatus(checks: CheckResult[]): string {
@@ -95,6 +97,9 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   const [running, setRunning] = useState(true);
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
+  const { rows, startLesson, saveAnswers, completeLesson } = useProgress();
+  const savedAnswers = rows[lesson.id]?.answers;
+  const completed = rows[lesson.id]?.status === "completed";
 
   const engine = useMemo(() => {
     const instance = new SimEngine({ intervalMs: 900 });
@@ -109,6 +114,16 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   }, [lesson]);
 
   const interactive = lesson.checks.some((check) => check.type !== "quiz");
+
+  useEffect(() => {
+    if (savedAnswers !== undefined) {
+      setAnswers(savedAnswers);
+    }
+  }, [savedAnswers]);
+
+  useEffect(() => {
+    void startLesson(lesson.id);
+  }, [lesson.id, startLesson]);
 
   useEffect(() => {
     if (!interactive) {
@@ -176,6 +191,20 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   const allPassed = pendingLabels.length === 0;
   const nextCheck = pendingLabels[0] ?? "";
   const quizChecks = lesson.checks.filter((check) => check.type === "quiz");
+  const nextId = nextLessonId(lesson.id, curriculumLessons);
+  const nextLesson = nextId === undefined ? undefined : getLesson(nextId);
+
+  useEffect(() => {
+    if (allPassed && !completed) {
+      void completeLesson(lesson.id, lesson.xp);
+    }
+  }, [allPassed, completed, completeLesson, lesson.id, lesson.xp]);
+
+  const chooseAnswer = (quizId: string, index: number) => {
+    const next = { ...answers, [quizId]: index };
+    setAnswers(next);
+    void saveAnswers(lesson.id, next);
+  };
 
   const theoryHtml = useMemo(
     () => marked.parse(lesson.theoryMarkdown, { async: false }) as string,
@@ -229,9 +258,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
                             type="radio"
                             name={quiz.id}
                             checked={selected}
-                            onChange={() =>
-                              setAnswers((current) => ({ ...current, [quiz.id]: index }))
-                            }
+                            onChange={() => chooseAnswer(quiz.id, index)}
                           />
                           <span>{option}</span>
                         </label>
@@ -300,6 +327,25 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
           </section>
         ) : null}
       </div>
+
+      {completed ? (
+        <div className={styles.completeBar}>
+          <span>Lesson complete · +{lesson.xp} XP</span>
+          {nextLesson ? (
+            <Link
+              className={styles.nextLesson}
+              to="/lesson/$lessonId"
+              params={{ lessonId: nextLesson.id }}
+            >
+              Next: {nextLesson.title}
+            </Link>
+          ) : (
+            <Link className={styles.nextLesson} to="/">
+              Back to roadmap
+            </Link>
+          )}
+        </div>
+      ) : null}
     </div>
   );
 }

@@ -26,6 +26,8 @@ export default defineConfig({
           react: ["react", "react-dom", "@tanstack/react-router"],
           xterm: ["@xterm/xterm", "@xterm/addon-fit"],
           motion: ["motion"],
+          content: ["@kubelab/content"],
+          db: ["dexie"],
         },
       },
     },
