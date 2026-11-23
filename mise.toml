@@ -1,0 +1,59 @@
+[tools]
+node = "24"
+go = "1.27.3"
+pnpm = "11.13.1"
+
+[tasks.install]
+description = "Install workspace dependencies"
+run = "pnpm install"
+
+[tasks.dev]
+description = "Run the web dev server"
+run = "pnpm dev"
+
+[tasks.build]
+description = "Build the web app"
+run = "pnpm build"
+
+[tasks.lint]
+description = "Run Biome and Stylelint"
+run = "pnpm lint"
+
+[tasks.typecheck]
+description = "Type-check every workspace package"
+run = "pnpm typecheck"
+
+[tasks.test]
+description = "Run Vitest (sim + content + lesson checks)"
+run = "pnpm test"
+
+[tasks.e2e-install]
+description = "Install Playwright's Chromium browser"
+run = "pnpm exec playwright install chromium"
+
+[tasks.e2e]
+description = "Run Playwright end-to-end tests"
+run = "pnpm test:e2e"
+
+[tasks.api-dev]
+description = "Run the Go API"
+run = "go -C apps/api run ./cmd/api"
+
+[tasks.api-test]
+description = "Run the Go tests"
+run = "go -C apps/api test ./..."
+
+[tasks.api-build]
+description = "Build the Go API"
+run = "go -C apps/api build ./cmd/api"
+
+[tasks.check]
+description = "Lint, typecheck, and test everything"
+run = "pnpm check"
+
+[tasks.up]
+description = "Run the Compose stack (Envoy + API + Postgres)"
+run = [
+  "test -f .env || cp .env.example .env",
+  "docker compose --env-file .env -f deploy/compose/docker-compose.yml up --build",
+]

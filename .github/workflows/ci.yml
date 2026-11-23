@@ -1,0 +1,40 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm audit --prod --audit-level high
+      - run: mise run lint
+      - run: mise run typecheck
+      - run: mise run test
+      - run: mise run build
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: mise run e2e
+
+  api:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: jdx/mise-action@v2
+        with:
+          install: true
+          cache: true
+      - run: test -z "$(gofmt -l apps/api)"
+      - run: go -C apps/api vet ./...
+      - run: mise run api-test
+      - run: mise run api-build
