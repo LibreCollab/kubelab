@@ -114,6 +114,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   }, [lesson]);
 
   const interactive = lesson.checks.some((check) => check.type !== "quiz");
+  const timed = lesson.checks.some((check) => check.type === "pod");
 
   useEffect(() => {
     if (savedAnswers !== undefined) {
@@ -212,7 +213,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   );
 
   return (
-    <div className={styles.page}>
+    <div className={cx(styles.page, !interactive && styles.singleColumnPage)}>
       <Link to="/" className={styles.back}>
         ← Roadmap
       </Link>
@@ -224,7 +225,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
           </p>
           <h1>{lesson.title}</h1>
         </div>
-        {interactive ? (
+        {timed ? (
           <div className={styles.controls}>
             <Button variant="secondary" size="sm" onClick={toggleClock}>
               {running ? "Pause clock" : "Resume clock"}
@@ -255,11 +256,15 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
                           className={cx(styles.quizOption, selected && styles.quizSelected)}
                         >
                           <input
+                            className={styles.quizRadio}
                             type="radio"
                             name={quiz.id}
                             checked={selected}
                             onChange={() => chooseAnswer(quiz.id, index)}
                           />
+                          <span className={styles.quizKey} aria-hidden="true">
+                            {String.fromCharCode(65 + index)}
+                          </span>
                           <span>{option}</span>
                         </label>
                       );
@@ -270,7 +275,12 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
             </section>
           ) : null}
           <div className={styles.objectives}>
-            <h2>Checkpoint</h2>
+            <div className={styles.objectivesHead}>
+              <h2>Checkpoint</h2>
+              <span>
+                {passedCount}/{checks.length}
+              </span>
+            </div>
             <ul aria-live="polite">
               {checks.map((check) => (
                 <li

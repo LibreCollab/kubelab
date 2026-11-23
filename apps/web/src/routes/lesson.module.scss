@@ -14,7 +14,7 @@
   padding: var(--space-4) var(--space-5);
   background: var(--color-accent-soft);
   border: 1px solid var(--color-accent-strong);
-  border-radius: var(--radius-md);
+  border-radius: 2px;
 }
 
 .completeBar > span {
@@ -27,7 +27,7 @@
   padding: 0.55rem 0.85rem;
   background: var(--color-accent);
   border: 1px solid var(--color-accent-strong);
-  border-radius: var(--radius-md);
+  border-radius: 2px;
   box-shadow: 0 2px 0 var(--color-accent-strong);
   color: var(--color-accent-ink);
   font-size: 0.82rem;
@@ -75,7 +75,7 @@
   padding: 0.22rem 0.65rem;
   background: var(--color-accent-soft);
   border: 1px solid var(--color-accent-strong);
-  border-radius: var(--radius-full);
+  border-radius: 2px;
   color: var(--color-accent);
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -106,15 +106,34 @@
   grid-template-columns: minmax(0, 1fr);
 }
 
+.singleColumnPage {
+  width: 100%;
+  max-width: 920px;
+  margin: 0 auto;
+}
+
 .panel {
+  position: relative;
   display: flex;
   flex-direction: column;
   gap: var(--space-5);
   padding: var(--space-5);
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--edge);
+  border: 1px solid var(--color-border-strong);
+  border-left: 3px solid var(--color-accent);
+  border-radius: 3px;
+  box-shadow: 5px 5px 0 rgb(0 0 0 / 38%);
+}
+
+.panel::before {
+  position: absolute;
+  top: -1px;
+  right: -1px;
+  width: 18px;
+  height: 18px;
+  border-top: 2px solid var(--color-accent);
+  border-right: 2px solid var(--color-accent);
+  content: "";
 }
 
 .theory {
@@ -137,6 +156,11 @@
   text-transform: uppercase;
 }
 
+.theory h2::before {
+  color: var(--color-subtle);
+  content: "// ";
+}
+
 .theory p,
 .theory li {
   color: var(--color-muted);
@@ -156,11 +180,28 @@
   padding-left: 1.25rem;
 }
 
+.theory ul {
+  padding-left: 0;
+  list-style: none;
+}
+
+.theory ul li {
+  position: relative;
+  padding-left: 1.1rem;
+}
+
+.theory ul li::before {
+  position: absolute;
+  left: 0;
+  color: var(--color-accent);
+  content: "▸";
+}
+
 .theory code {
   padding: 0.1rem 0.35rem;
   background: var(--color-surface-2);
   border: 1px solid var(--color-border);
-  border-radius: 5px;
+  border-radius: 2px;
   color: var(--color-accent);
   font-size: 0.85em;
 }
@@ -171,7 +212,7 @@
   background: #10131b;
   border: 1px solid var(--color-border);
   border-left: 3px solid var(--color-accent);
-  border-radius: var(--radius-md);
+  border-radius: 2px;
 }
 
 .theory pre code {
@@ -187,8 +228,8 @@
   gap: var(--space-3);
   padding: var(--space-4);
   background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 2px;
 }
 
 .quiz h2 {
@@ -215,17 +256,19 @@
 .quizOptions {
   display: flex;
   flex-direction: column;
-  gap: 0.4rem;
+  gap: 0.35rem;
 }
 
 .quizOption {
-  display: flex;
-  gap: 0.55rem;
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.7rem;
   align-items: center;
-  padding: 0.55rem 0.7rem;
+  padding: 0.6rem 0.7rem;
   background: var(--color-bg-elevated);
   border: 1px solid var(--color-border);
-  border-radius: 10px;
+  border-radius: 2px;
   color: var(--color-muted);
   font-size: 0.88rem;
   cursor: pointer;
@@ -235,8 +278,33 @@
   border-color: var(--color-accent);
 }
 
-.quizOption input {
-  accent-color: var(--color-accent);
+.quizOption:focus-within {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.quizRadio {
+  position: absolute;
+  opacity: 0;
+}
+
+.quizKey {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  place-items: center;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 2px;
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  font-weight: 700;
+}
+
+.quizOption:hover .quizKey {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .quizSelected {
@@ -245,14 +313,32 @@
   color: var(--color-text);
 }
 
+.quizSelected .quizKey {
+  background: var(--color-accent);
+  border-color: var(--color-accent);
+  color: var(--color-accent-ink);
+}
+
 .objectives {
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
   padding: var(--space-4);
   background: var(--color-surface-2);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 2px;
+}
+
+.objectivesHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.objectivesHead span {
+  color: var(--color-subtle);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
 }
 
 .objectives h2 {
@@ -266,7 +352,7 @@
 .objectives ul {
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  gap: 0;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -276,31 +362,31 @@
   display: flex;
   gap: 0.6rem;
   align-items: center;
-  padding: 0.5rem 0.65rem;
-  background: var(--color-bg-elevated);
-  border: 1px solid var(--color-border);
-  border-radius: 10px;
+  padding: 0.55rem 0.2rem;
+  border-top: 1px dashed var(--color-border);
   color: var(--color-muted);
   font-size: 0.9rem;
+}
+
+.objectives li:first-child {
+  border-top: 0;
 }
 
 .check {
   display: inline-grid;
   flex: none;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
   place-items: center;
-  background: var(--color-surface);
+  background: transparent;
   border: 1px solid var(--color-border-strong);
-  border-radius: 50%;
+  border-radius: 2px;
   color: var(--color-accent-ink);
-  font-size: 0.72rem;
+  font-size: 0.7rem;
   font-weight: 800;
 }
 
 .pass {
-  background: var(--color-accent-soft);
-  border-color: var(--color-accent-strong);
   color: var(--color-text);
 }
 
@@ -308,6 +394,7 @@
   background: var(--color-accent);
   border-color: var(--color-accent);
 }
+
 
 .feedback {
   display: flex;
@@ -324,7 +411,7 @@
 
 .feedbackInline {
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
+  border-radius: 2px;
 }
 
 .feedbackRow {
@@ -337,7 +424,7 @@
   padding: 0.12rem 0.5rem;
   background: var(--color-surface-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
+  border-radius: 2px;
   color: var(--color-muted);
   font-family: var(--font-mono);
   font-size: 0.7rem;
@@ -364,7 +451,7 @@
   padding: 0.1rem 0.45rem;
   background: var(--color-surface-3);
   border: 1px solid var(--color-border);
-  border-radius: var(--radius-full);
+  border-radius: 2px;
   color: var(--color-subtle);
   font-family: var(--font-mono);
   font-size: 0.66rem;
@@ -375,7 +462,7 @@
   height: 4px;
   overflow: hidden;
   background: var(--color-surface-3);
-  border-radius: var(--radius-full);
+  border-radius: 2px;
 }
 
 .feedbackMeterFill {
@@ -408,9 +495,9 @@
 .terminalPanel {
   overflow: hidden;
   background: #10131b;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--edge);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 3px;
+  box-shadow: 5px 5px 0 rgb(0 0 0 / 38%);
 }
 
 .terminalHead {
@@ -431,6 +518,13 @@
   background: var(--color-accent);
   border-radius: 50%;
   box-shadow: 0 0 0 3px var(--color-accent-soft);
+  animation: status-pulse 2.4s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  50% {
+    opacity: 0.45;
+  }
 }
 
 .liveStatus {

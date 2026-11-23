@@ -108,12 +108,23 @@ test("knowledge checks complete a theory lesson", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("command-only lessons hide the clock controls", async ({ page }) => {
+  await page.goto("/lesson/nodes-101");
+
+  await expect(page.getByRole("button", { name: "Pause clock" })).toHaveCount(0);
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get nodes");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("node-1");
+});
+
 test("terminal creates a pod and the checkpoint passes", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
   await page.goto("/lesson/pods-101");
 
   const terminalOutput = page.locator(".xterm-rows");
   await expect(terminalOutput).toContainText("Kubelab simulated cluster");
+  await expect(page.getByRole("button", { name: "Pause clock" })).toBeVisible();
   await expect(page.locator('[data-check="Phase is Running"]')).toHaveAttribute(
     "data-state",
     "pending",
