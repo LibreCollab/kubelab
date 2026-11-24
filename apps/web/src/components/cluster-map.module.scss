@@ -427,7 +427,8 @@
   color: var(--color-text);
 }
 
-.pod[data-state="pending"] {
+.pod[data-state="pending"],
+.pod[data-state="not-ready"] {
   border-color: var(--color-warning);
   color: var(--color-warning);
 }
@@ -449,7 +450,8 @@
   background: var(--color-accent);
 }
 
-.pod[data-state="pending"] .podDot {
+.pod[data-state="pending"] .podDot,
+.pod[data-state="not-ready"] .podDot {
   background: var(--color-warning);
 }
 

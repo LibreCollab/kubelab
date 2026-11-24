@@ -93,6 +93,21 @@ export type ParsedCommand =
       args: string[];
       namespace: string;
     }
+  | {
+      verb: "logs";
+      name: string;
+      container?: string;
+      namespace: string;
+      follow: boolean;
+    }
+  | {
+      verb: "auth";
+      action: "can-i";
+      subjectVerb: string;
+      subjectResource: string;
+      as?: string;
+      namespace: string;
+    }
   | { verb: "delete"; resource: string; name: string; namespace: string }
   | { verb: "describe"; resource: string; name: string; namespace: string }
   | { verb: "help" };
@@ -203,6 +218,34 @@ function normalizeResource(resource: string): string {
       return "configmaps";
     case "secret":
       return "secrets";
+    case "pv":
+    case "persistentvolume":
+      return "persistentvolumes";
+    case "pvc":
+    case "persistentvolumeclaim":
+      return "persistentvolumeclaims";
+    case "sc":
+    case "storageclass":
+      return "storageclasses";
+    case "netpol":
+    case "networkpolicy":
+      return "networkpolicies";
+    case "sa":
+    case "serviceaccount":
+      return "serviceaccounts";
+    case "role":
+      return "roles";
+    case "rolebinding":
+      return "rolebindings";
+    case "ns":
+    case "namespace":
+      return "namespaces";
+    case "hpa":
+    case "horizontalpodautoscaler":
+      return "horizontalpodautoscalers";
+    case "ev":
+    case "event":
+      return "events";
     default:
       return base;
   }
@@ -523,6 +566,133 @@ function parseExec(tokens: string[]): ParsedCommand | ParseError {
   }
 
   return { error: "exec requires a command after --" };
+}
+
+function parseLogs(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let container: string | undefined;
+  let follow = false;
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "-c" || token === "--container") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      container = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("--container=")) {
+      container = token.slice("--container=".length);
+      continue;
+    }
+
+    if (token === "-f" || token === "--follow") {
+      follow = true;
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const name = positional[0];
+  if (name === undefined || positional.length > 1) {
+    return { error: "logs requires exactly one Pod name" };
+  }
+
+  return {
+    verb: "logs",
+    name,
+    ...(container === undefined ? {} : { container }),
+    namespace,
+    follow,
+  };
+}
+
+function parseAuth(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let as: string | undefined;
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "--as" || token.startsWith("--as=")) {
+      const value = token === "--as" ? flagArgument(tokens, index) : token.slice("--as=".length);
+      if (value === undefined) {
+        return { error: "flag needs an argument: --as" };
+      }
+      as = value;
+      if (token === "--as") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  if (positional[0] !== "can-i" || positional.length !== 3) {
+    return { error: "only `kubectl auth can-i <verb> <resource>` is simulated" };
+  }
+
+  return {
+    verb: "auth",
+    action: "can-i",
+    subjectVerb: positional[1] ?? "",
+    subjectResource: normalizeResource(positional[2] ?? ""),
+    ...(as === undefined ? {} : { as }),
+    namespace,
+  };
 }
 
 function parseTarget(tokens: string[], verb: "delete" | "describe"): ParsedCommand | ParseError {
@@ -1353,6 +1523,10 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
     }
     case "exec":
       return parseExec(tokens);
+    case "logs":
+      return parseLogs(tokens);
+    case "auth":
+      return parseAuth(tokens);
     case "expose":
       return parseExpose(tokens);
     case "scale":

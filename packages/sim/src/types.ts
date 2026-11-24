@@ -15,8 +15,17 @@ export interface KubeObject {
   metadata: ObjectMeta;
 }
 
+export interface NodeTaint {
+  key: string;
+  value?: string;
+  effect: string;
+}
+
 export interface KubeNode extends KubeObject {
   kind: "Node";
+  spec?: {
+    taints?: NodeTaint[];
+  };
   status: {
     ready: boolean;
     allocatable: {
@@ -37,29 +46,159 @@ export interface EnvFromSource {
   name: string;
 }
 
+export interface ContainerSecurityContext {
+  allowPrivilegeEscalation?: boolean;
+  readOnlyRootFilesystem?: boolean;
+  capabilities?: { drop?: string[] };
+}
+
+export interface PodSecurityContext {
+  runAsNonRoot?: boolean;
+  runAsUser?: number;
+  seccompProfile?: { type: string };
+}
+
 export interface ContainerSpec {
   name: string;
   image: string;
   env?: EnvVar[];
   envFrom?: EnvFromSource[];
+  securityContext?: ContainerSecurityContext;
+}
+
+export interface PodCondition {
+  type: string;
+  status: "True" | "False";
+  reason?: string;
+  message?: string;
 }
 
 export interface Pod extends KubeObject {
   kind: "Pod";
   spec: {
     nodeName?: string;
+    nodeSelector?: Record<string, string>;
+    securityContext?: PodSecurityContext;
+    tolerations?: Array<{
+      key?: string;
+      operator?: string;
+      value?: string;
+      effect?: string;
+    }>;
     containers: ContainerSpec[];
+    volumes?: Array<{
+      name: string;
+      persistentVolumeClaim?: { claimName: string };
+      configMap?: { name: string };
+      secret?: { secretName: string };
+    }>;
   };
   status: {
     phase: PodPhase;
     message?: string;
     podIP?: string;
+    conditions?: PodCondition[];
   };
+  logs?: string[];
 }
 
 export interface PodTemplate {
   labels: Record<string, string>;
   containers: ContainerSpec[];
+}
+
+export interface KubeNamespace extends KubeObject {
+  kind: "Namespace";
+  status: {
+    phase: "Active";
+  };
+}
+
+export interface KubeStorageClass extends KubeObject {
+  kind: "StorageClass";
+  provisioner: string;
+  reclaimPolicy: "Delete" | "Retain";
+  volumeBindingMode: "Immediate" | "WaitForFirstConsumer";
+  allowVolumeExpansion?: boolean;
+}
+
+export interface KubePersistentVolume extends KubeObject {
+  kind: "PersistentVolume";
+  spec: {
+    capacity: { storage: string };
+    accessModes: string[];
+    storageClassName?: string;
+    claimRef?: { namespace: string; name: string };
+    reclaimPolicy?: "Delete" | "Retain";
+  };
+  status: {
+    phase: "Available" | "Bound" | "Released";
+  };
+}
+
+export interface KubePersistentVolumeClaim extends KubeObject {
+  kind: "PersistentVolumeClaim";
+  spec: {
+    accessModes: string[];
+    resources: { requests: { storage: string } };
+    storageClassName?: string;
+    volumeName?: string;
+  };
+  status: {
+    phase: "Pending" | "Bound";
+    capacity?: string;
+  };
+}
+
+export interface KubeNetworkPolicy extends KubeObject {
+  kind: "NetworkPolicy";
+  spec: {
+    podSelector: Record<string, string>;
+    policyTypes: string[];
+    ingress?: unknown[];
+    egress?: unknown[];
+  };
+}
+
+export interface KubeServiceAccount extends KubeObject {
+  kind: "ServiceAccount";
+}
+
+export interface KubeRole extends KubeObject {
+  kind: "Role";
+  rules: Array<{
+    apiGroups: string[];
+    resources: string[];
+    verbs: string[];
+  }>;
+}
+
+export interface KubeRoleBinding extends KubeObject {
+  kind: "RoleBinding";
+  roleRef: { kind: string; name: string };
+  subjects: Array<{ kind: string; name: string; namespace?: string }>;
+}
+
+export interface KubeEvent extends KubeObject {
+  kind: "Event";
+  reason: string;
+  message: string;
+  type: "Normal" | "Warning";
+  involvedObject: { kind: string; name: string; namespace?: string };
+}
+
+export interface KubeHorizontalPodAutoscaler extends KubeObject {
+  kind: "HorizontalPodAutoscaler";
+  spec: {
+    minReplicas: number;
+    maxReplicas: number;
+    scaleTargetRef: { kind: string; name: string };
+    metrics?: unknown[];
+  };
+  status: {
+    currentReplicas: number;
+    desiredReplicas: number;
+  };
 }
 
 export interface KubeConfigMap extends KubeObject {
@@ -134,10 +273,13 @@ export interface ScenarioNode {
   name: string;
   cpu?: string;
   memory?: string;
+  labels?: Record<string, string>;
+  taints?: NodeTaint[];
 }
 
 export interface Scenario {
   nodes: ScenarioNode[];
+  objects?: unknown[];
 }
 
 export interface CommandResult {

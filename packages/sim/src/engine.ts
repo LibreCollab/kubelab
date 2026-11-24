@@ -2,17 +2,27 @@ import { VirtualClock } from "./clock";
 import { resolveServiceDns } from "./dns";
 import { EventBus } from "./events";
 import { MAX_REPLICAS, type ParsedCommand, parseKubectl } from "./kubectl";
-import { filterPods, matchesLabels, type PodFilter } from "./selectors";
+import { filterPods, isPodReady, matchesLabels, type PodFilter } from "./selectors";
 import { ClusterStore } from "./store";
 import type {
   CommandResult,
   KubeConfigMap,
   KubeDeployment,
+  KubeEvent,
+  KubeHorizontalPodAutoscaler,
   KubeIngress,
+  KubeNamespace,
+  KubeNetworkPolicy,
   KubeNode,
+  KubeObject,
+  KubePersistentVolume,
+  KubePersistentVolumeClaim,
   KubeReplicaSet,
+  KubeRole,
+  KubeRoleBinding,
   KubeSecret,
   KubeService,
+  KubeStorageClass,
   Pod,
   PodTemplate,
   Scenario,
@@ -25,7 +35,8 @@ export interface SimEngineOptions {
 const HELP = `kubectl controls the Kubelab simulated cluster.
 
 Supported in this scaffold:
-  kubectl get pods|deployments|replicasets|services|endpoints|ingresses|configmaps|secrets [-n ns] [-A] [name]
+  kubectl get pods|deployments|replicasets|services|endpoints|ingresses|configmaps|secrets
+  kubectl get pv|pvc|storageclass|networkpolicy|serviceaccount|role|rolebinding|namespace|hpa|events
   kubectl get nodes [name]
   kubectl run <name> --image=<image> [--labels=key=value]
   kubectl create deployment <name> --image=<image> [--replicas=N]
@@ -33,16 +44,18 @@ Supported in this scaffold:
   kubectl create secret generic <name> --from-literal=KEY=VALUE
   kubectl create ingress <name> --rule=host/path=service:port
   kubectl exec <pod> [-n ns] -- <command> [args...]
+  kubectl logs <pod> [-c container] [-n ns]
+  kubectl auth can-i <verb> <resource> [--as=<subject>]
   kubectl expose deployment|pod <name> --port=80 [--type=ClusterIP]
   kubectl scale deployment <name> --replicas=N
   kubectl set image deployment/<name> <container>=<image>
   kubectl set env deployment/<name> --from=configmap|secret/<name>
   kubectl rollout status|undo deployment/<name>
-  kubectl describe pod|deployment|service|ingress <name>
+  kubectl describe pod|deployment|service|ingress|node|pvc|networkpolicy|role|rolebinding|namespace|hpa <name>
   kubectl delete pod|deployment|service|ingress|configmap|secret <name>
   kubectl help
 
-Coming next: apply, logs, volumes, storage.`;
+Coming next: apply, volumes, storage, ingress backends.`;
 
 function encodeBase64(value: string): string {
   const bytes = new TextEncoder().encode(value);
@@ -106,6 +119,33 @@ function templateHash(template: PodTemplate): string {
   return (hash >>> 0).toString(36).slice(0, 6);
 }
 
+function toleratesTaint(pod: Pod, taint: { key: string; value?: string; effect: string }): boolean {
+  if (taint.effect !== "NoSchedule" && taint.effect !== "NoExecute") {
+    return true;
+  }
+
+  return (pod.spec.tolerations ?? []).some((toleration) => {
+    if (toleration.effect !== undefined && toleration.effect !== taint.effect) {
+      return false;
+    }
+    if (toleration.operator === "Exists") {
+      return toleration.key === undefined || toleration.key === taint.key;
+    }
+    return (
+      toleration.key === taint.key &&
+      (toleration.value === undefined || toleration.value === taint.value)
+    );
+  });
+}
+
+function nodeMatchesPod(node: KubeNode, pod: Pod): boolean {
+  const selector = pod.spec.nodeSelector ?? {};
+  if (!Object.entries(selector).every(([key, value]) => node.metadata.labels[key] === value)) {
+    return false;
+  }
+  return (node.spec?.taints ?? []).every((taint) => toleratesTaint(pod, taint));
+}
+
 function formatTable(headers: string[], rows: string[][]): string {
   const widths = headers.map((header, index) =>
     Math.max(header.length, ...rows.map((row) => (row[index] ?? "").length)),
@@ -159,11 +199,12 @@ export class SimEngine {
         metadata: {
           name: node.name,
           namespace: "",
-          labels: { "kubernetes.io/hostname": node.name },
+          labels: { "kubernetes.io/hostname": node.name, ...node.labels },
           uid: this.#nextUid("node"),
           resourceVersion: 0,
           creationTick: this.clock.tick,
         },
+        ...(node.taints === undefined ? {} : { spec: { taints: node.taints } }),
         status: {
           ready: true,
           allocatable: {
@@ -175,6 +216,57 @@ export class SimEngine {
 
       this.store.upsert(kubeNode);
     }
+
+    for (const raw of scenario.objects ?? []) {
+      this.#seedObject(raw);
+    }
+  }
+
+  #seedObject(raw: unknown): void {
+    if (typeof raw !== "object" || raw === null) {
+      return;
+    }
+
+    const manifest = raw as Record<string, unknown>;
+    const kind = manifest.kind;
+    const metadata = manifest.metadata;
+    if (typeof kind !== "string" || typeof metadata !== "object" || metadata === null) {
+      return;
+    }
+
+    const meta = metadata as Record<string, unknown>;
+    const name = meta.name;
+    if (typeof name !== "string" || name.length === 0) {
+      return;
+    }
+
+    const clusterScoped =
+      kind === "Namespace" ||
+      kind === "Node" ||
+      kind === "PersistentVolume" ||
+      kind === "StorageClass";
+    const namespace =
+      typeof meta.namespace === "string" ? meta.namespace : clusterScoped ? "" : "default";
+    const labels =
+      typeof meta.labels === "object" && meta.labels !== null
+        ? (meta.labels as Record<string, string>)
+        : {};
+
+    const object = {
+      apiVersion: "v1",
+      ...manifest,
+      kind,
+      metadata: {
+        name,
+        namespace,
+        labels,
+        uid: this.#nextUid(kind.toLowerCase()),
+        resourceVersion: 0,
+        creationTick: this.clock.tick,
+      },
+    } as KubeObject;
+
+    this.store.upsert(object);
   }
 
   start(): void {
@@ -226,6 +318,10 @@ export class SimEngine {
         return this.#createDeployment(parsed);
       case "exec":
         return this.#exec(parsed);
+      case "logs":
+        return this.#logs(parsed);
+      case "auth":
+        return this.#auth(parsed);
       case "expose":
         return this.#expose(parsed);
       case "scale":
@@ -282,6 +378,46 @@ export class SimEngine {
       return this.#getSecrets(command);
     }
 
+    if (command.resource === "storageclasses") {
+      return this.#getStorageClasses(command);
+    }
+
+    if (command.resource === "persistentvolumes") {
+      return this.#getPersistentVolumes(command);
+    }
+
+    if (command.resource === "persistentvolumeclaims") {
+      return this.#getPersistentVolumeClaims(command);
+    }
+
+    if (command.resource === "networkpolicies") {
+      return this.#getNetworkPolicies(command);
+    }
+
+    if (command.resource === "serviceaccounts") {
+      return this.#getSimple(command, "ServiceAccount", "serviceaccounts");
+    }
+
+    if (command.resource === "roles") {
+      return this.#getRoles(command);
+    }
+
+    if (command.resource === "rolebindings") {
+      return this.#getRoleBindings(command);
+    }
+
+    if (command.resource === "namespaces") {
+      return this.#getNamespaces(command);
+    }
+
+    if (command.resource === "horizontalpodautoscalers") {
+      return this.#getHorizontalPodAutoscalers(command);
+    }
+
+    if (command.resource === "events") {
+      return this.#getEvents(command);
+    }
+
     return {
       ok: false,
       output: `error: the server doesn't have a resource type "${command.resource}" in this lesson`,
@@ -306,7 +442,7 @@ export class SimEngine {
     const wide = command.output === "wide";
     const headers = ["NAME", "READY", "STATUS", "RESTARTS", "AGE"];
     if (wide) {
-      headers.push("NODE");
+      headers.push("IP", "NODE");
     }
     if (command.showLabels) {
       headers.push("LABELS");
@@ -315,14 +451,14 @@ export class SimEngine {
     const rows = [...pods]
       .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
       .map((pod) => {
-        const ready = pod.status.phase === "Running" ? 1 : 0;
+        const ready = isPodReady(pod) ? 1 : 0;
         const age = `${Math.max(0, this.clock.tick - pod.metadata.creationTick)}s`;
         const name = command.allNamespaces
           ? `${pod.metadata.namespace}/${pod.metadata.name}`
           : pod.metadata.name;
         const row = [name, `${ready}/${pod.spec.containers.length}`, pod.status.phase, "0", age];
         if (wide) {
-          row.push(pod.spec.nodeName ?? "<none>");
+          row.push(pod.status.podIP ?? "<none>", pod.spec.nodeName ?? "<none>");
         }
         if (command.showLabels) {
           row.push(formatLabels(pod.metadata.labels));
@@ -342,7 +478,7 @@ export class SimEngine {
 
   #getNodes(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
     const nodes = command.name
-      ? [this.store.get<KubeNode>("Node", command.name)].filter(
+      ? [this.store.get<KubeNode>("Node", command.name, "")].filter(
           (node): node is KubeNode => node !== undefined,
         )
       : this.store.list<KubeNode>("Node");
@@ -351,18 +487,25 @@ export class SimEngine {
       return notFound("nodes", command.name);
     }
 
-    const rows = nodes.map((node) => [
-      node.metadata.name,
-      node.status.ready ? "Ready" : "NotReady",
-      "<none>",
-      "1d",
-      "v1.37.0",
-    ]);
+    const headers = ["NAME", "STATUS", "ROLES", "AGE", "VERSION"];
+    if (command.showLabels) {
+      headers.push("LABELS");
+    }
+    const rows = nodes.map((node) => {
+      const row = [
+        node.metadata.name,
+        node.status.ready ? "Ready" : "NotReady",
+        "<none>",
+        "1d",
+        "v1.37.0",
+      ];
+      if (command.showLabels) {
+        row.push(formatLabels(node.metadata.labels));
+      }
+      return row;
+    });
 
-    return {
-      ok: true,
-      output: formatTable(["NAME", "STATUS", "ROLES", "AGE", "VERSION"], rows),
-    };
+    return { ok: true, output: formatTable(headers, rows) };
   }
 
   #run(command: Extract<ParsedCommand, { verb: "run" }>): CommandResult {
@@ -951,7 +1094,7 @@ export class SimEngine {
     }
 
     const pods = this.#deploymentPods(deployment);
-    const ready = pods.filter((pod) => pod.status.phase === "Running").length;
+    const ready = pods.filter(isPodReady).length;
     const current = this.#currentReplicaSet(deployment);
     const desired = deployment.spec.replicas;
     const currentDesired = current?.spec.replicas ?? 0;
@@ -1068,7 +1211,7 @@ export class SimEngine {
 
     const rows = filtered.map((replicaSet) => {
       const pods = this.#replicaSetPods(replicaSet);
-      const ready = pods.filter((pod) => pod.status.phase === "Running").length;
+      const ready = pods.filter(isPodReady).length;
       const name = command.allNamespaces
         ? `${replicaSet.metadata.namespace}/${replicaSet.metadata.name}`
         : replicaSet.metadata.name;
@@ -1283,6 +1426,415 @@ export class SimEngine {
     return { ok: true, output: formatTable(headers, rows) };
   }
 
+  #noResources(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    return {
+      ok: true,
+      output: command.allNamespaces
+        ? "No resources found."
+        : `No resources found in ${command.namespace} namespace.`,
+    };
+  }
+
+  #getSimple(
+    command: Extract<ParsedCommand, { verb: "get" }>,
+    kind: string,
+    resource: string,
+  ): CommandResult {
+    const objects = command.name
+      ? [this.store.get<KubeObject>(kind, command.name, command.namespace)].filter(
+          (object): object is KubeObject => object !== undefined,
+        )
+      : this.store.list<KubeObject>(kind, command.allNamespaces ? undefined : command.namespace);
+
+    if (command.name !== undefined && objects.length === 0) {
+      return notFound(resource, command.name);
+    }
+
+    const rows = objects
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((object) => [
+        command.allNamespaces
+          ? `${object.metadata.namespace}/${object.metadata.name}`
+          : object.metadata.name,
+        `${Math.max(0, this.clock.tick - object.metadata.creationTick)}s`,
+      ]);
+
+    if (rows.length === 0) {
+      return this.#noResources(command);
+    }
+
+    return { ok: true, output: formatTable(["NAME", "AGE"], rows) };
+  }
+
+  #getStorageClasses(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeStorageClass>("StorageClass", command.name, "")].filter(
+          (item): item is KubeStorageClass => item !== undefined,
+        )
+      : this.store.list<KubeStorageClass>("StorageClass");
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("storageclasses.storage.k8s.io", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        item.metadata.name,
+        item.provisioner,
+        item.reclaimPolicy,
+        item.volumeBindingMode,
+        String(item.allowVolumeExpansion ?? false),
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+
+    if (rows.length === 0) {
+      return { ok: true, output: "No resources found." };
+    }
+
+    return {
+      ok: true,
+      output: formatTable(
+        [
+          "NAME",
+          "PROVISIONER",
+          "RECLAIMPOLICY",
+          "VOLUMEBINDINGMODE",
+          "ALLOWVOLUMEEXPANSION",
+          "AGE",
+        ],
+        rows,
+      ),
+    };
+  }
+
+  #getPersistentVolumes(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubePersistentVolume>("PersistentVolume", command.name, "")].filter(
+          (item): item is KubePersistentVolume => item !== undefined,
+        )
+      : this.store.list<KubePersistentVolume>("PersistentVolume");
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("persistentvolumes", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        item.metadata.name,
+        item.spec.capacity.storage,
+        item.spec.accessModes.join(","),
+        "Retain",
+        item.status.phase,
+        item.spec.claimRef === undefined
+          ? ""
+          : `${item.spec.claimRef.namespace}/${item.spec.claimRef.name}`,
+        item.spec.storageClassName ?? "",
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+
+    if (rows.length === 0) {
+      return { ok: true, output: "No resources found." };
+    }
+
+    return {
+      ok: true,
+      output: formatTable(
+        [
+          "NAME",
+          "CAPACITY",
+          "ACCESS MODES",
+          "RECLAIM POLICY",
+          "STATUS",
+          "CLAIM",
+          "STORAGECLASS",
+          "AGE",
+        ],
+        rows,
+      ),
+    };
+  }
+
+  #getPersistentVolumeClaims(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [
+          this.store.get<KubePersistentVolumeClaim>(
+            "PersistentVolumeClaim",
+            command.name,
+            command.namespace,
+          ),
+        ].filter((item): item is KubePersistentVolumeClaim => item !== undefined)
+      : this.store.list<KubePersistentVolumeClaim>(
+          "PersistentVolumeClaim",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("persistentvolumeclaims", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        item.status.phase,
+        item.spec.volumeName ?? "",
+        item.status.capacity ?? item.spec.resources.requests.storage,
+        item.spec.accessModes.join(","),
+        item.spec.storageClassName ?? "",
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+
+    if (rows.length === 0) {
+      return this.#noResources(command);
+    }
+
+    return {
+      ok: true,
+      output: formatTable(
+        ["NAME", "STATUS", "VOLUME", "CAPACITY", "ACCESS MODES", "STORAGECLASS", "AGE"],
+        rows,
+      ),
+    };
+  }
+
+  #getNetworkPolicies(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [
+          this.store.get<KubeNetworkPolicy>("NetworkPolicy", command.name, command.namespace),
+        ].filter((item): item is KubeNetworkPolicy => item !== undefined)
+      : this.store.list<KubeNetworkPolicy>(
+          "NetworkPolicy",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("networkpolicies.networking.k8s.io", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        formatLabels(item.spec.podSelector),
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+
+    if (rows.length === 0) {
+      return this.#noResources(command);
+    }
+
+    return { ok: true, output: formatTable(["NAME", "POD-SELECTOR", "AGE"], rows) };
+  }
+
+  #getRoles(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    return this.#getSimple(command, "Role", "roles.rbac.authorization.k8s.io");
+  }
+
+  #getRoleBindings(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeRoleBinding>("RoleBinding", command.name, command.namespace)].filter(
+          (item): item is KubeRoleBinding => item !== undefined,
+        )
+      : this.store.list<KubeRoleBinding>(
+          "RoleBinding",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("rolebindings.rbac.authorization.k8s.io", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        `${item.roleRef.kind}/${item.roleRef.name}`,
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+
+    if (rows.length === 0) {
+      return this.#noResources(command);
+    }
+
+    return { ok: true, output: formatTable(["NAME", "ROLE", "AGE"], rows) };
+  }
+
+  #getNamespaces(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeNamespace>("Namespace", command.name, "")].filter(
+          (item): item is KubeNamespace => item !== undefined,
+        )
+      : this.store.list<KubeNamespace>("Namespace");
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("namespaces", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        item.metadata.name,
+        item.status.phase,
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+
+    return { ok: true, output: formatTable(["NAME", "STATUS", "AGE"], rows) };
+  }
+
+  #getHorizontalPodAutoscalers(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [
+          this.store.get<KubeHorizontalPodAutoscaler>(
+            "HorizontalPodAutoscaler",
+            command.name,
+            command.namespace,
+          ),
+        ].filter((item): item is KubeHorizontalPodAutoscaler => item !== undefined)
+      : this.store.list<KubeHorizontalPodAutoscaler>(
+          "HorizontalPodAutoscaler",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("horizontalpodautoscalers.autoscaling", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        `${item.spec.scaleTargetRef.kind}/${item.spec.scaleTargetRef.name}`,
+        `${item.status.currentReplicas}/${item.spec.maxReplicas}`,
+        String(item.spec.minReplicas),
+        String(item.spec.maxReplicas),
+        String(item.status.currentReplicas),
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+
+    if (rows.length === 0) {
+      return this.#noResources(command);
+    }
+
+    return {
+      ok: true,
+      output: formatTable(
+        ["NAME", "REFERENCE", "TARGETS", "MINPODS", "MAXPODS", "REPLICAS", "AGE"],
+        rows,
+      ),
+    };
+  }
+
+  #getEvents(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeEvent>("Event", command.name, command.namespace)].filter(
+          (item): item is KubeEvent => item !== undefined,
+        )
+      : this.store.list<KubeEvent>("Event", command.allNamespaces ? undefined : command.namespace);
+
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("events", command.name);
+    }
+
+    const rows = [...items]
+      .sort((left, right) => right.metadata.creationTick - left.metadata.creationTick)
+      .map((item) => [
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+        item.type,
+        item.reason,
+        `${item.involvedObject.kind}/${
+          command.allNamespaces
+            ? `${item.involvedObject.namespace ?? item.metadata.namespace}/`
+            : ""
+        }${item.involvedObject.name}`,
+        item.message,
+      ]);
+
+    if (rows.length === 0) {
+      return this.#noResources(command);
+    }
+
+    return {
+      ok: true,
+      output: formatTable(["LAST SEEN", "TYPE", "REASON", "OBJECT", "MESSAGE"], rows),
+    };
+  }
+
+  #logs(command: Extract<ParsedCommand, { verb: "logs" }>): CommandResult {
+    if (command.follow) {
+      return { ok: false, output: "error: --follow is not simulated yet" };
+    }
+
+    const pod = this.store.get<Pod>("Pod", command.name, command.namespace);
+    if (pod === undefined) {
+      return notFound("pods", command.name);
+    }
+
+    if (command.container !== undefined) {
+      if (!pod.spec.containers.some((container) => container.name === command.container)) {
+        return {
+          ok: false,
+          output: `error: container ${command.container} is not valid for pod ${command.name}`,
+        };
+      }
+    } else if (pod.spec.containers.length > 1) {
+      return {
+        ok: false,
+        output: `error: a container name must be specified for pod ${command.name}`,
+      };
+    }
+
+    return { ok: true, output: (pod.logs ?? ["(no logs)"]).join("\n") };
+  }
+
+  #auth(command: Extract<ParsedCommand, { verb: "auth" }>): CommandResult {
+    const match = /^system:serviceaccount:([^:]+):(.+)$/.exec(command.as ?? "");
+    if (match === null) {
+      return { ok: true, output: "no" };
+    }
+    const [, namespace, name] = match;
+    if (namespace === undefined || name === undefined) {
+      return { ok: true, output: "no" };
+    }
+
+    const allowed = [
+      ...this.store.list<KubeRoleBinding>("RoleBinding", namespace),
+      ...this.store.list<KubeRoleBinding>("ClusterRoleBinding"),
+    ]
+      .filter((binding) =>
+        binding.subjects.some(
+          (subject) =>
+            subject.kind === "ServiceAccount" &&
+            subject.name === name &&
+            (subject.namespace ?? namespace) === namespace,
+        ),
+      )
+      .some((binding) => {
+        const role =
+          binding.roleRef.kind === "ClusterRole"
+            ? this.store.get<KubeRole>("ClusterRole", binding.roleRef.name, "")
+            : this.store.get<KubeRole>("Role", binding.roleRef.name, namespace);
+        return (
+          role?.rules.some(
+            (rule) =>
+              (rule.verbs.includes(command.subjectVerb) || rule.verbs.includes("*")) &&
+              (rule.resources.includes(command.subjectResource) || rule.resources.includes("*")),
+          ) ?? false
+        );
+      });
+
+    return { ok: true, output: allowed ? "yes" : "no" };
+  }
+
   #getIngresses(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
     const ingresses = command.name
       ? [this.store.get<KubeIngress>("Ingress", command.name, command.namespace)].filter(
@@ -1416,6 +1968,27 @@ export class SimEngine {
   }
 
   #describe(command: Extract<ParsedCommand, { verb: "describe" }>): CommandResult {
+    if (command.resource === "nodes") {
+      return this.#describeNode(command);
+    }
+
+    const genericKinds: Record<string, string> = {
+      storageclasses: "StorageClass",
+      persistentvolumes: "PersistentVolume",
+      persistentvolumeclaims: "PersistentVolumeClaim",
+      networkpolicies: "NetworkPolicy",
+      serviceaccounts: "ServiceAccount",
+      roles: "Role",
+      rolebindings: "RoleBinding",
+      namespaces: "Namespace",
+      horizontalpodautoscalers: "HorizontalPodAutoscaler",
+      events: "Event",
+    };
+    const genericKind = genericKinds[command.resource];
+    if (genericKind !== undefined) {
+      return this.#describeGeneric(command, genericKind);
+    }
+
     if (command.resource === "deployments") {
       return this.#describeDeployment(command);
     }
@@ -1458,11 +2031,120 @@ export class SimEngine {
       lines.push(`IP:           ${pod.status.podIP}`);
     }
 
+    const securityContext = pod.spec.securityContext;
+    if (securityContext !== undefined) {
+      lines.push(
+        `Security:     runAsNonRoot=${securityContext.runAsNonRoot ?? "<unset>"}${
+          securityContext.runAsUser === undefined ? "" : ` runAsUser=${securityContext.runAsUser}`
+        }${
+          securityContext.seccompProfile === undefined
+            ? ""
+            : ` seccompProfile=${securityContext.seccompProfile.type}`
+        }`,
+      );
+    }
+
+    if (pod.spec.volumes !== undefined && pod.spec.volumes.length > 0) {
+      lines.push("Volumes:");
+      for (const volume of pod.spec.volumes) {
+        const source =
+          volume.persistentVolumeClaim === undefined
+            ? volume.configMap !== undefined
+              ? `ConfigMap/${volume.configMap.name}`
+              : volume.secret !== undefined
+                ? `Secret/${volume.secret.secretName}`
+                : "<none>"
+            : `PVC/${volume.persistentVolumeClaim.claimName}`;
+        lines.push(`  ${volume.name}: ${source}`);
+      }
+    }
+
+    for (const container of pod.spec.containers) {
+      const containerSecurity = container.securityContext;
+      if (containerSecurity !== undefined) {
+        lines.push(
+          `Container Security (${container.name}): allowPrivilegeEscalation=${containerSecurity.allowPrivilegeEscalation ?? "<unset>"} readOnlyRootFilesystem=${containerSecurity.readOnlyRootFilesystem ?? "<unset>"}${
+            containerSecurity.capabilities?.drop === undefined
+              ? ""
+              : ` drop=${containerSecurity.capabilities.drop.join(",")}`
+          }`,
+        );
+      }
+    }
+
+    if (pod.status.conditions !== undefined) {
+      lines.push("Conditions:");
+      for (const condition of pod.status.conditions) {
+        lines.push(
+          `  ${condition.type}: ${condition.status}${condition.reason === undefined ? "" : ` (${condition.reason})`}${condition.message === undefined ? "" : ` - ${condition.message}`}`,
+        );
+      }
+    }
+
     if (pod.status.message !== undefined) {
       lines.push("", `Message:      ${pod.status.message}`);
     }
 
     return { ok: true, output: lines.join("\n") };
+  }
+
+  #describeNode(command: Extract<ParsedCommand, { verb: "describe" }>): CommandResult {
+    const node = this.store.get<KubeNode>("Node", command.name, "");
+    if (node === undefined) {
+      return notFound("nodes", command.name);
+    }
+
+    const pods = this.store
+      .list<Pod>("Pod")
+      .filter((pod) => pod.spec.nodeName === node.metadata.name);
+    return {
+      ok: true,
+      output: [
+        `Name:               ${node.metadata.name}`,
+        `Labels:             ${formatLabels(node.metadata.labels)}`,
+        `Taints:             ${
+          node.spec?.taints === undefined || node.spec.taints.length === 0
+            ? "<none>"
+            : node.spec.taints
+                .map((taint) =>
+                  taint.value === undefined
+                    ? `${taint.key}:${taint.effect}`
+                    : `${taint.key}=${taint.value}:${taint.effect}`,
+                )
+                .join(", ")
+        }`,
+        `Allocatable:        cpu=${node.status.allocatable.cpu}, memory=${node.status.allocatable.memory}`,
+        `Non-terminated Pods: ${pods.length}`,
+        ...pods.map((pod) => `  ${pod.metadata.namespace}/${pod.metadata.name}`),
+      ].join("\n"),
+    };
+  }
+
+  #describeGeneric(
+    command: Extract<ParsedCommand, { verb: "describe" }>,
+    kind: string,
+  ): CommandResult {
+    const clusterScoped =
+      kind === "Namespace" || kind === "PersistentVolume" || kind === "StorageClass";
+    const object = this.store.get<KubeObject>(
+      kind,
+      command.name,
+      clusterScoped ? "" : command.namespace,
+    );
+    if (object === undefined) {
+      return notFound(command.resource, command.name);
+    }
+
+    const { metadata: _metadata, ...rest } = object as unknown as Record<string, unknown>;
+    return {
+      ok: true,
+      output: [
+        `Name:       ${object.metadata.name}`,
+        `Namespace:  ${object.metadata.namespace || "<none>"}`,
+        `Labels:     ${formatLabels(object.metadata.labels)}`,
+        JSON.stringify(rest, null, 2),
+      ].join("\n"),
+    };
   }
 
   #describeDeployment(command: Extract<ParsedCommand, { verb: "describe" }>): CommandResult {
@@ -1553,7 +2235,7 @@ export class SimEngine {
   }
 
   #reconcile(): void {
-    const readyNode = this.store.list<KubeNode>("Node").find((node) => node.status.ready);
+    const readyNodes = this.store.list<KubeNode>("Node").filter((node) => node.status.ready);
     const tick = this.clock.tick;
 
     this.#reconcileDeployments();
@@ -1565,10 +2247,29 @@ export class SimEngine {
       }
 
       if (pod.spec.nodeName === undefined) {
+        const eligible = readyNodes
+          .filter((candidate) => nodeMatchesPod(candidate, pod))
+          .sort((left, right) => {
+            const leftCount = this.store
+              .list<Pod>("Pod")
+              .filter((candidate) => candidate.spec.nodeName === left.metadata.name).length;
+            const rightCount = this.store
+              .list<Pod>("Pod")
+              .filter((candidate) => candidate.spec.nodeName === right.metadata.name).length;
+            return leftCount - rightCount;
+          });
+        const readyNode = eligible[0];
+
         if (readyNode === undefined) {
           const unavailable: Pod = {
             ...pod,
-            status: { phase: "Pending", message: "0/1 nodes are available" },
+            status: {
+              phase: "Pending",
+              message:
+                readyNodes.length === 0
+                  ? "0 nodes are available"
+                  : `${readyNodes.length} nodes are available, but none match the Pod's selector or tolerations`,
+            },
           };
           this.store.upsert(unavailable);
           continue;
@@ -1706,7 +2407,7 @@ export class SimEngine {
         ...replicaSet,
         status: {
           replicas: currentPods.length,
-          readyReplicas: currentPods.filter((pod) => pod.status.phase === "Running").length,
+          readyReplicas: currentPods.filter(isPodReady).length,
         },
       });
     }
@@ -1719,9 +2420,9 @@ export class SimEngine {
         ...deployment,
         status: {
           replicas: pods.length,
-          readyReplicas: pods.filter((pod) => pod.status.phase === "Running").length,
+          readyReplicas: pods.filter(isPodReady).length,
           updatedReplicas: pods.length,
-          availableReplicas: pods.filter((pod) => pod.status.phase === "Running").length,
+          availableReplicas: pods.filter(isPodReady).length,
         },
       });
     }
@@ -1770,9 +2471,7 @@ export class SimEngine {
     return this.store
       .list<Pod>("Pod", service.metadata.namespace)
       .filter(
-        (pod) =>
-          pod.status.phase === "Running" &&
-          matchesLabels(pod.metadata.labels, service.spec.selector),
+        (pod) => isPodReady(pod) && matchesLabels(pod.metadata.labels, service.spec.selector),
       );
   }
 

@@ -143,7 +143,18 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
         name: node.name,
         ...(node.cpu === undefined ? {} : { cpu: node.cpu }),
         ...(node.memory === undefined ? {} : { memory: node.memory }),
+        ...(node.labels === undefined ? {} : { labels: node.labels }),
+        ...(node.taints === undefined
+          ? {}
+          : {
+              taints: node.taints.map((taint) => ({
+                key: taint.key,
+                effect: taint.effect,
+                ...(taint.value === undefined ? {} : { value: taint.value }),
+              })),
+            }),
       })),
+      objects: lesson.scenario.objects,
     });
     return instance;
   }, [lesson]);

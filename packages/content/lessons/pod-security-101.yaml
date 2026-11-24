@@ -11,10 +11,65 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: secure
+        labels:
+          pod-security.kubernetes.io/enforce: restricted
+          pod-security.kubernetes.io/audit: restricted
+          pod-security.kubernetes.io/warn: restricted
+      status:
+        phase: Active
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: secure
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+          - name: web
+            image: nginx
+            securityContext:
+              allowPrivilegeEscalation: false
+              readOnlyRootFilesystem: true
+              capabilities:
+                drop:
+                  - ALL
+      status:
+        phase: Running
+        podIP: 10.244.0.31
+        conditions:
+          - type: Ready
+            status: "True"
 objectives:
   - PSA levels
 checks:
+  - type: command
+    label: Inspected the namespace policy
+    verb: describe
+    resource: namespaces
+    name: secure
+  - type: command
+    label: Listed the hardened Pod
+    verb: get
+    resource: pods
+    name: web
+    namespace: secure
+  - type: command
+    label: Read the Pod
+    verb: describe
+    resource: pods
+    name: web
+    namespace: secure
   - type: quiz
     id: q1
     label: PSA levels
@@ -25,5 +80,7 @@ checks:
       - low, medium, high
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: PSS defines privileged, baseline, and restricted levels.
+  - "Read the labels: kubectl describe namespace secure"
+  - "Find the Pod: kubectl get pod web -n secure"
+  - "Inspect it: kubectl describe pod web -n secure"
+solution: The namespace enforces the restricted PSS level, and the Pod runs non-root with dropped capabilities.

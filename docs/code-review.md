@@ -42,6 +42,7 @@
 | Deployment | No public Kubelab subdomain path | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS guide |
 | Content | Deployment/Service theory linked to terminal commands the simulator does not support | Simulator now runs create/scale/set/expose/rollout; both lessons have terminal checkpoints |
 | Lesson UI | Terminal output was the only view of cluster state | Live cluster map shows workload ownership, Pod phases, Service endpoints, Ingress routes, and ConfigMap/Secret wiring |
+| Content | Storage, scheduling, networking, RBAC, and observability were quiz-only | Seeded inspection scenarios and command checkpoints cover Units 6–10 |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
 | Go | SPA handler re-read `index.html` per request and repeated header logic | Index pre-read once; `cacheControl` / `writeHTML` helpers |

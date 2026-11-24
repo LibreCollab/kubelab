@@ -11,10 +11,47 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: storage.k8s.io/v1
+      kind: StorageClass
+      metadata:
+        name: fast
+      provisioner: ebs.csi.aws.com
+      reclaimPolicy: Delete
+      volumeBindingMode: Immediate
+      allowVolumeExpansion: true
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: cache
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 2Gi
+        storageClassName: fast
+        volumeName: pvc-6f2d8c
+      status:
+        phase: Bound
+        capacity: 2Gi
 objectives:
   - Dynamic provisioning
 checks:
+  - type: command
+    label: Listed the StorageClass
+    verb: get
+    resource: storageclasses
+    name: fast
+  - type: command
+    label: Inspected the claim
+    verb: describe
+    resource: persistentvolumeclaims
+    name: cache
+  - type: command
+    label: Listed all StorageClasses
+    verb: get
+    resource: storageclasses
   - type: quiz
     id: q1
     label: Dynamic provisioning
@@ -25,5 +62,7 @@ checks:
       - RBAC rules
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: StorageClasses drive dynamic provisioning.
+  - "List classes: kubectl get storageclass"
+  - "Inspect the class: kubectl get storageclass fast"
+  - "Inspect the pending claim: kubectl describe pvc cache"
+solution: A StorageClass drives dynamic provisioning for claims that reference it.

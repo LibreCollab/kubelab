@@ -11,10 +11,72 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        name: web
+      spec:
+        type: ClusterIP
+        selector:
+          app: web
+        ports:
+          - port: 80
+            targetPort: 8080
+        clusterIP: 10.96.0.50
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        containers:
+          - name: web
+            image: nginx
+            readinessProbe:
+              httpGet:
+                path: /healthz
+                port: 8080
+              periodSeconds: 5
+      status:
+        phase: Running
+        podIP: 10.244.0.51
+        conditions:
+          - type: Ready
+            status: "False"
+            reason: ContainersNotReady
+            message: readiness probe failed
+    - apiVersion: v1
+      kind: Event
+      metadata:
+        name: web-unhealthy
+      type: Warning
+      reason: Unhealthy
+      message: Readiness probe failed - GET /healthz 500
+      involvedObject:
+        kind: Pod
+        name: web
+        namespace: default
 objectives:
   - Readiness
 checks:
+  - type: command
+    label: Checked Pod readiness
+    verb: get
+    resource: pods
+    name: web
+  - type: command
+    label: Read the probe failure
+    verb: describe
+    resource: pods
+    name: web
+  - type: command
+    label: Checked Service endpoints
+    verb: get
+    resource: endpoints
+    name: web
   - type: quiz
     id: q1
     label: Readiness
@@ -25,5 +87,7 @@ checks:
       - deletes the Pod
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Readiness controls endpoint membership.
+  - "READY should be 0/1: kubectl get pod web"
+  - "Find the failed probe: kubectl describe pod web"
+  - "The Service has no ready endpoint: kubectl get endpoints web"
+solution: The Pod is Running but not Ready, so the Service has no endpoint for it.

@@ -267,5 +267,23 @@ function matchesCommand(
     }
   }
 
+  if (check.subjectVerb !== undefined) {
+    if (!("subjectVerb" in command) || command.subjectVerb !== check.subjectVerb) {
+      return false;
+    }
+  }
+
+  if (check.subjectResource !== undefined) {
+    if (!("subjectResource" in command) || command.subjectResource !== check.subjectResource) {
+      return false;
+    }
+  }
+
+  if (check.as !== undefined) {
+    if (!("as" in command) || command.as !== check.as) {
+      return false;
+    }
+  }
+
   return true;
 }

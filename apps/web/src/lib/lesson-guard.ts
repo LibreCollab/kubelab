@@ -16,7 +16,9 @@ export function guardLessonCommand(input: string, checks: LessonCheck[]): Lesson
     "error" in parsed ||
     parsed.verb === "help" ||
     parsed.verb === "get" ||
-    parsed.verb === "exec"
+    parsed.verb === "exec" ||
+    parsed.verb === "logs" ||
+    parsed.verb === "auth"
   ) {
     return { ok: true };
   }

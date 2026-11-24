@@ -3,3 +3,8 @@ ResourceQuota limits namespace consumption; HorizontalPodAutoscaler changes repl
 - Requests affect scheduling; limits affect runtime ceilings.
 - HPA reads metrics and scales Deployments.
 - Cluster Autoscaler adds nodes when Pods cannot schedule.
+
+```bash
+kubectl get hpa
+kubectl describe hpa web
+```

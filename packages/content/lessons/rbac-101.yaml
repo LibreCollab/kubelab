@@ -11,10 +11,58 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: deploy-bot
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: Role
+      metadata:
+        name: pod-reader
+      rules:
+        - apiGroups:
+            - ""
+          resources:
+            - pods
+          verbs:
+            - get
+            - list
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: RoleBinding
+      metadata:
+        name: read-pods
+      roleRef:
+        kind: Role
+        name: pod-reader
+      subjects:
+        - kind: ServiceAccount
+          name: deploy-bot
+          namespace: default
 objectives:
   - RoleBinding
 checks:
+  - type: command
+    label: Found the ServiceAccount
+    verb: get
+    resource: serviceaccounts
+    name: deploy-bot
+  - type: command
+    label: Inspected the Role
+    verb: describe
+    resource: roles
+    name: pod-reader
+  - type: command
+    label: Inspected the binding
+    verb: describe
+    resource: rolebindings
+    name: read-pods
+  - type: command
+    label: Tested the permission
+    verb: auth
+    subjectVerb: get
+    subjectResource: pods
+    as: system:serviceaccount:default:deploy-bot
   - type: quiz
     id: q1
     label: RoleBinding
@@ -25,5 +73,8 @@ checks:
       - containers
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: RoleBindings bind roles to subjects.
+  - "See the identity: kubectl get serviceaccount deploy-bot"
+  - "Inspect the permissions: kubectl describe role pod-reader"
+  - "Read the binding: kubectl describe rolebinding read-pods"
+  - "Test it: kubectl auth can-i get pods --as=system:serviceaccount:default:deploy-bot"
+solution: read-pods binds pod-reader to the deploy-bot ServiceAccount, allowing get/list on Pods.

@@ -11,10 +11,79 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+      labels:
+        disk: ssd
+    - name: node-2
+      cpu: "8"
+      memory: 16Gi
+      labels:
+        disk: hdd
+      taints:
+        - key: dedicated
+          value: db
+          effect: NoSchedule
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        nodeSelector:
+          disk: ssd
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.1.10
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: db
+        labels:
+          app: db
+      spec:
+        nodeName: node-2
+        nodeSelector:
+          disk: hdd
+        tolerations:
+          - key: dedicated
+            operator: Equal
+            value: db
+            effect: NoSchedule
+        containers:
+          - name: db
+            image: postgres:16
+      status:
+        phase: Running
+        podIP: 10.244.2.10
+        conditions:
+          - type: Ready
+            status: "True"
 objectives:
   - Taints
+  - Placement
 checks:
+  - type: command
+    label: Inspected node labels
+    verb: get
+    resource: nodes
+  - type: command
+    label: Read the tainted node
+    verb: describe
+    resource: nodes
+    name: node-2
+  - type: command
+    label: Found Pod placement
+    verb: get
+    resource: pods
+    name: db
   - type: quiz
     id: q1
     label: Taints
@@ -25,5 +94,7 @@ checks:
       - deletes the Pod
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Taints repel; tolerations allow scheduling.
+  - "See placement labels: kubectl get nodes --show-labels"
+  - "Read the taint: kubectl describe node node-2"
+  - "See the selected node: kubectl get pods -o wide"
+solution: The db Pod uses nodeSelector disk=hdd and tolerates the dedicated=db taint.

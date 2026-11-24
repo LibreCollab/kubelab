@@ -1,6 +1,6 @@
 id: autoscaling-101
 unit: scheduling
-title: Quotas and HPA
+title: Horizontal autoscaling
 xp: 10
 order: 2
 strict: true
@@ -11,10 +11,50 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        replicas: 3
+        template:
+          labels:
+            app: web
+          containers:
+            - name: nginx
+              image: nginx
+      status:
+        replicas: 3
+        readyReplicas: 3
+        updatedReplicas: 3
+        availableReplicas: 3
+    - apiVersion: autoscaling/v2
+      kind: HorizontalPodAutoscaler
+      metadata:
+        name: web
+      spec:
+        minReplicas: 2
+        maxReplicas: 8
+        scaleTargetRef:
+          kind: Deployment
+          name: web
+      status:
+        currentReplicas: 3
+        desiredReplicas: 5
 objectives:
   - HPA
 checks:
+  - type: command
+    label: Listed the HPA
+    verb: get
+    resource: horizontalpodautoscalers
+    name: web
+  - type: command
+    label: Read the HPA spec
+    verb: describe
+    resource: horizontalpodautoscalers
+    name: web
   - type: quiz
     id: q1
     label: HPA
@@ -25,5 +65,7 @@ checks:
       - PVC size
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: HPA scales replicas using metrics.
+  - "List autoscalers: kubectl get hpa"
+  - "Read the target and limits: kubectl describe hpa web"
+  - "Compare minReplicas, maxReplicas, and desiredReplicas."
+solution: The HPA scales the web Deployment between two and eight replicas from metrics.

@@ -1,4 +1,5 @@
 import {
+  isPodReady,
   type KubeDeployment,
   type KubeIngress,
   type KubeService,
@@ -24,7 +25,10 @@ function objectName(object: { metadata: { name: string; namespace: string } }): 
 }
 
 function podState(pod: Pod): string {
-  return pod.status.phase === "Running" ? "running" : pod.status.phase.toLowerCase();
+  if (isPodReady(pod)) {
+    return "running";
+  }
+  return pod.status.phase === "Running" ? "not-ready" : pod.status.phase.toLowerCase();
 }
 
 function deploymentPods(deployment: KubeDeployment, pods: Pod[]): Pod[] {
@@ -42,7 +46,7 @@ function serviceEndpoints(service: KubeService, pods: Pod[]): Pod[] {
   return pods.filter(
     (pod) =>
       pod.metadata.namespace === service.metadata.namespace &&
-      pod.status.phase === "Running" &&
+      isPodReady(pod) &&
       matchesLabels(pod.metadata.labels, service.spec.selector),
   );
 }
@@ -181,7 +185,7 @@ export function ClusterScene({ scene, onClose, onOpenFull }: ClusterSceneProps) 
       >
         {frame.deployments.map((deployment) => {
           const pods = deploymentPods(deployment, frame.pods);
-          const ready = pods.filter((pod) => pod.status.phase === "Running").length;
+          const ready = pods.filter(isPodReady).length;
           return (
             <motion.article
               layout
@@ -210,8 +214,7 @@ export function ClusterScene({ scene, onClose, onOpenFull }: ClusterSceneProps) 
               <span>Pods</span>
               <strong>standalone</strong>
               <span className={styles.count}>
-                {standalonePods.filter((pod) => pod.status.phase === "Running").length}/
-                {standalonePods.length}
+                {standalonePods.filter(isPodReady).length}/{standalonePods.length}
               </span>
             </div>
             <PodRow pods={standalonePods} />

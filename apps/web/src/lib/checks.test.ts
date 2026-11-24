@@ -293,6 +293,33 @@ describe("lesson checks", () => {
     ).toBe(false);
   });
 
+  it("matches auth command parameters", () => {
+    const check: LessonCheck = {
+      type: "command",
+      label: "Can read Pods",
+      verb: "auth",
+      namespace: "default",
+      subjectVerb: "get",
+      subjectResource: "pods",
+      as: "system:serviceaccount:default:deploy-bot",
+    };
+
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [
+          command("kubectl auth can-i get pods --as=system:serviceaccount:default:deploy-bot"),
+        ],
+      }).pass,
+    ).toBe(true);
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [command("kubectl auth can-i delete pods")],
+      }).pass,
+    ).toBe(false);
+  });
+
   it("checks Service type and port", () => {
     const check: LessonCheck = {
       type: "service",

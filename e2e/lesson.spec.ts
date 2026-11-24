@@ -471,6 +471,138 @@ test("read-only commands do not open the cluster scene", async ({ page }) => {
   await expect(page.getByTestId("cluster-scene")).toHaveCount(0);
 });
 
+test("storage lessons expose PVC and StorageClass state", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+
+  await page.goto("/lesson/persistent-volumes-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get pvc data");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("Bound");
+  await page.keyboard.type("kubectl describe pvc data");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("data-pv");
+  await page.keyboard.type("kubectl get pod db -o wide");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("10.244.0.21");
+
+  await page.goto("/lesson/storageclasses-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get storageclass fast");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("fast");
+  await page.keyboard.type("kubectl describe pvc cache");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("fast");
+  expect(pageErrors).toEqual([]);
+});
+
+test("scheduling and autoscaling lessons explain placement", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+
+  await page.goto("/lesson/scheduling-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get nodes --show-labels");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("disk=ssd");
+  await page.keyboard.type("kubectl describe node node-2");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("dedicated=db:NoSchedule");
+  await page.keyboard.type("kubectl get pods -o wide");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("node-2");
+
+  await page.goto("/lesson/autoscaling-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get hpa web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("web");
+  await page.keyboard.type("kubectl describe hpa web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("desiredReplicas");
+  expect(pageErrors).toEqual([]);
+});
+
+test("network lessons expose Pod IPs and policy selectors", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+
+  await page.goto("/lesson/cni-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get pods -o wide");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("10.244.1.10");
+  await page.keyboard.type("kubectl describe pod api");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("10.244.2.11");
+
+  await page.goto("/lesson/network-policy-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get networkpolicy");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("deny-all");
+  await page.keyboard.type("kubectl describe networkpolicy deny-all");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("podSelector");
+  expect(pageErrors).toEqual([]);
+});
+
+test("security lessons expose RBAC and Pod hardening", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+
+  await page.goto("/lesson/rbac-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get serviceaccount deploy-bot");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("deploy-bot");
+  await page.keyboard.type("kubectl describe role pod-reader");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("pods");
+  await page.keyboard.type(
+    "kubectl auth can-i get pods --as=system:serviceaccount:default:deploy-bot",
+  );
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("yes");
+
+  await page.goto("/lesson/pod-security-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl describe namespace secure");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("pod-security.kubernetes.io/enforce");
+  await page.keyboard.type("kubectl describe pod web -n secure");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("runAsNonRoot=true");
+  expect(pageErrors).toEqual([]);
+});
+
+test("observability lessons expose logs, events, and readiness", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+
+  await page.goto("/lesson/logs-events-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl logs web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("listening on :8080");
+  await page.keyboard.type("kubectl get events");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("Started container web");
+
+  await page.goto("/lesson/probes-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get pod web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("0/1");
+  await page.keyboard.type("kubectl describe pod web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("readiness probe failed");
+  await page.keyboard.type("kubectl get endpoints web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("<none>");
+  await openClusterMap(page);
+  await expect(page.locator('[data-map-pod][data-state="not-ready"]')).toHaveCount(1);
+  await expect(page.getByTestId("cluster-service-web")).toHaveAttribute("data-endpoints", "0");
+  expect(pageErrors).toEqual([]);
+});
+
 test("cluster status opens and closes the inspector", async ({ page }) => {
   await page.goto("/lesson/pods-101");
 

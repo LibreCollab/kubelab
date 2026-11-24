@@ -13,6 +13,11 @@ export interface PodFilter {
   phase?: PodPhase;
 }
 
+export function isPodReady(pod: Pod): boolean {
+  const ready = pod.status.conditions?.find((condition) => condition.type === "Ready");
+  return ready === undefined ? pod.status.phase === "Running" : ready.status === "True";
+}
+
 export function matchesLabels(
   labels: Record<string, string>,
   selector: Record<string, string>,

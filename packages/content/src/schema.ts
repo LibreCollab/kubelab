@@ -24,6 +24,8 @@ export const commandCheckSchema = z.object({
     "set",
     "rollout",
     "exec",
+    "logs",
+    "auth",
   ]),
   resource: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
@@ -33,6 +35,9 @@ export const commandCheckSchema = z.object({
   image: z.string().min(1).optional(),
   container: z.string().min(1).optional(),
   command: z.string().min(1).optional(),
+  subjectVerb: z.string().min(1).optional(),
+  subjectResource: z.string().min(1).optional(),
+  as: z.string().min(1).optional(),
 });
 
 export const deploymentCheckSchema = z.object({
@@ -132,6 +137,74 @@ export const checkSchema = z.discriminatedUnion("type", [
   quizCheckSchema,
 ]);
 
+const scenarioObjectSchema = z
+  .object({
+    apiVersion: z.string().optional(),
+    kind: z.enum([
+      "ConfigMap",
+      "Deployment",
+      "Event",
+      "HorizontalPodAutoscaler",
+      "Ingress",
+      "Namespace",
+      "NetworkPolicy",
+      "PersistentVolume",
+      "PersistentVolumeClaim",
+      "Pod",
+      "Role",
+      "RoleBinding",
+      "Secret",
+      "Service",
+      "ServiceAccount",
+      "StorageClass",
+    ]),
+    metadata: z
+      .object({
+        name: z.string().min(1),
+        namespace: z.string().optional(),
+        labels: z.record(z.string(), z.string()).optional(),
+      })
+      .passthrough(),
+  })
+  .passthrough()
+  .superRefine((object, context) => {
+    if (object.kind === "Pod") {
+      const spec = object.spec;
+      const status = object.status;
+      if (
+        typeof spec !== "object" ||
+        spec === null ||
+        !Array.isArray((spec as Record<string, unknown>).containers)
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Pod scenario objects require spec.containers",
+        });
+      }
+      if (
+        typeof status !== "object" ||
+        status === null ||
+        typeof (status as Record<string, unknown>).phase !== "string"
+      ) {
+        context.addIssue({ code: "custom", message: "Pod scenario objects require status.phase" });
+      }
+    }
+
+    if (object.kind === "Namespace") {
+      const status = object.status;
+      if (
+        typeof status !== "object" ||
+        status === null ||
+        typeof (status as Record<string, unknown>).phase !== "string"
+      ) {
+        context.addIssue({
+          code: "custom",
+          message: "Namespace scenario objects require status.phase",
+        });
+      }
+    }
+  });
+
 export const lessonSpecSchema = z.object({
   id: z.string().min(1),
   unit: z.string().min(1),
@@ -148,10 +221,20 @@ export const lessonSpecSchema = z.object({
           name: z.string().min(1),
           cpu: z.string().optional(),
           memory: z.string().optional(),
+          labels: z.record(z.string(), z.string()).optional(),
+          taints: z
+            .array(
+              z.object({
+                key: z.string().min(1),
+                value: z.string().optional(),
+                effect: z.string().min(1),
+              }),
+            )
+            .optional(),
         }),
       )
       .min(1),
-    objects: z.array(z.unknown()).default([]),
+    objects: z.array(scenarioObjectSchema).default([]),
   }),
   objectives: z.array(z.string().min(1)).min(1),
   checks: z.array(checkSchema).min(1),

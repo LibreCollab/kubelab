@@ -11,10 +11,56 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+    - name: node-2
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.1.10
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        labels:
+          app: api
+      spec:
+        nodeName: node-2
+        containers:
+          - name: api
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.2.11
+        conditions:
+          - type: Ready
+            status: "True"
 objectives:
   - CNI role
 checks:
+  - type: command
+    label: Found Pod IPs
+    verb: get
+    resource: pods
+  - type: command
+    label: Inspected a Pod IP
+    verb: describe
+    resource: pods
+    name: api
   - type: quiz
     id: q1
     label: CNI role
@@ -25,5 +71,7 @@ checks:
       - DNS records only
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: CNI provides Pod IPs and routing.
+  - "See Pods across nodes: kubectl get pods -o wide"
+  - "Inspect the API Pod: kubectl describe pod api"
+  - "Look at both the Pod IP and assigned node."
+solution: Each Pod gets a CNI-assigned IP; node-1 and node-2 route those addresses.

@@ -11,10 +11,69 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.0.21
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: api
+        labels:
+          app: api
+      spec:
+        nodeName: node-1
+        containers:
+          - name: api
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.0.22
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: networking.k8s.io/v1
+      kind: NetworkPolicy
+      metadata:
+        name: deny-all
+      spec:
+        podSelector: {}
+        policyTypes:
+          - Ingress
+          - Egress
+        ingress: []
+        egress: []
 objectives:
   - Default deny
 checks:
+  - type: command
+    label: Listed the policy
+    verb: get
+    resource: networkpolicies
+    name: deny-all
+  - type: command
+    label: Read the policy
+    verb: describe
+    resource: networkpolicies
+    name: deny-all
+  - type: command
+    label: Found the selected Pods
+    verb: get
+    resource: pods
   - type: quiz
     id: q1
     label: Default deny
@@ -25,5 +84,7 @@ checks:
       - disables DNS
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Default deny blocks traffic unless explicitly allowed.
+  - "List policies: kubectl get networkpolicy"
+  - "Inspect the selector and policy types: kubectl describe networkpolicy deny-all"
+  - "Check the workload labels: kubectl get pods --show-labels"
+solution: deny-all selects every Pod in the namespace and blocks ingress and egress.

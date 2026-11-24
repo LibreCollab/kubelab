@@ -159,7 +159,8 @@
   color: var(--color-text);
 }
 
-.pod[data-state="pending"] {
+.pod[data-state="pending"],
+.pod[data-state="not-ready"] {
   border-color: var(--color-warning);
   color: var(--color-warning);
 }

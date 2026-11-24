@@ -604,6 +604,222 @@ describe("engine", () => {
     expect(unicodePod?.spec.containers[0]?.env?.[0]?.value).toBe("🔐");
   });
 
+  it("seeds storage, events, logs, and RBAC resources", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "StorageClass",
+          metadata: { name: "fast" },
+          provisioner: "kubernetes.io/no-provisioner",
+          reclaimPolicy: "Retain",
+          volumeBindingMode: "WaitForFirstConsumer",
+        },
+        {
+          kind: "PersistentVolumeClaim",
+          metadata: { name: "data" },
+          spec: {
+            accessModes: ["ReadWriteOnce"],
+            resources: { requests: { storage: "5Gi" } },
+            storageClassName: "fast",
+            volumeName: "data-pv",
+          },
+          status: { phase: "Bound", capacity: "5Gi" },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.10",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+          logs: ["hello", "ready"],
+        },
+        {
+          kind: "Event",
+          metadata: { name: "web-started" },
+          type: "Normal",
+          reason: "Started",
+          message: "Started container web",
+          involvedObject: { kind: "Pod", name: "web" },
+        },
+        {
+          kind: "ServiceAccount",
+          metadata: { name: "deploy-bot" },
+        },
+        {
+          kind: "Role",
+          metadata: { name: "pod-reader" },
+          rules: [{ apiGroups: [""], resources: ["pods"], verbs: ["get"] }],
+        },
+        {
+          kind: "RoleBinding",
+          metadata: { name: "read-pods" },
+          roleRef: { kind: "Role", name: "pod-reader" },
+          subjects: [{ kind: "ServiceAccount", name: "deploy-bot", namespace: "default" }],
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl get storageclass fast").output).toContain("fast");
+    expect(engine.execute("kubectl get pvc data").output).toContain("Bound");
+    expect(engine.execute("kubectl get pod web").output).toContain("1/1");
+    expect(engine.execute("kubectl logs web").output).toContain("ready");
+    expect(engine.execute("kubectl get events").output).toContain("Started container web");
+    expect(
+      engine.execute("kubectl auth can-i get pods --as=system:serviceaccount:default:deploy-bot")
+        .output,
+    ).toBe("yes");
+  });
+
+  it("shows taints and hides unready Pods from Service endpoints", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [
+        {
+          name: "node-2",
+          labels: { disk: "hdd" },
+          taints: [{ key: "dedicated", value: "db", effect: "NoSchedule" }],
+        },
+      ],
+      objects: [
+        {
+          kind: "Service",
+          metadata: { name: "web" },
+          spec: {
+            type: "ClusterIP",
+            selector: { app: "web" },
+            ports: [{ port: 80, targetPort: 8080 }],
+            clusterIP: "10.96.0.50",
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-2", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.11",
+            conditions: [{ type: "Ready", status: "False", reason: "ContainersNotReady" }],
+          },
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl describe node node-2").output).toContain(
+      "dedicated=db:NoSchedule",
+    );
+    expect(engine.execute("kubectl get pod web").output).toContain("0/1");
+    expect(engine.execute("kubectl get endpoints web").output).toContain("<none>");
+  });
+
+  it("honors node selectors and taints when scheduling", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [
+        {
+          name: "node-2",
+          labels: { disk: "hdd" },
+          taints: [{ key: "dedicated", value: "db", effect: "NoSchedule" }],
+        },
+      ],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "bad", labels: { app: "bad" } },
+          spec: {
+            nodeSelector: { disk: "hdd" },
+            containers: [{ name: "bad", image: "nginx" }],
+          },
+          status: { phase: "Pending" },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "good", labels: { app: "good" } },
+          spec: {
+            nodeSelector: { disk: "hdd" },
+            tolerations: [
+              { key: "dedicated", operator: "Equal", value: "db", effect: "NoSchedule" },
+            ],
+            containers: [{ name: "good", image: "nginx" }],
+          },
+          status: { phase: "Pending" },
+        },
+      ],
+    });
+
+    engine.step();
+    engine.step();
+
+    expect(engine.store.get<Pod>("Pod", "bad")?.spec.nodeName).toBeUndefined();
+    expect(engine.store.get<Pod>("Pod", "bad")?.status.message).toContain("none match");
+    expect(engine.store.get<Pod>("Pod", "good")?.spec.nodeName).toBe("node-2");
+    expect(engine.store.get<Pod>("Pod", "good")?.status.phase).toBe("Running");
+  });
+
+  it("validates log containers and unsupported follow mode", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web" },
+          spec: {
+            nodeName: "node-1",
+            containers: [
+              { name: "web", image: "nginx" },
+              { name: "sidecar", image: "busybox" },
+            ],
+          },
+          status: { phase: "Running" },
+          logs: ["hello"],
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl logs web").ok).toBe(false);
+    expect(engine.execute("kubectl logs web -c missing").ok).toBe(false);
+    expect(engine.execute("kubectl logs web -c web").output).toBe("hello");
+    expect(engine.execute("kubectl logs web --follow").ok).toBe(false);
+  });
+
+  it("denies RBAC requests for the wrong subject", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        { kind: "ServiceAccount", metadata: { name: "deploy-bot" } },
+        {
+          kind: "Role",
+          metadata: { name: "pod-reader" },
+          rules: [{ apiGroups: [""], resources: ["pods"], verbs: ["get"] }],
+        },
+        {
+          kind: "RoleBinding",
+          metadata: { name: "read-pods" },
+          roleRef: { kind: "Role", name: "pod-reader" },
+          subjects: [{ kind: "ServiceAccount", name: "deploy-bot" }],
+        },
+      ],
+    });
+
+    expect(
+      engine.execute("kubectl auth can-i get pods --as=system:serviceaccount:default:deploy-bot")
+        .output,
+    ).toBe("yes");
+    expect(
+      engine.execute("kubectl auth can-i delete pods --as=system:serviceaccount:default:deploy-bot")
+        .output,
+    ).toBe("yes".replace("yes", "no"));
+    expect(
+      engine.execute("kubectl auth can-i get pods --as=system:serviceaccount:default:other").output,
+    ).toBe("no");
+  });
+
   it("reports rollout status", () => {
     const engine = createEngine();
     engine.execute("kubectl create deployment web --image=nginx");

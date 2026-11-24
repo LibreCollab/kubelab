@@ -1,4 +1,5 @@
 import {
+  isPodReady,
   type KubeConfigMap,
   type KubeDeployment,
   type KubeIngress,
@@ -40,7 +41,10 @@ function objectName(object: { metadata: { name: string; namespace: string } }): 
 }
 
 function podState(pod: Pod): string {
-  return pod.status.phase === "Running" ? "running" : pod.status.phase.toLowerCase();
+  if (isPodReady(pod)) {
+    return "running";
+  }
+  return pod.status.phase === "Running" ? "not-ready" : pod.status.phase.toLowerCase();
 }
 
 function selectorLabel(selector: Record<string, string>): string {
@@ -79,7 +83,7 @@ function PodChips({ pods }: { pods: Pod[] }) {
 }
 
 function ReplicaSetRow({ replicaSet, pods }: { replicaSet: KubeReplicaSet; pods: Pod[] }) {
-  const ready = pods.filter((pod) => pod.status.phase === "Running").length;
+  const ready = pods.filter(isPodReady).length;
   const state =
     replicaSet.spec.replicas === 0
       ? "retired"
@@ -174,7 +178,7 @@ export function ClusterMap({
   const standalonePods = pods.filter(
     (pod) => !managedPods.has(key(pod.metadata.namespace, pod.metadata.name)),
   );
-  const runningPods = pods.filter((pod) => pod.status.phase === "Running").length;
+  const runningPods = pods.filter(isPodReady).length;
   const pendingPods = pods.filter((pod) => pod.status.phase === "Pending").length;
   const readyNodes = nodes.filter((node) => node.status.ready).length;
   const hasWorkloads = deployments.length > 0 || standalonePods.length > 0;
@@ -380,11 +384,7 @@ export function ClusterMap({
                             className={styles.deployment}
                             data-object="pods"
                             data-testid="cluster-standalone-pods"
-                            data-state={
-                              standalonePods.every((pod) => pod.status.phase === "Running")
-                                ? "ready"
-                                : "progressing"
-                            }
+                            data-state={standalonePods.every(isPodReady) ? "ready" : "progressing"}
                           >
                             <div className={styles.deploymentHead}>
                               <div>
@@ -445,7 +445,7 @@ export function ClusterMap({
                                       (pod) =>
                                         Object.keys(service.spec.selector).length > 0 &&
                                         pod.metadata.namespace === service.metadata.namespace &&
-                                        pod.status.phase === "Running" &&
+                                        isPodReady(pod) &&
                                         matchesLabels(pod.metadata.labels, service.spec.selector),
                                     );
                               return (
@@ -471,7 +471,7 @@ export function ClusterMap({
                               : pods.filter(
                                   (pod) =>
                                     pod.metadata.namespace === service.metadata.namespace &&
-                                    pod.status.phase === "Running" &&
+                                    isPodReady(pod) &&
                                     matchesLabels(pod.metadata.labels, service.spec.selector),
                                 );
                           const port = service.spec.ports[0];
