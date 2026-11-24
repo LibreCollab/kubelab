@@ -8,6 +8,11 @@ function trackPageErrors(page: Page): Error[] {
   return errors;
 }
 
+async function openClusterMap(page: Page): Promise<void> {
+  await page.getByTestId("cluster-status").click();
+  await expect(page.getByTestId("cluster-map")).toBeVisible();
+}
+
 test("roadmap lesson lists align at the top", async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
   await page.goto("/");
@@ -130,7 +135,7 @@ test("terminal creates a pod and the checkpoint passes", async ({ page }) => {
 
   const terminalOutput = page.locator(".xterm-rows");
   await expect(terminalOutput).toContainText("Kubelab simulated cluster");
-  await expect(page.getByRole("button", { name: "Pause clock" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pause clock" })).toHaveCount(0);
   await expect(page.locator('[data-check="Phase is Running"]')).toHaveAttribute(
     "data-state",
     "pending",
@@ -163,6 +168,7 @@ test("terminal creates a pod and the checkpoint passes", async ({ page }) => {
     "pass",
   );
   await expect(page.locator('[data-feedback="pass"]')).toBeVisible();
+  await openClusterMap(page);
   await expect(page.getByTestId("cluster-standalone-pods")).toBeVisible();
   await expect(page.locator('[data-map-pod][data-state="running"]')).toHaveCount(1);
   expect(pageErrors).toEqual([]);
@@ -227,10 +233,9 @@ test("deployment lesson runs a scale and image rollout", async ({ page }) => {
   await page.goto("/lesson/deployments-101");
 
   const terminalOutput = page.locator(".xterm-rows");
-  await expect(page.getByRole("button", { name: "Pause clock" })).toBeVisible();
-  await expect(page.getByTestId("cluster-map")).toBeVisible();
-  await expect(page.getByTestId("cluster-node-node-1")).toBeVisible();
-  await expect(page.getByTestId("cluster-map")).toHaveAttribute("data-pods", "0");
+  await expect(page.getByRole("button", { name: "Pause clock" })).toHaveCount(0);
+  await expect(page.getByTestId("cluster-status")).toBeVisible();
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-pods", "0");
 
   await page.locator(".xterm-screen").click();
   await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=3");
@@ -240,8 +245,7 @@ test("deployment lesson runs a scale and image rollout", async ({ page }) => {
     "data-state",
     "pass",
   );
-  await expect(page.getByTestId("cluster-deployment-web")).toBeVisible();
-  await expect(page.locator('[data-object="replicaset"]')).toHaveCount(1);
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-pods", "3");
 
   await page.keyboard.type("kubectl scale deployment web --replicas=5");
   await page.keyboard.press("Enter");
@@ -266,6 +270,7 @@ test("deployment lesson runs a scale and image rollout", async ({ page }) => {
     "data-state",
     "pass",
   );
+  await openClusterMap(page);
   await expect(page.getByTestId("cluster-deployment-web")).toHaveAttribute("data-state", "ready");
   await expect(page.locator("[data-map-pod]")).toHaveCount(5);
   await expect(page.locator('[data-map-pod][data-state="running"]')).toHaveCount(5);
@@ -295,14 +300,13 @@ test("service lesson exposes a deployment and shows endpoints", async ({ page })
     "pass",
   );
 
-  await page.getByRole("button", { name: "Pause clock" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-running", "2");
 
   await page.locator(".xterm-screen").click();
   await page.keyboard.type("kubectl get endpoints web");
   await page.keyboard.press("Enter");
   await expect(terminalOutput).toContainText("10.244.0.");
+  await openClusterMap(page);
   await expect(page.getByTestId("cluster-service-web")).toHaveAttribute("data-endpoints", "2");
   expect(pageErrors).toEqual([]);
 });
@@ -320,9 +324,8 @@ test("DNS lesson resolves a Service from a Pod", async ({ page }) => {
   await page.keyboard.type("kubectl run client --image=busybox -n demo");
   await page.keyboard.press("Enter");
 
-  await page.getByRole("button", { name: "Pause clock" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-running", "3");
+
   await page.locator(".xterm-screen").click();
   await page.keyboard.type("kubectl exec client -n demo -- nslookup web");
   await page.keyboard.press("Enter");
@@ -348,9 +351,8 @@ test("Ingress lesson routes a request through a Service", async ({ page }) => {
   await page.keyboard.type("kubectl run client --image=busybox -n demo");
   await page.keyboard.press("Enter");
 
-  await page.getByRole("button", { name: "Pause clock" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-running", "3");
+
   await page.locator(".xterm-screen").click();
   await page.keyboard.type("kubectl create ingress web --rule=shop.example.com/=web:80 -n demo");
   await page.keyboard.press("Enter");
@@ -368,6 +370,7 @@ test("Ingress lesson routes a request through a Service", async ({ page }) => {
     "data-state",
     "pass",
   );
+  await openClusterMap(page);
   await expect(page.getByTestId("cluster-ingress-web")).toBeVisible();
   await expect(page.getByTestId("cluster-map")).toHaveAttribute("data-ingresses", "1");
   expect(pageErrors).toEqual([]);
@@ -387,9 +390,7 @@ test("ConfigMap lesson injects env into a Deployment", async ({ page }) => {
   await page.keyboard.type("kubectl set env deployment/web --from=configmap/app-config");
   await page.keyboard.press("Enter");
 
-  await page.getByRole("button", { name: "Pause clock" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-running", "2");
 
   await expect(page.locator('[data-check="ConfigMap has app settings"]')).toHaveAttribute(
     "data-state",
@@ -403,6 +404,7 @@ test("ConfigMap lesson injects env into a Deployment", async ({ page }) => {
     "data-state",
     "pass",
   );
+  await openClusterMap(page);
   await expect(page.getByTestId("cluster-configmap-app-config")).toBeVisible();
   await expect(page.getByTestId("cluster-configmap-app-config")).toHaveAttribute("data-keys", "2");
   expect(pageErrors).toEqual([]);
@@ -422,9 +424,7 @@ test("Secret lesson injects a redacted value into a Deployment", async ({ page }
   await page.keyboard.type("kubectl set env deployment/api --from=secret/db-secret");
   await page.keyboard.press("Enter");
 
-  await page.getByRole("button", { name: "Pause clock" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
-  await page.getByRole("button", { name: "Step" }).click();
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-running", "1");
 
   await expect(page.locator('[data-check="Secret contains DB_PASSWORD"]')).toHaveAttribute(
     "data-state",
@@ -438,9 +438,58 @@ test("Secret lesson injects a redacted value into a Deployment", async ({ page }
     "data-state",
     "pass",
   );
+  await openClusterMap(page);
   await expect(page.getByTestId("cluster-secret-db-secret")).toBeVisible();
   await expect(page.getByTestId("cluster-secret-db-secret")).not.toContainText("s3cr3t");
   expect(pageErrors).toEqual([]);
+});
+
+test("mutating commands open a replayable cluster scene", async ({ page }) => {
+  await page.goto("/lesson/pods-101");
+
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl run web --image=nginx --labels=app=web");
+  await page.keyboard.press("Enter");
+
+  const scene = page.getByTestId("cluster-scene");
+  await expect(scene).toBeVisible();
+  await expect(scene).toContainText("run web --image=nginx");
+  await expect(scene.getByRole("button", { name: "Replay" })).toBeVisible();
+
+  await scene.getByRole("button", { name: "Open full map" }).click();
+  await expect(scene).toHaveCount(0);
+  await expect(page.getByTestId("cluster-map")).toBeVisible();
+});
+
+test("read-only commands do not open the cluster scene", async ({ page }) => {
+  await page.goto("/lesson/nodes-101");
+
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get nodes");
+  await page.keyboard.press("Enter");
+
+  await expect(page.getByTestId("cluster-scene")).toHaveCount(0);
+});
+
+test("cluster status opens and closes the inspector", async ({ page }) => {
+  await page.goto("/lesson/pods-101");
+
+  await expect(page.getByTestId("cluster-status")).toBeVisible();
+  await expect(page.getByTestId("cluster-map")).toHaveCount(0);
+
+  await openClusterMap(page);
+  await page.getByRole("button", { name: "Close cluster state" }).click();
+  await expect(page.getByTestId("cluster-map")).toHaveCount(0);
+});
+
+test("cluster status stays visible while scrolling", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto("/lesson/deployments-101");
+
+  const status = page.getByTestId("cluster-status");
+  await expect(status).toBeVisible();
+  await page.evaluate(() => window.scrollTo(0, 700));
+  await expect(status).toBeVisible();
 });
 
 test("cluster map fits a mobile lesson", async ({ page }) => {
@@ -452,7 +501,8 @@ test("cluster map fits a mobile lesson", async ({ page }) => {
   await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=1");
   await page.keyboard.press("Enter");
 
-  await expect(page.getByTestId("cluster-map")).toBeVisible();
+  await expect(page.getByTestId("cluster-status")).toBeVisible();
+  await openClusterMap(page);
   await expect(page.getByTestId("cluster-deployment-web")).toBeVisible();
   const overflows = await page.evaluate(
     () => document.documentElement.scrollWidth > document.documentElement.clientWidth,

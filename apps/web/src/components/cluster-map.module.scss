@@ -1,22 +1,107 @@
-.map {
+.statusChip {
+  display: inline-flex;
+  gap: 0.4rem;
+  align-items: center;
+  margin-left: 0.6rem;
+  padding: 0.24rem 0.55rem;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 2px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  cursor: pointer;
+}
+
+.statusChip:hover,
+.statusChip:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  outline: none;
+}
+
+.statusDot {
+  width: 6px;
+  height: 6px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--color-accent-soft);
+}
+
+.statusChip[data-state="pending"] .statusDot {
+  background: var(--color-warning);
+  box-shadow: 0 0 0 2px rgb(241 196 15 / 16%);
+}
+
+.statusChip[data-state="not-ready"] .statusDot {
+  background: var(--color-danger);
+  box-shadow: 0 0 0 2px rgb(255 45 85 / 16%);
+}
+
+.scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  background: rgb(10 13 19 / 62%);
+  backdrop-filter: blur(2px);
+  animation: scrim-in var(--duration-fast) var(--ease-out);
+}
+
+.popup {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  z-index: 51;
   display: flex;
   flex-direction: column;
+  width: min(880px, calc(100vw - 2rem));
+  max-height: min(78vh, 680px);
   overflow: hidden;
   background: #121620;
   border: 1px solid var(--color-border-strong);
   border-radius: 3px;
-  box-shadow: 5px 5px 0 rgb(0 0 0 / 38%);
+  box-shadow: 0 24px 72px rgb(0 0 0 / 52%);
+  transform: translate(-50%, -50%);
+  animation: popup-in var(--duration-normal) var(--ease-out);
 }
 
 .mapHead {
   display: flex;
   flex-wrap: wrap;
   gap: 0.5rem 1rem;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
-  padding: 0.75rem 1rem;
+  padding: 0.85rem 1rem;
   background: var(--color-surface-2);
   border-bottom: 1px solid var(--color-border);
+}
+
+.headActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.closeButton {
+  padding: 0.28rem 0.6rem;
+  background: var(--color-surface-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: 2px;
+  color: var(--color-muted);
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.closeButton:hover,
+.closeButton:focus-visible {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+  outline: none;
 }
 
 .mapHead h2 {
@@ -74,18 +159,14 @@
 
 .mapBody {
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 0.5rem;
-  max-height: clamp(180px, 37vh, 400px);
-  padding: 0.6rem 1rem 0.65rem;
+  gap: 0.65rem;
+  min-height: 0;
+  padding: 0.8rem 1rem 1rem;
   overflow-y: auto;
   scrollbar-color: var(--color-border-strong) transparent;
   scrollbar-width: thin;
-}
-
-.mapBody:focus-visible {
-  outline: 1px solid var(--color-accent);
-  outline-offset: -2px;
 }
 
 .srOnly {
@@ -161,9 +242,15 @@
   text-transform: none;
 }
 
-.workloads,
-.services {
+.group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.cards {
   display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
   gap: 0.5rem;
 }
 
@@ -395,10 +482,28 @@
 }
 
 .empty {
-  padding: 0.55rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.25rem 0.5rem;
+  align-items: baseline;
+  padding: 0.55rem 0.65rem;
   background: var(--color-bg-elevated);
   border: 1px dashed var(--color-border);
   border-radius: 2px;
+}
+
+.empty strong {
+  color: var(--color-text);
+  font-size: 0.68rem;
+}
+
+.empty code {
+  padding: 0.08rem 0.3rem;
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+  border-radius: 2px;
+  color: var(--color-accent);
+  font-size: 0.6rem;
 }
 
 .endpoints {
@@ -418,6 +523,19 @@
   font-size: 0.58rem;
 }
 
+@keyframes scrim-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes popup-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, calc(-50% + 12px)) scale(0.985);
+  }
+}
+
 @keyframes node-enter {
   from {
     opacity: 0;
@@ -433,8 +551,18 @@
 }
 
 @media (width <= 640px) {
-  .mapBody {
-    max-height: none;
+  .mapHead {
+    align-items: flex-start;
+  }
+
+  .headActions {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .popup {
+    width: calc(100vw - 1rem);
+    max-height: 85vh;
   }
 
   .podName {
@@ -442,13 +570,9 @@
   }
 }
 
-@media (width >= 981px) and (height <= 820px) {
-  .mapBody {
-    max-height: 180px;
-  }
-}
-
 @media (prefers-reduced-motion: reduce) {
+  .popup,
+  .scrim,
   .deployment,
   .service,
   .pod {

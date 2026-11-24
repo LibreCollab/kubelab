@@ -9,6 +9,9 @@ import {
   matchesLabels,
   type Pod,
 } from "@kubelab/sim";
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
+
 import styles from "./cluster-map.module.scss";
 
 const MAX_VISIBLE_PODS = 10;
@@ -22,6 +25,8 @@ export interface ClusterMapProps {
   ingresses: KubeIngress[];
   configMaps: KubeConfigMap[];
   secrets: KubeSecret[];
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
 }
 
 function key(namespace: string, name: string): string {
@@ -113,7 +118,26 @@ export function ClusterMap({
   ingresses,
   configMaps,
   secrets,
+  open,
+  onOpenChange,
 }: ClusterMapProps) {
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    const close = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onOpenChange(false);
+      }
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", close);
+    return () => {
+      document.body.style.overflow = "";
+      window.removeEventListener("keydown", close);
+    };
+  }, [onOpenChange, open]);
+
   const replicaSetsByDeployment = new Map<string, KubeReplicaSet[]>();
   const replicaSetKeys = new Set<string>();
   for (const replicaSet of replicaSets) {
@@ -154,337 +178,413 @@ export function ClusterMap({
   const pendingPods = pods.filter((pod) => pod.status.phase === "Pending").length;
   const readyNodes = nodes.filter((node) => node.status.ready).length;
   const hasWorkloads = deployments.length > 0 || standalonePods.length > 0;
+  const hasRouting = services.length > 0 || ingresses.length > 0;
+  const hasConfig = configMaps.length > 0 || secrets.length > 0;
+  const hasResources = hasWorkloads || hasRouting || hasConfig;
+
+  const clusterState =
+    readyNodes < nodes.length ? "not-ready" : pendingPods > 0 ? "pending" : "ready";
 
   return (
-    <section
-      className={styles.map}
-      data-testid="cluster-map"
-      aria-label="Live cluster state"
-      data-pods={pods.length}
-      data-running={runningPods}
-      data-deployments={deployments.length}
-      data-services={services.length}
-      data-ingresses={ingresses.length}
-      data-configmaps={configMaps.length}
-      data-secrets={secrets.length}
-    >
-      <header className={styles.mapHead}>
-        <div>
-          <h2>Cluster state</h2>
-          <p>
-            {readyNodes}/{nodes.length} nodes ready · {pods.length} pods · {services.length} service
-            {services.length === 1 ? "" : "s"}
-          </p>
-        </div>
-        <div className={styles.legend} aria-hidden="true">
-          <span data-tone="running">running</span>
-          <span data-tone="pending">pending</span>
-          <span data-tone="retired">retired</span>
-        </div>
-      </header>
+    <>
+      <button
+        type="button"
+        className={styles.statusChip}
+        data-testid="cluster-status"
+        data-state={clusterState}
+        data-pods={pods.length}
+        data-running={runningPods}
+        data-deployments={deployments.length}
+        data-services={services.length}
+        data-ingresses={ingresses.length}
+        data-configmaps={configMaps.length}
+        data-secrets={secrets.length}
+        aria-haspopup="dialog"
+        aria-expanded={open}
+        aria-controls="cluster-drawer"
+        onClick={() => onOpenChange(true)}
+      >
+        <span className={styles.statusDot} aria-hidden="true" />
+        <span>
+          {pods.length} pod{pods.length === 1 ? "" : "s"} · {services.length} svc
+        </span>
+      </button>
 
-      {/* biome-ignore lint/a11y/noNoninteractiveTabindex: the scrollable cluster map must be keyboard reachable */}
-      <section className={styles.mapBody} tabIndex={0} aria-label="Cluster resources">
-        <div className={styles.nodes}>
-          {nodes.map((node) => {
-            const assigned = pods.filter((pod) => pod.spec.nodeName === node.metadata.name).length;
-            return (
+      {open
+        ? createPortal(
+            <>
               <div
-                key={node.metadata.name}
-                className={styles.node}
-                data-testid={`cluster-node-${node.metadata.name}`}
-                data-state={node.status.ready ? "ready" : "not-ready"}
+                className={styles.scrim}
+                aria-hidden="true"
+                onClick={() => onOpenChange(false)}
+              />
+              <aside
+                id="cluster-drawer"
+                className={styles.popup}
+                role="dialog"
+                aria-modal="true"
+                aria-label="Live cluster state"
+                data-testid="cluster-map"
+                data-pods={pods.length}
+                data-running={runningPods}
+                data-deployments={deployments.length}
+                data-services={services.length}
+                data-ingresses={ingresses.length}
+                data-configmaps={configMaps.length}
+                data-secrets={secrets.length}
               >
-                <span className={styles.nodeDot} aria-hidden="true" />
-                <span className={styles.nodeName}>{node.metadata.name}</span>
-                <span className={styles.nodeMeta}>
-                  {assigned} pod{assigned === 1 ? "" : "s"} · {node.status.allocatable.cpu} CPU ·{" "}
-                  {node.status.allocatable.memory}
-                </span>
-                <span className={styles.srOnly}>{node.status.ready ? "Ready" : "Not ready"}</span>
-              </div>
-            );
-          })}
-        </div>
-
-        <div className={styles.sectionHead}>
-          <span>Workloads</span>
-          <span>
-            {runningPods} running{pendingPods > 0 ? ` · ${pendingPods} pending` : ""}
-          </span>
-        </div>
-
-        {hasWorkloads ? (
-          <div className={styles.workloads}>
-            {deployments.map((deployment) => {
-              const replicaSetsForDeployment = [
-                ...(replicaSetsByDeployment.get(
-                  key(deployment.metadata.namespace, deployment.metadata.name),
-                ) ?? []),
-              ].sort((left, right) => right.spec.revision - left.spec.revision);
-              const deploymentPods = pods.filter(
-                (pod) =>
-                  pod.metadata.namespace === deployment.metadata.namespace &&
-                  pod.metadata.labels.deployment === deployment.metadata.name,
-              );
-              const ready = deployment.status.readyReplicas;
-              const state =
-                deployment.spec.replicas === 0
-                  ? "retired"
-                  : ready >= deployment.spec.replicas
-                    ? "ready"
-                    : "progressing";
-
-              return (
-                <article
-                  key={key(deployment.metadata.namespace, deployment.metadata.name)}
-                  className={styles.deployment}
-                  data-object="deployment"
-                  data-testid={`cluster-deployment-${deployment.metadata.name}`}
-                  data-state={state}
-                >
-                  <div className={styles.deploymentHead}>
-                    <div>
-                      <span className={styles.kind}>Deployment</span>
-                      <strong>{objectName(deployment)}</strong>
-                    </div>
-                    <span className={styles.count}>
-                      {ready}/{deployment.spec.replicas}
-                    </span>
-                  </div>
-                  <p className={styles.image}>
-                    {deployment.spec.template.containers
-                      .map((container) => container.image)
-                      .join(", ")}
-                  </p>
-                  <span className={styles.srOnly}>{state}</span>
-                  <div className={styles.replicaSets}>
-                    {replicaSetsForDeployment.length === 0 ? (
-                      <span className={styles.waiting}>waiting for ReplicaSet</span>
-                    ) : (
-                      replicaSetsForDeployment.map((replicaSet) => (
-                        <ReplicaSetRow
-                          key={key(replicaSet.metadata.namespace, replicaSet.metadata.name)}
-                          replicaSet={replicaSet}
-                          pods={
-                            podsByReplicaSet.get(
-                              key(
-                                replicaSet.metadata.namespace,
-                                `${replicaSet.metadata.labels.deployment}/${replicaSet.metadata.labels["pod-template-hash"]}`,
-                              ),
-                            ) ?? []
-                          }
-                        />
-                      ))
-                    )}
-                  </div>
-                  {deploymentPods.length === 0 ? (
-                    <span className={styles.waiting}>no pods scheduled</span>
-                  ) : null}
-                </article>
-              );
-            })}
-
-            {standalonePods.length > 0 ? (
-              <article
-                className={styles.deployment}
-                data-object="pods"
-                data-testid="cluster-standalone-pods"
-                data-state={
-                  standalonePods.every((pod) => pod.status.phase === "Running")
-                    ? "ready"
-                    : "progressing"
-                }
-              >
-                <div className={styles.deploymentHead}>
+                <header className={styles.mapHead}>
                   <div>
-                    <span className={styles.kind}>Pods</span>
-                    <strong>standalone</strong>
+                    <h2>Cluster state</h2>
+                    <p>
+                      {readyNodes}/{nodes.length} nodes · {pods.length} pods · {services.length} svc
+                      {ingresses.length > 0 ? ` · ${ingresses.length} ingress` : ""}
+                    </p>
                   </div>
-                  <span className={styles.count}>
-                    {standalonePods.filter((pod) => pod.status.phase === "Running").length}/
-                    {standalonePods.length}
-                  </span>
-                </div>
-                <PodChips pods={standalonePods} />
-              </article>
-            ) : null}
-          </div>
-        ) : (
-          <p className={styles.empty}>Run a workload to populate the cluster graph.</p>
-        )}
-
-        {ingresses.length > 0 ? (
-          <>
-            <div className={styles.sectionHead}>
-              <span>Ingress</span>
-              <span>
-                {ingresses.length} rule{ingresses.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div className={styles.services}>
-              {ingresses.map((ingress) => (
-                <article
-                  key={key(ingress.metadata.namespace, ingress.metadata.name)}
-                  className={`${styles.service} ${styles.ingress}`}
-                  data-object="ingress"
-                  data-testid={`cluster-ingress-${ingress.metadata.name}`}
-                >
-                  <div className={styles.deploymentHead}>
-                    <div>
-                      <span className={styles.kind}>Ingress</span>
-                      <strong>{objectName(ingress)}</strong>
+                  <div className={styles.headActions}>
+                    <div className={styles.legend} aria-hidden="true">
+                      <span data-tone="running">running</span>
+                      <span data-tone="pending">pending</span>
+                      <span data-tone="retired">retired</span>
                     </div>
-                    <span className={styles.count}>
-                      {ingress.spec.rules.length} rule
-                      {ingress.spec.rules.length === 1 ? "" : "s"}
-                    </span>
+                    <button
+                      type="button"
+                      className={styles.closeButton}
+                      aria-label="Close cluster state"
+                      onClick={() => onOpenChange(false)}
+                    >
+                      Close
+                    </button>
                   </div>
-                  {ingress.spec.rules.map((rule) => {
-                    const service = services.find(
-                      (candidate) =>
-                        candidate.metadata.namespace === ingress.metadata.namespace &&
-                        candidate.metadata.name === rule.serviceName,
-                    );
-                    const endpoints =
-                      service === undefined
-                        ? []
-                        : pods.filter(
-                            (pod) =>
-                              pod.metadata.namespace === service.metadata.namespace &&
-                              pod.status.phase === "Running" &&
-                              matchesLabels(pod.metadata.labels, service.spec.selector),
-                          );
-                    return (
-                      <p
-                        key={`${rule.host}${rule.path}`}
-                        className={styles.selector}
-                        data-service={rule.serviceName}
-                        data-endpoints={endpoints.length}
-                      >
-                        {rule.host}
-                        {rule.path} → {rule.serviceName}:{rule.servicePort} · {endpoints.length} ep
-                      </p>
-                    );
-                  })}
-                </article>
-              ))}
-            </div>
-          </>
-        ) : null}
-
-        {configMaps.length + secrets.length > 0 ? (
-          <>
-            <div className={styles.sectionHead}>
-              <span>Configuration</span>
-              <span>
-                {configMaps.length} configmap{configMaps.length === 1 ? "" : "s"} · {secrets.length}{" "}
-                secret{secrets.length === 1 ? "" : "s"}
-              </span>
-            </div>
-            <div className={styles.services}>
-              {configMaps.map((configMap) => (
-                <article
-                  key={key(configMap.metadata.namespace, configMap.metadata.name)}
-                  className={`${styles.service} ${styles.configMap}`}
-                  data-object="configmap"
-                  data-testid={`cluster-configmap-${configMap.metadata.name}`}
-                  data-keys={Object.keys(configMap.data).length}
-                >
-                  <div className={styles.deploymentHead}>
-                    <div>
-                      <span className={styles.kind}>ConfigMap</span>
-                      <strong>{objectName(configMap)}</strong>
-                    </div>
-                    <span className={styles.count}>{Object.keys(configMap.data).length} keys</span>
-                  </div>
-                  <p className={styles.selector}>{Object.keys(configMap.data).join(", ")}</p>
-                </article>
-              ))}
-              {secrets.map((secret) => (
-                <article
-                  key={key(secret.metadata.namespace, secret.metadata.name)}
-                  className={`${styles.service} ${styles.secret}`}
-                  data-object="secret"
-                  data-testid={`cluster-secret-${secret.metadata.name}`}
-                  data-keys={Object.keys(secret.data).length}
-                >
-                  <div className={styles.deploymentHead}>
-                    <div>
-                      <span className={styles.kind}>Secret</span>
-                      <strong>{objectName(secret)}</strong>
-                    </div>
-                    <span className={styles.count}>{Object.keys(secret.data).length} keys</span>
-                  </div>
-                  <p className={styles.selector}>
-                    {Object.keys(secret.data).join(", ")} · values redacted
-                  </p>
-                </article>
-              ))}
-            </div>
-          </>
-        ) : null}
-
-        <div className={styles.sectionHead}>
-          <span>Services</span>
-          <span>{services.length} total</span>
-        </div>
-
-        {services.length === 0 ? (
-          <p className={styles.empty}>No Services exposed yet.</p>
-        ) : (
-          <div className={styles.services}>
-            {services.map((service) => {
-              const endpoints =
-                Object.keys(service.spec.selector).length === 0
-                  ? []
-                  : pods.filter(
-                      (pod) =>
-                        pod.metadata.namespace === service.metadata.namespace &&
-                        pod.status.phase === "Running" &&
-                        matchesLabels(pod.metadata.labels, service.spec.selector),
-                    );
-              const port = service.spec.ports[0];
-
-              return (
-                <article
-                  key={key(service.metadata.namespace, service.metadata.name)}
-                  className={styles.service}
-                  data-object="service"
-                  data-testid={`cluster-service-${service.metadata.name}`}
-                  data-endpoints={endpoints.length}
-                >
-                  <div className={styles.deploymentHead}>
-                    <div>
-                      <span className={styles.kind}>{service.spec.type}</span>
-                      <strong>{objectName(service)}</strong>
-                    </div>
-                    <span className={styles.count}>{endpoints.length} ep</span>
-                  </div>
-                  <p className={styles.selector}>
-                    {service.spec.clusterIP}:{port?.port ?? 80} →{" "}
-                    {selectorLabel(service.spec.selector)}
-                  </p>
-                  {endpoints.length === 0 ? (
-                    <span className={styles.waiting}>no ready endpoints</span>
-                  ) : (
-                    <div className={styles.endpoints}>
-                      {endpoints.slice(0, MAX_VISIBLE_PODS).map((pod) => (
-                        <span
-                          key={key(pod.metadata.namespace, pod.metadata.name)}
-                          className={styles.endpoint}
+                </header>
+                <section className={styles.mapBody} aria-label="Cluster resources">
+                  <div className={styles.nodes}>
+                    {nodes.map((node) => {
+                      const assigned = pods.filter(
+                        (pod) => pod.spec.nodeName === node.metadata.name,
+                      ).length;
+                      return (
+                        <div
+                          key={node.metadata.name}
+                          className={styles.node}
+                          data-testid={`cluster-node-${node.metadata.name}`}
+                          data-state={node.status.ready ? "ready" : "not-ready"}
                         >
-                          {pod.status.podIP ?? "<none>"}:{port?.targetPort ?? port?.port ?? 80}
-                        </span>
-                      ))}
+                          <span className={styles.nodeDot} aria-hidden="true" />
+                          <span className={styles.nodeName}>{node.metadata.name}</span>
+                          <span className={styles.nodeMeta}>
+                            {assigned} pod{assigned === 1 ? "" : "s"} ·{" "}
+                            {node.status.allocatable.cpu} CPU · {node.status.allocatable.memory}
+                          </span>
+                          <span className={styles.srOnly}>
+                            {node.status.ready ? "Ready" : "Not ready"}
+                          </span>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {!hasResources ? (
+                    <div className={styles.empty}>
+                      <strong>No workloads yet</strong>
+                      <span>
+                        Run <code>kubectl run web --image=nginx</code> or create a Deployment to
+                        populate the graph.
+                      </span>
                     </div>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        )}
-      </section>
-    </section>
+                  ) : null}
+
+                  {hasWorkloads ? (
+                    <section className={styles.group} aria-label="Workloads">
+                      <div className={styles.sectionHead}>
+                        <span>Workloads</span>
+                        <span>
+                          {runningPods} running{pendingPods > 0 ? ` · ${pendingPods} pending` : ""}
+                        </span>
+                      </div>
+                      <div className={styles.cards}>
+                        {deployments.map((deployment) => {
+                          const replicaSetsForDeployment = [
+                            ...(replicaSetsByDeployment.get(
+                              key(deployment.metadata.namespace, deployment.metadata.name),
+                            ) ?? []),
+                          ].sort((left, right) => right.spec.revision - left.spec.revision);
+                          const deploymentPods = pods.filter(
+                            (pod) =>
+                              pod.metadata.namespace === deployment.metadata.namespace &&
+                              pod.metadata.labels.deployment === deployment.metadata.name,
+                          );
+                          const ready = deployment.status.readyReplicas;
+                          const state =
+                            deployment.spec.replicas === 0
+                              ? "retired"
+                              : ready >= deployment.spec.replicas
+                                ? "ready"
+                                : "progressing";
+
+                          return (
+                            <article
+                              key={key(deployment.metadata.namespace, deployment.metadata.name)}
+                              className={styles.deployment}
+                              data-object="deployment"
+                              data-testid={`cluster-deployment-${deployment.metadata.name}`}
+                              data-state={state}
+                            >
+                              <div className={styles.deploymentHead}>
+                                <div>
+                                  <span className={styles.kind}>Deployment</span>
+                                  <strong>{objectName(deployment)}</strong>
+                                </div>
+                                <span className={styles.count}>
+                                  {ready}/{deployment.spec.replicas}
+                                </span>
+                              </div>
+                              <p className={styles.image}>
+                                {deployment.spec.template.containers
+                                  .map((container) => container.image)
+                                  .join(", ")}
+                              </p>
+                              <span className={styles.srOnly}>{state}</span>
+                              <div className={styles.replicaSets}>
+                                {replicaSetsForDeployment.length === 0 ? (
+                                  <span className={styles.waiting}>waiting for ReplicaSet</span>
+                                ) : (
+                                  replicaSetsForDeployment.map((replicaSet) => (
+                                    <ReplicaSetRow
+                                      key={key(
+                                        replicaSet.metadata.namespace,
+                                        replicaSet.metadata.name,
+                                      )}
+                                      replicaSet={replicaSet}
+                                      pods={
+                                        podsByReplicaSet.get(
+                                          key(
+                                            replicaSet.metadata.namespace,
+                                            `${replicaSet.metadata.labels.deployment}/${replicaSet.metadata.labels["pod-template-hash"]}`,
+                                          ),
+                                        ) ?? []
+                                      }
+                                    />
+                                  ))
+                                )}
+                              </div>
+                              {deploymentPods.length === 0 ? (
+                                <span className={styles.waiting}>no pods scheduled</span>
+                              ) : null}
+                            </article>
+                          );
+                        })}
+
+                        {standalonePods.length > 0 ? (
+                          <article
+                            className={styles.deployment}
+                            data-object="pods"
+                            data-testid="cluster-standalone-pods"
+                            data-state={
+                              standalonePods.every((pod) => pod.status.phase === "Running")
+                                ? "ready"
+                                : "progressing"
+                            }
+                          >
+                            <div className={styles.deploymentHead}>
+                              <div>
+                                <span className={styles.kind}>Pods</span>
+                                <strong>standalone</strong>
+                              </div>
+                              <span className={styles.count}>
+                                {
+                                  standalonePods.filter((pod) => pod.status.phase === "Running")
+                                    .length
+                                }
+                                /{standalonePods.length}
+                              </span>
+                            </div>
+                            <PodChips pods={standalonePods} />
+                          </article>
+                        ) : null}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {hasRouting ? (
+                    <section className={styles.group} aria-label="Routing">
+                      <div className={styles.sectionHead}>
+                        <span>Routing</span>
+                        <span>
+                          {ingresses.length} ingress · {services.length} services
+                        </span>
+                      </div>
+                      <div className={styles.cards}>
+                        {ingresses.map((ingress) => (
+                          <article
+                            key={key(ingress.metadata.namespace, ingress.metadata.name)}
+                            className={`${styles.service} ${styles.ingress}`}
+                            data-object="ingress"
+                            data-testid={`cluster-ingress-${ingress.metadata.name}`}
+                          >
+                            <div className={styles.deploymentHead}>
+                              <div>
+                                <span className={styles.kind}>Ingress</span>
+                                <strong>{objectName(ingress)}</strong>
+                              </div>
+                              <span className={styles.count}>
+                                {ingress.spec.rules.length} rule
+                                {ingress.spec.rules.length === 1 ? "" : "s"}
+                              </span>
+                            </div>
+                            {ingress.spec.rules.map((rule) => {
+                              const service = services.find(
+                                (candidate) =>
+                                  candidate.metadata.namespace === ingress.metadata.namespace &&
+                                  candidate.metadata.name === rule.serviceName,
+                              );
+                              const endpoints =
+                                service === undefined
+                                  ? []
+                                  : pods.filter(
+                                      (pod) =>
+                                        Object.keys(service.spec.selector).length > 0 &&
+                                        pod.metadata.namespace === service.metadata.namespace &&
+                                        pod.status.phase === "Running" &&
+                                        matchesLabels(pod.metadata.labels, service.spec.selector),
+                                    );
+                              return (
+                                <p
+                                  key={`${rule.host}${rule.path}`}
+                                  className={styles.selector}
+                                  data-service={rule.serviceName}
+                                  data-endpoints={endpoints.length}
+                                >
+                                  {rule.host}
+                                  {rule.path} → {rule.serviceName}:{rule.servicePort} ·{" "}
+                                  {endpoints.length} ep
+                                </p>
+                              );
+                            })}
+                          </article>
+                        ))}
+
+                        {services.map((service) => {
+                          const endpoints =
+                            Object.keys(service.spec.selector).length === 0
+                              ? []
+                              : pods.filter(
+                                  (pod) =>
+                                    pod.metadata.namespace === service.metadata.namespace &&
+                                    pod.status.phase === "Running" &&
+                                    matchesLabels(pod.metadata.labels, service.spec.selector),
+                                );
+                          const port = service.spec.ports[0];
+
+                          return (
+                            <article
+                              key={key(service.metadata.namespace, service.metadata.name)}
+                              className={styles.service}
+                              data-object="service"
+                              data-testid={`cluster-service-${service.metadata.name}`}
+                              data-endpoints={endpoints.length}
+                            >
+                              <div className={styles.deploymentHead}>
+                                <div>
+                                  <span className={styles.kind}>{service.spec.type}</span>
+                                  <strong>{objectName(service)}</strong>
+                                </div>
+                                <span className={styles.count}>{endpoints.length} ep</span>
+                              </div>
+                              <p className={styles.selector}>
+                                {service.spec.clusterIP}:{port?.port ?? 80} →{" "}
+                                {selectorLabel(service.spec.selector)}
+                              </p>
+                              {endpoints.length === 0 ? (
+                                <span className={styles.waiting}>no ready endpoints</span>
+                              ) : (
+                                <div className={styles.endpoints}>
+                                  {endpoints.slice(0, MAX_VISIBLE_PODS).map((pod) => (
+                                    <span
+                                      key={key(pod.metadata.namespace, pod.metadata.name)}
+                                      className={styles.endpoint}
+                                    >
+                                      {pod.status.podIP ?? "<none>"}:
+                                      {port?.targetPort ?? port?.port ?? 80}
+                                    </span>
+                                  ))}
+                                  {endpoints.length > MAX_VISIBLE_PODS ? (
+                                    <span className={styles.more}>
+                                      +{endpoints.length - MAX_VISIBLE_PODS}
+                                    </span>
+                                  ) : null}
+                                </div>
+                              )}
+                            </article>
+                          );
+                        })}
+                      </div>
+                    </section>
+                  ) : null}
+
+                  {hasConfig ? (
+                    <section className={styles.group} aria-label="Configuration">
+                      <div className={styles.sectionHead}>
+                        <span>Configuration</span>
+                        <span>
+                          {configMaps.length} configmap{configMaps.length === 1 ? "" : "s"} ·{" "}
+                          {secrets.length} secret{secrets.length === 1 ? "" : "s"}
+                        </span>
+                      </div>
+                      <div className={styles.cards}>
+                        {configMaps.map((configMap) => (
+                          <article
+                            key={key(configMap.metadata.namespace, configMap.metadata.name)}
+                            className={`${styles.service} ${styles.configMap}`}
+                            data-object="configmap"
+                            data-testid={`cluster-configmap-${configMap.metadata.name}`}
+                            data-keys={Object.keys(configMap.data).length}
+                          >
+                            <div className={styles.deploymentHead}>
+                              <div>
+                                <span className={styles.kind}>ConfigMap</span>
+                                <strong>{objectName(configMap)}</strong>
+                              </div>
+                              <span className={styles.count}>
+                                {Object.keys(configMap.data).length} keys
+                              </span>
+                            </div>
+                            <p className={styles.selector}>
+                              {Object.keys(configMap.data).join(", ")}
+                            </p>
+                          </article>
+                        ))}
+                        {secrets.map((secret) => (
+                          <article
+                            key={key(secret.metadata.namespace, secret.metadata.name)}
+                            className={`${styles.service} ${styles.secret}`}
+                            data-object="secret"
+                            data-testid={`cluster-secret-${secret.metadata.name}`}
+                            data-keys={Object.keys(secret.data).length}
+                          >
+                            <div className={styles.deploymentHead}>
+                              <div>
+                                <span className={styles.kind}>Secret</span>
+                                <strong>{objectName(secret)}</strong>
+                              </div>
+                              <span className={styles.count}>
+                                {Object.keys(secret.data).length} keys
+                              </span>
+                            </div>
+                            <p className={styles.selector}>
+                              {Object.keys(secret.data).join(", ")} · values redacted
+                            </p>
+                          </article>
+                        ))}
+                      </div>
+                    </section>
+                  ) : null}
+                </section>
+              </aside>
+            </>,
+            document.body,
+          )
+        : null}
+    </>
   );
 }

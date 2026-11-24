@@ -7,17 +7,21 @@ import {
   type KubeReplicaSet,
   type KubeSecret,
   type KubeService,
+  type ParsedCommand,
   type Pod,
   SimEngine,
 } from "@kubelab/sim";
-import { Button, cx } from "@kubelab/ui";
+import { cx } from "@kubelab/ui";
 import { Link, useParams } from "@tanstack/react-router";
 import { marked } from "marked";
-import { useEffect, useMemo, useReducer, useState } from "react";
+import { AnimatePresence } from "motion/react";
+import { useEffect, useMemo, useReducer, useRef, useState } from "react";
 
 import { ClusterMap } from "../components/ClusterMap";
+import { ClusterScene } from "../components/ClusterScene";
 import { Terminal } from "../components/Terminal";
 import { type CheckResult, evaluateChecks } from "../lib/checks";
+import { type ChangeScene, captureSnapshot, snapshotChanged } from "../lib/cluster-snapshot";
 import { guardLessonCommand } from "../lib/lesson-guard";
 import { nextLessonId } from "../lib/progress";
 import { useProgress } from "../lib/progress-context";
@@ -40,6 +44,7 @@ interface CheckpointFeedbackProps {
   pendingCount: number;
   hints: string[];
   inline?: boolean;
+  standalone?: boolean;
 }
 
 function CheckpointFeedback({
@@ -50,10 +55,15 @@ function CheckpointFeedback({
   pendingCount,
   hints,
   inline = false,
+  standalone = false,
 }: CheckpointFeedbackProps) {
   return (
     <div
-      className={cx(styles.feedback, inline && styles.feedbackInline)}
+      className={cx(
+        styles.feedback,
+        inline && styles.feedbackInline,
+        standalone && styles.feedbackStandalone,
+      )}
       data-feedback={allPassed ? "pass" : "pending"}
       data-next-check={nextCheck}
       aria-live="polite"
@@ -104,9 +114,23 @@ export function LessonPage() {
   return <LessonPlayer key={lesson.id} lesson={lesson} />;
 }
 
+function mutatesCluster(command: ParsedCommand): boolean {
+  if (command.verb === "run" || command.verb === "create" || command.verb === "expose") {
+    return true;
+  }
+  if (command.verb === "scale" || command.verb === "set" || command.verb === "delete") {
+    return true;
+  }
+  return command.verb === "rollout" && command.action === "undo";
+}
+
 function LessonPlayer({ lesson }: { lesson: Lesson }) {
-  const [running, setRunning] = useState(true);
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [clusterOpen, setClusterOpen] = useState(false);
+  const [scene, setScene] = useState<ChangeScene | null>(null);
+  const sceneRef = useRef<ChangeScene | null>(null);
+  const sceneTicksRef = useRef(0);
+  const sceneIdRef = useRef(0);
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const { rows, startLesson, saveAnswers, completeLesson } = useProgress();
   const savedAnswers = rows[lesson.id]?.answers;
@@ -125,15 +149,6 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   }, [lesson]);
 
   const interactive = lesson.checks.some((check) => check.type !== "quiz");
-  const timed = lesson.checks.some(
-    (check) =>
-      check.type === "pod" ||
-      check.type === "deployment" ||
-      check.type === "service" ||
-      check.type === "dns" ||
-      check.type === "ingress" ||
-      (check.type === "command" && check.verb === "exec"),
-  );
 
   useEffect(() => {
     if (savedAnswers !== undefined) {
@@ -151,10 +166,20 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
     }
 
     const unsubscribe = engine.clock.onTick(() => {
+      const active = sceneRef.current;
+      if (active !== null && sceneTicksRef.current < 4) {
+        const last = active.frames[active.frames.length - 1];
+        const nextFrame = captureSnapshot(engine);
+        if (last !== undefined && snapshotChanged(last, nextFrame)) {
+          const nextScene = { ...active, frames: [...active.frames, nextFrame] };
+          sceneRef.current = nextScene;
+          setScene(nextScene);
+        }
+        sceneTicksRef.current += 1;
+      }
       forceUpdate();
     });
     engine.start();
-    setRunning(true);
 
     return () => {
       unsubscribe();
@@ -174,6 +199,12 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
       answers,
     });
 
+  const closeScene = () => {
+    sceneRef.current = null;
+    sceneTicksRef.current = 0;
+    setScene(null);
+  };
+
   const execute = (input: string): string => {
     if (lesson.strict) {
       const guard = guardLessonCommand(input, lesson.checks);
@@ -184,30 +215,27 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
       }
     }
 
+    const before = captureSnapshot(engine);
     const result = engine.execute(input);
+    const executed = engine.commands[engine.commands.length - 1];
+    if (result.ok && executed !== undefined && mutatesCluster(executed)) {
+      const after = captureSnapshot(engine);
+      if (snapshotChanged(before, after)) {
+        sceneIdRef.current += 1;
+        const nextScene = {
+          id: sceneIdRef.current,
+          command: input,
+          frames: [before, after],
+        };
+        sceneRef.current = nextScene;
+        sceneTicksRef.current = 0;
+        setScene(nextScene);
+      }
+    }
     const status = checkpointStatus(readChecks());
 
     forceUpdate();
     return `${result.output}\n${status}`;
-  };
-
-  const toggleClock = () => {
-    if (running) {
-      engine.pause();
-      setRunning(false);
-    } else {
-      engine.start();
-      setRunning(true);
-    }
-  };
-
-  const stepClock = () => {
-    if (running) {
-      engine.pause();
-      setRunning(false);
-    }
-    engine.step();
-    forceUpdate();
   };
 
   const checks = readChecks();
@@ -249,16 +277,6 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
           </p>
           <h1>{lesson.title}</h1>
         </div>
-        {timed ? (
-          <div className={styles.controls}>
-            <Button variant="secondary" size="sm" onClick={toggleClock}>
-              {running ? "Pause clock" : "Resume clock"}
-            </Button>
-            <Button variant="ghost" size="sm" onClick={stepClock}>
-              Step
-            </Button>
-          </div>
-        ) : null}
       </div>
 
       <div className={cx(styles.layout, !interactive && styles.singleColumn)}>
@@ -342,37 +360,57 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
               <div className={styles.terminalHead}>
                 <span className={styles.dot} aria-hidden="true" />
                 <span>cluster: kubelab</span>
-                <span className={`${styles.liveStatus} ${running ? "" : styles.paused}`}>
-                  {running ? "live" : "paused"}
-                </span>
+                <span className={styles.liveStatus}>live</span>
+                <ClusterMap
+                  nodes={engine.store.list<KubeNode>("Node")}
+                  deployments={engine.store.list<KubeDeployment>("Deployment")}
+                  replicaSets={engine.store.list<KubeReplicaSet>("ReplicaSet")}
+                  pods={engine.store.list<Pod>("Pod")}
+                  services={engine.store.list<KubeService>("Service")}
+                  ingresses={engine.store.list<KubeIngress>("Ingress")}
+                  configMaps={engine.store.list<KubeConfigMap>("ConfigMap")}
+                  secrets={engine.store.list<KubeSecret>("Secret")}
+                  open={clusterOpen}
+                  onOpenChange={(nextOpen) => {
+                    setClusterOpen(nextOpen);
+                    if (nextOpen) {
+                      closeScene();
+                    }
+                  }}
+                />
               </div>
               <Terminal execute={execute} />
-              <CheckpointFeedback
-                allPassed={allPassed}
-                passedCount={passedCount}
-                total={checks.length}
-                nextCheck={nextCheck}
-                pendingCount={pendingLabels.length}
-                hints={lesson.hints}
-              />
               <p className={styles.hint}>
                 Simulated cluster · {lesson.scenario.nodes.length} node · commands never leave your
                 browser.
               </p>
             </section>
-            <ClusterMap
-              nodes={engine.store.list<KubeNode>("Node")}
-              deployments={engine.store.list<KubeDeployment>("Deployment")}
-              replicaSets={engine.store.list<KubeReplicaSet>("ReplicaSet")}
-              pods={engine.store.list<Pod>("Pod")}
-              services={engine.store.list<KubeService>("Service")}
-              ingresses={engine.store.list<KubeIngress>("Ingress")}
-              configMaps={engine.store.list<KubeConfigMap>("ConfigMap")}
-              secrets={engine.store.list<KubeSecret>("Secret")}
+            <CheckpointFeedback
+              allPassed={allPassed}
+              passedCount={passedCount}
+              total={checks.length}
+              nextCheck={nextCheck}
+              pendingCount={pendingLabels.length}
+              hints={lesson.hints}
+              standalone
             />
           </div>
         ) : null}
       </div>
+
+      <AnimatePresence>
+        {scene !== null ? (
+          <ClusterScene
+            key={scene.id}
+            scene={scene}
+            onClose={closeScene}
+            onOpenFull={() => {
+              closeScene();
+              setClusterOpen(true);
+            }}
+          />
+        ) : null}
+      </AnimatePresence>
 
       {completed ? (
         <div className={styles.completeBar}>
