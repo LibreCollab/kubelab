@@ -66,10 +66,10 @@ test("progress persists and unlocks the next lesson", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
-test("brand mark starts the first lesson", async ({ page }) => {
-  await page.goto("/");
-  await page.getByRole("link", { name: /Kubelab — start the first lesson/ }).click();
-  await expect(page).toHaveURL(/\/lesson\/containers-101$/);
+test("brand mark returns to the roadmap", async ({ page }) => {
+  await page.goto("/lesson/containers-101");
+  await page.getByRole("link", { name: /Kubelab — home/ }).click();
+  await expect(page).toHaveURL(/\/$/);
 });
 
 test("landing page navigates into the first lesson", async ({ page }) => {
