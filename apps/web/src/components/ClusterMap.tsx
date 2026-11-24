@@ -1,8 +1,10 @@
 import {
+  type KubeConfigMap,
   type KubeDeployment,
   type KubeIngress,
   type KubeNode,
   type KubeReplicaSet,
+  type KubeSecret,
   type KubeService,
   matchesLabels,
   type Pod,
@@ -18,6 +20,8 @@ export interface ClusterMapProps {
   pods: Pod[];
   services: KubeService[];
   ingresses: KubeIngress[];
+  configMaps: KubeConfigMap[];
+  secrets: KubeSecret[];
 }
 
 function key(namespace: string, name: string): string {
@@ -107,6 +111,8 @@ export function ClusterMap({
   pods,
   services,
   ingresses,
+  configMaps,
+  secrets,
 }: ClusterMapProps) {
   const replicaSetsByDeployment = new Map<string, KubeReplicaSet[]>();
   const replicaSetKeys = new Set<string>();
@@ -159,6 +165,8 @@ export function ClusterMap({
       data-deployments={deployments.length}
       data-services={services.length}
       data-ingresses={ingresses.length}
+      data-configmaps={configMaps.length}
+      data-secrets={secrets.length}
     >
       <header className={styles.mapHead}>
         <div>
@@ -359,6 +367,58 @@ export function ClusterMap({
                       </p>
                     );
                   })}
+                </article>
+              ))}
+            </div>
+          </>
+        ) : null}
+
+        {configMaps.length + secrets.length > 0 ? (
+          <>
+            <div className={styles.sectionHead}>
+              <span>Configuration</span>
+              <span>
+                {configMaps.length} configmap{configMaps.length === 1 ? "" : "s"} · {secrets.length}{" "}
+                secret{secrets.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className={styles.services}>
+              {configMaps.map((configMap) => (
+                <article
+                  key={key(configMap.metadata.namespace, configMap.metadata.name)}
+                  className={`${styles.service} ${styles.configMap}`}
+                  data-object="configmap"
+                  data-testid={`cluster-configmap-${configMap.metadata.name}`}
+                  data-keys={Object.keys(configMap.data).length}
+                >
+                  <div className={styles.deploymentHead}>
+                    <div>
+                      <span className={styles.kind}>ConfigMap</span>
+                      <strong>{objectName(configMap)}</strong>
+                    </div>
+                    <span className={styles.count}>{Object.keys(configMap.data).length} keys</span>
+                  </div>
+                  <p className={styles.selector}>{Object.keys(configMap.data).join(", ")}</p>
+                </article>
+              ))}
+              {secrets.map((secret) => (
+                <article
+                  key={key(secret.metadata.namespace, secret.metadata.name)}
+                  className={`${styles.service} ${styles.secret}`}
+                  data-object="secret"
+                  data-testid={`cluster-secret-${secret.metadata.name}`}
+                  data-keys={Object.keys(secret.data).length}
+                >
+                  <div className={styles.deploymentHead}>
+                    <div>
+                      <span className={styles.kind}>Secret</span>
+                      <strong>{objectName(secret)}</strong>
+                    </div>
+                    <span className={styles.count}>{Object.keys(secret.data).length} keys</span>
+                  </div>
+                  <p className={styles.selector}>
+                    {Object.keys(secret.data).join(", ")} · values redacted
+                  </p>
                 </article>
               ))}
             </div>

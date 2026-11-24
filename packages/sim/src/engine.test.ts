@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseKubectl, SimEngine } from "./index";
+import { type KubeDeployment, type Pod, parseKubectl, SimEngine } from "./index";
 
 function createEngine(): SimEngine {
   const engine = new SimEngine({ intervalMs: 1000 });
@@ -146,6 +146,50 @@ describe("kubectl parser", () => {
           "kubectl create ingress web --rule=a.example.com/=web:80 --rule=b.example.com/=web:80",
         ),
     ).toBe(true);
+  });
+
+  it("parses ConfigMap, Secret, and set env commands", () => {
+    const configMap = parseKubectl(
+      "kubectl create configmap app-config --from-literal=APP_MODE=production --from-literal=LOG_LEVEL=debug",
+    );
+    expect("error" in configMap).toBe(false);
+    if (!("error" in configMap) && configMap.verb === "create") {
+      expect(configMap.resource).toBe("configmaps");
+      if (configMap.resource === "configmaps") {
+        expect(configMap.data).toEqual({ APP_MODE: "production", LOG_LEVEL: "debug" });
+      }
+    }
+
+    const secret = parseKubectl(
+      "kubectl create secret generic db-secret --from-literal=DB_PASSWORD=s3cr3t",
+    );
+    expect("error" in secret).toBe(false);
+    if (!("error" in secret) && secret.verb === "create") {
+      expect(secret.resource).toBe("secrets");
+      if (secret.resource === "secrets") {
+        expect(secret.name).toBe("db-secret");
+        expect(secret.data).toEqual({ DB_PASSWORD: "s3cr3t" });
+      }
+    }
+
+    const env = parseKubectl("kubectl set env deployment/web --from=configmap/app-config");
+    expect("error" in env).toBe(false);
+    if (!("error" in env) && env.verb === "set") {
+      expect(env).toMatchObject({
+        action: "env",
+        name: "web",
+        fromKind: "ConfigMap",
+        fromName: "app-config",
+      });
+    }
+
+    expect("error" in parseKubectl("kubectl create secret db-secret --from-literal=BAD")).toBe(
+      true,
+    );
+    expect("error" in parseKubectl("kubectl set env deployment/web")).toBe(true);
+    expect("error" in parseKubectl("kubectl set env deployment/web --from=literal/thing")).toBe(
+      true,
+    );
   });
 
   it("rejects partial numbers, empty assignments, and extra arguments", () => {
@@ -480,6 +524,84 @@ describe("engine", () => {
         'kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/',
       ).output,
     ).toContain("503");
+  });
+
+  it("wires ConfigMaps and Secrets into Deployment environments", () => {
+    const engine = createEngine();
+    engine.execute(
+      "kubectl create configmap app-config --from-literal=APP_MODE=production --from-literal=LOG_LEVEL=debug",
+    );
+    engine.execute("kubectl create deployment web --image=nginx --replicas=1");
+    expect(engine.execute("kubectl set env deployment/web --from=configmap/app-config").ok).toBe(
+      true,
+    );
+    engine.step();
+    engine.step();
+
+    const web = engine.store.list<KubeDeployment>("Deployment")[0];
+    expect(web?.spec.template.containers[0]?.env).toEqual([
+      {
+        name: "APP_MODE",
+        value: "production",
+        source: { kind: "ConfigMap", name: "app-config" },
+      },
+      {
+        name: "LOG_LEVEL",
+        value: "debug",
+        source: { kind: "ConfigMap", name: "app-config" },
+      },
+    ]);
+    expect(engine.execute("kubectl describe deployment web").output).toContain(
+      "EnvFrom: ConfigMap/app-config",
+    );
+    expect(engine.execute("kubectl describe deployment web").output).not.toContain(
+      "APP_MODE: production",
+    );
+
+    const webPod = engine.store
+      .list<Pod>("Pod")
+      .find((pod) => pod.metadata.labels.deployment === "web");
+    expect(webPod).toBeDefined();
+    if (webPod !== undefined) {
+      expect(
+        engine.execute(`kubectl exec ${webPod.metadata.name} -- printenv APP_MODE`).output,
+      ).toBe("production");
+    }
+
+    engine.execute("kubectl create secret generic db-secret --from-literal=DB_PASSWORD=s3cr3t");
+    engine.execute("kubectl create deployment api --image=nginx");
+    expect(engine.execute("kubectl set env deployment/api --from=secret/db-secret").ok).toBe(true);
+    expect(engine.execute("kubectl get configmaps").output).toContain("app-config");
+    expect(engine.execute("kubectl get secrets").output).toContain("db-secret");
+    expect(engine.execute("kubectl describe deployment api").output).not.toContain("s3cr3t");
+    expect(engine.execute("kubectl describe deployment api").output).toContain(
+      "EnvFrom: Secret/db-secret",
+    );
+    engine.step();
+    engine.step();
+
+    const apiPod = engine.store
+      .list<Pod>("Pod")
+      .find((pod) => pod.metadata.labels.deployment === "api");
+    expect(apiPod?.spec.containers[0]?.env).toEqual([
+      {
+        name: "DB_PASSWORD",
+        value: "s3cr3t",
+        source: { kind: "Secret", name: "db-secret" },
+      },
+    ]);
+
+    engine.execute("kubectl create secret generic unicode --from-literal=GREETING=🔐");
+    engine.execute("kubectl create deployment unicode --image=nginx");
+    expect(engine.execute("kubectl set env deployment/unicode --from=secret/unicode").ok).toBe(
+      true,
+    );
+    engine.step();
+    engine.step();
+    const unicodePod = engine.store
+      .list<Pod>("Pod")
+      .find((pod) => pod.metadata.labels.deployment === "unicode");
+    expect(unicodePod?.spec.containers[0]?.env?.[0]?.value).toBe("🔐");
   });
 
   it("reports rollout status", () => {

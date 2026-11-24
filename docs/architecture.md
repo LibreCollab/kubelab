@@ -161,9 +161,10 @@ matter for teaching.
 
 **Scaffold now**: object store, virtual clock, scheduler/kubelet stub, `get`
 (table, wide, label selectors, `--show-labels`), `describe`, `run`, `create
-deployment|ingress`, `expose`, `scale`, `set image`, `rollout`, `exec` for DNS
-and HTTP checks, `delete`, and `help`. The wider command set above is the Phase 1
-target; `apply`, `logs`, and `-o yaml` are intentionally not faked yet.
+deployment|ingress|configmap|secret`, `expose`, `scale`, `set image|env`,
+`rollout`, `exec` for DNS, HTTP, and environment checks, `delete`, and `help`.
+The wider command set above is the Phase 1 target; `apply`, `logs`, and `-o yaml`
+are intentionally not faked yet.
 
 ### Lesson validation
 
@@ -226,9 +227,10 @@ Skill tree (prereq graph) with unit gates:
 13. **Certification tracks** — see [Certification targets](#certification-targets).
 
 **Content now spans units 1–12 plus five certification readiness checks.**
-Units 1–4 include interactive kubectl lessons (Pods, labels, lifecycle,
-Deployments, Services, DNS, Ingress, nodes, kubectl) with a live cluster map;
-later units are theory + quiz checks until their simulator subsystems land. Timed mock exams
+Units 1–5 include interactive kubectl lessons (Pods, labels, lifecycle,
+Deployments, Services, DNS, Ingress, ConfigMaps, Secrets, nodes, kubectl) with a
+live cluster map; later units are theory + quiz checks until their simulator
+subsystems land. Timed mock exams
 remain Phase 3; the current cert lessons are readiness checks.
 
 ### Certification targets

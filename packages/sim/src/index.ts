@@ -7,12 +7,17 @@ export { filterPods, matchesLabels, type PodFilter, podMatches } from "./selecto
 export { ClusterStore } from "./store";
 export type {
   CommandResult,
+  ContainerSpec,
+  EnvFromSource,
+  EnvVar,
   IngressRule,
+  KubeConfigMap,
   KubeDeployment,
   KubeIngress,
   KubeNode,
   KubeObject,
   KubeReplicaSet,
+  KubeSecret,
   KubeService,
   ObjectMeta,
   Pod,

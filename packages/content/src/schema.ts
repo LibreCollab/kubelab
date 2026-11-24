@@ -46,6 +46,33 @@ export const deploymentCheckSchema = z.object({
   labels: z.record(z.string(), z.string()).default({}),
 });
 
+export const configMapCheckSchema = z.object({
+  type: z.literal("configmap"),
+  label: z.string().min(1),
+  namespace: z.string().min(1).default("default"),
+  name: z.string().min(1),
+  data: z.record(z.string(), z.string()).default({}),
+});
+
+export const secretCheckSchema = z.object({
+  type: z.literal("secret"),
+  label: z.string().min(1),
+  namespace: z.string().min(1).default("default"),
+  name: z.string().min(1),
+  keys: z.array(z.string().min(1)).default([]),
+});
+
+export const envCheckSchema = z.object({
+  type: z.literal("env"),
+  label: z.string().min(1),
+  namespace: z.string().min(1).default("default"),
+  deployment: z.string().min(1),
+  name: z.string().min(1),
+  value: z.string(),
+  sourceKind: z.enum(["ConfigMap", "Secret"]).optional(),
+  sourceName: z.string().min(1).optional(),
+});
+
 export const dnsCheckSchema = z.object({
   type: z.literal("dns"),
   label: z.string().min(1),
@@ -97,6 +124,9 @@ export const checkSchema = z.discriminatedUnion("type", [
   commandCheckSchema,
   deploymentCheckSchema,
   serviceCheckSchema,
+  configMapCheckSchema,
+  secretCheckSchema,
+  envCheckSchema,
   dnsCheckSchema,
   ingressCheckSchema,
   quizCheckSchema,

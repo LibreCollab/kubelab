@@ -15,6 +15,53 @@ scenario:
 objectives:
   - ConfigMap purpose
 checks:
+  - type: command
+    label: Created the ConfigMap
+    verb: create
+    resource: configmaps
+    name: app-config
+  - type: configmap
+    label: ConfigMap has app settings
+    namespace: default
+    name: app-config
+    data:
+      APP_MODE: production
+      LOG_LEVEL: debug
+  - type: command
+    label: Created the Deployment
+    verb: create
+    resource: deployments
+    name: web
+    image: nginx
+    replicas: 2
+  - type: command
+    label: Wired the ConfigMap into env
+    verb: set
+    resource: deployments
+    name: web
+  - type: deployment
+    label: Deployment is ready
+    namespace: default
+    name: web
+    replicas: 2
+    image: nginx
+    ready: true
+  - type: env
+    label: APP_MODE is injected
+    namespace: default
+    deployment: web
+    name: APP_MODE
+    value: production
+    sourceKind: ConfigMap
+    sourceName: app-config
+  - type: env
+    label: LOG_LEVEL is injected
+    namespace: default
+    deployment: web
+    name: LOG_LEVEL
+    value: debug
+    sourceKind: ConfigMap
+    sourceName: app-config
   - type: quiz
     id: q1
     label: ConfigMap purpose
@@ -25,5 +72,8 @@ checks:
       - container images
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: ConfigMaps are for non-secret configuration.
+  - "Create it: kubectl create configmap app-config --from-literal=APP_MODE=production --from-literal=LOG_LEVEL=debug"
+  - "Create the workload: kubectl create deployment web --image=nginx --replicas=2"
+  - "Wire it: kubectl set env deployment/web --from=configmap/app-config"
+  - "Inspect it: kubectl describe deployment web"
+solution: envFrom resolves every key in app-config into the Deployment's containers.

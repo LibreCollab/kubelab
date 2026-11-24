@@ -26,14 +26,29 @@ export interface KubeNode extends KubeObject {
   };
 }
 
+export interface EnvVar {
+  name: string;
+  value: string;
+  source?: EnvFromSource;
+}
+
+export interface EnvFromSource {
+  kind: "ConfigMap" | "Secret";
+  name: string;
+}
+
+export interface ContainerSpec {
+  name: string;
+  image: string;
+  env?: EnvVar[];
+  envFrom?: EnvFromSource[];
+}
+
 export interface Pod extends KubeObject {
   kind: "Pod";
   spec: {
     nodeName?: string;
-    containers: Array<{
-      name: string;
-      image: string;
-    }>;
+    containers: ContainerSpec[];
   };
   status: {
     phase: PodPhase;
@@ -44,10 +59,18 @@ export interface Pod extends KubeObject {
 
 export interface PodTemplate {
   labels: Record<string, string>;
-  containers: Array<{
-    name: string;
-    image: string;
-  }>;
+  containers: ContainerSpec[];
+}
+
+export interface KubeConfigMap extends KubeObject {
+  kind: "ConfigMap";
+  data: Record<string, string>;
+}
+
+export interface KubeSecret extends KubeObject {
+  kind: "Secret";
+  type: "Opaque";
+  data: Record<string, string>;
 }
 
 export interface KubeReplicaSet extends KubeObject {

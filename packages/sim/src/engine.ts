@@ -6,10 +6,12 @@ import { filterPods, matchesLabels, type PodFilter } from "./selectors";
 import { ClusterStore } from "./store";
 import type {
   CommandResult,
+  KubeConfigMap,
   KubeDeployment,
   KubeIngress,
   KubeNode,
   KubeReplicaSet,
+  KubeSecret,
   KubeService,
   Pod,
   PodTemplate,
@@ -23,21 +25,42 @@ export interface SimEngineOptions {
 const HELP = `kubectl controls the Kubelab simulated cluster.
 
 Supported in this scaffold:
-  kubectl get pods|deployments|replicasets|services|endpoints|ingresses [-n ns] [-A] [name]
+  kubectl get pods|deployments|replicasets|services|endpoints|ingresses|configmaps|secrets [-n ns] [-A] [name]
   kubectl get nodes [name]
   kubectl run <name> --image=<image> [--labels=key=value]
   kubectl create deployment <name> --image=<image> [--replicas=N]
+  kubectl create configmap <name> --from-literal=KEY=VALUE
+  kubectl create secret generic <name> --from-literal=KEY=VALUE
   kubectl create ingress <name> --rule=host/path=service:port
   kubectl exec <pod> [-n ns] -- <command> [args...]
   kubectl expose deployment|pod <name> --port=80 [--type=ClusterIP]
   kubectl scale deployment <name> --replicas=N
   kubectl set image deployment/<name> <container>=<image>
+  kubectl set env deployment/<name> --from=configmap|secret/<name>
   kubectl rollout status|undo deployment/<name>
   kubectl describe pod|deployment|service|ingress <name>
-  kubectl delete pod|deployment|service|ingress <name>
+  kubectl delete pod|deployment|service|ingress|configmap|secret <name>
   kubectl help
 
-Coming next: apply, logs, config, storage.`;
+Coming next: apply, logs, volumes, storage.`;
+
+function encodeBase64(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) {
+    binary += String.fromCharCode(byte);
+  }
+  return btoa(binary);
+}
+
+function decodeBase64(value: string): string {
+  const binary = atob(value);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new TextDecoder().decode(bytes);
+}
 
 function matchesIngressPath(rulePath: string, requestPath: string): boolean {
   if (rulePath === "/") {
@@ -58,7 +81,15 @@ function formatLabels(labels: Record<string, string>): string {
 
 function templateHash(template: PodTemplate): string {
   const containers = template.containers
-    .map((container) => `${container.name}:${container.image}`)
+    .map((container) => {
+      const env = (container.env ?? [])
+        .map((variable) => `${variable.name}=${variable.value}`)
+        .join("&");
+      const envFrom = (container.envFrom ?? [])
+        .map((source) => `${source.kind}:${source.name}`)
+        .join("&");
+      return `${container.name}:${container.image}[${env}][${envFrom}]`;
+    })
     .join(",");
   const labels = Object.entries(template.labels)
     .sort(([left], [right]) => left.localeCompare(right))
@@ -183,9 +214,16 @@ export class SimEngine {
       case "run":
         return this.#run(parsed);
       case "create":
-        return parsed.resource === "ingresses"
-          ? this.#createIngress(parsed)
-          : this.#createDeployment(parsed);
+        if (parsed.resource === "ingresses") {
+          return this.#createIngress(parsed);
+        }
+        if (parsed.resource === "configmaps") {
+          return this.#createConfigMap(parsed);
+        }
+        if (parsed.resource === "secrets") {
+          return this.#createSecret(parsed);
+        }
+        return this.#createDeployment(parsed);
       case "exec":
         return this.#exec(parsed);
       case "expose":
@@ -193,7 +231,7 @@ export class SimEngine {
       case "scale":
         return this.#scale(parsed);
       case "set":
-        return this.#setImage(parsed);
+        return parsed.action === "env" ? this.#setEnv(parsed) : this.#setImage(parsed);
       case "rollout":
         return this.#rollout(parsed);
       case "delete":
@@ -234,6 +272,14 @@ export class SimEngine {
 
     if (command.resource === "ingresses") {
       return this.#getIngresses(command);
+    }
+
+    if (command.resource === "configmaps") {
+      return this.#getConfigMaps(command);
+    }
+
+    if (command.resource === "secrets") {
+      return this.#getSecrets(command);
     }
 
     return {
@@ -401,6 +447,63 @@ export class SimEngine {
     return { ok: true, output: `deployment.apps/${command.name} created` };
   }
 
+  #createConfigMap(
+    command: Extract<ParsedCommand, { verb: "create"; resource: "configmaps" }>,
+  ): CommandResult {
+    if (this.store.get<KubeConfigMap>("ConfigMap", command.name, command.namespace)) {
+      return {
+        ok: false,
+        output: `Error from server (AlreadyExists): configmaps "${command.name}" already exists`,
+      };
+    }
+
+    this.store.upsert<KubeConfigMap>({
+      apiVersion: "v1",
+      kind: "ConfigMap",
+      metadata: {
+        name: command.name,
+        namespace: command.namespace,
+        labels: { app: command.name },
+        uid: this.#nextUid("configmap"),
+        resourceVersion: 0,
+        creationTick: this.clock.tick,
+      },
+      data: command.data,
+    });
+
+    return { ok: true, output: `configmap/${command.name} created` };
+  }
+
+  #createSecret(
+    command: Extract<ParsedCommand, { verb: "create"; resource: "secrets" }>,
+  ): CommandResult {
+    if (this.store.get<KubeSecret>("Secret", command.name, command.namespace)) {
+      return {
+        ok: false,
+        output: `Error from server (AlreadyExists): secrets "${command.name}" already exists`,
+      };
+    }
+
+    this.store.upsert<KubeSecret>({
+      apiVersion: "v1",
+      kind: "Secret",
+      type: "Opaque",
+      metadata: {
+        name: command.name,
+        namespace: command.namespace,
+        labels: { app: command.name },
+        uid: this.#nextUid("secret"),
+        resourceVersion: 0,
+        creationTick: this.clock.tick,
+      },
+      data: Object.fromEntries(
+        Object.entries(command.data).map(([name, value]) => [name, encodeBase64(value)]),
+      ),
+    });
+
+    return { ok: true, output: `secret/${command.name} created` };
+  }
+
   #createIngress(
     command: Extract<ParsedCommand, { verb: "create"; resource: "ingresses" }>,
   ): CommandResult {
@@ -488,6 +591,28 @@ export class SimEngine {
           `Name:           ${target.canonical}`,
           `Address:        ${service.spec.clusterIP}`,
         ].join("\n"),
+      };
+    }
+
+    if (command.command === "env" || command.command === "printenv") {
+      const env = pod.spec.containers[0]?.env ?? [];
+      if (command.command === "printenv") {
+        const name = command.args[0];
+        if (name === undefined) {
+          return { ok: false, output: "printenv: missing variable name" };
+        }
+        const variable = env.find((entry) => entry.name === name);
+        return variable === undefined
+          ? { ok: false, output: `printenv: ${name}: not found` }
+          : { ok: true, output: variable.value };
+      }
+
+      return {
+        ok: true,
+        output: [...env]
+          .sort((left, right) => left.name.localeCompare(right.name))
+          .map((entry) => `${entry.name}=${entry.value}`)
+          .join("\n"),
       };
     }
 
@@ -655,7 +780,7 @@ export class SimEngine {
     return { ok: true, output: `deployment.apps/${command.name} scaled` };
   }
 
-  #setImage(command: Extract<ParsedCommand, { verb: "set" }>): CommandResult {
+  #setImage(command: Extract<ParsedCommand, { verb: "set"; action: "image" }>): CommandResult {
     const deployment = this.store.get<KubeDeployment>(
       "Deployment",
       command.name,
@@ -693,6 +818,91 @@ export class SimEngine {
     });
 
     return { ok: true, output: `deployment.apps/${command.name} image updated` };
+  }
+
+  #setEnv(command: Extract<ParsedCommand, { verb: "set"; action: "env" }>): CommandResult {
+    const deployment = this.store.get<KubeDeployment>(
+      "Deployment",
+      command.name,
+      command.namespace,
+    );
+    if (deployment === undefined) {
+      return notFound("deployments.apps", command.name);
+    }
+
+    const configMap =
+      command.fromKind === "ConfigMap"
+        ? this.store.get<KubeConfigMap>("ConfigMap", command.fromName, command.namespace)
+        : undefined;
+    const secret =
+      command.fromKind === "Secret"
+        ? this.store.get<KubeSecret>("Secret", command.fromName, command.namespace)
+        : undefined;
+    const source = configMap ?? secret;
+
+    if (source === undefined) {
+      return notFound(`${command.fromKind.toLowerCase()}s`, command.fromName);
+    }
+
+    let values: Record<string, string>;
+    try {
+      values =
+        command.fromKind === "Secret"
+          ? Object.fromEntries(
+              Object.entries(source.data).map(([name, value]) => [name, decodeBase64(value)]),
+            )
+          : source.data;
+    } catch {
+      return {
+        ok: false,
+        output: `error: ${command.fromKind.toLowerCase()} "${command.fromName}" contains invalid data`,
+      };
+    }
+
+    this.store.upsert({
+      ...deployment,
+      spec: {
+        ...deployment.spec,
+        template: {
+          ...deployment.spec.template,
+          containers: deployment.spec.template.containers.map((container) => {
+            const env = [...(container.env ?? [])];
+            for (const [name, value] of Object.entries(values)) {
+              const existing = env.findIndex((variable) => variable.name === name);
+              const entry = {
+                name,
+                value,
+                source: { kind: command.fromKind, name: command.fromName },
+              };
+              if (existing === -1) {
+                env.push(entry);
+              } else {
+                env[existing] = entry;
+              }
+            }
+
+            const envFrom = [...(container.envFrom ?? [])];
+            if (
+              !envFrom.some(
+                (entry) => entry.kind === command.fromKind && entry.name === command.fromName,
+              )
+            ) {
+              envFrom.push({ kind: command.fromKind, name: command.fromName });
+            }
+
+            return { ...container, env, envFrom };
+          }),
+        },
+      },
+      status: {
+        replicas: 0,
+        readyReplicas: 0,
+        updatedReplicas: 0,
+        availableReplicas: 0,
+      },
+    });
+
+    return { ok: true, output: `deployment.apps/${command.name} env updated` };
   }
 
   #rollout(command: Extract<ParsedCommand, { verb: "rollout" }>): CommandResult {
@@ -974,6 +1184,105 @@ export class SimEngine {
     return { ok: true, output: formatTable(["NAME", "ENDPOINTS", "AGE"], rows) };
   }
 
+  #getConfigMaps(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const configMaps = command.name
+      ? [this.store.get<KubeConfigMap>("ConfigMap", command.name, command.namespace)].filter(
+          (configMap): configMap is KubeConfigMap => configMap !== undefined,
+        )
+      : this.store.list<KubeConfigMap>(
+          "ConfigMap",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+
+    if (command.name !== undefined && configMaps.length === 0) {
+      return notFound("configmaps", command.name);
+    }
+
+    const selector = Object.entries(command.selector);
+    const headers = ["NAME", "DATA", "AGE"];
+    if (command.showLabels) {
+      headers.push("LABELS");
+    }
+    const rows = configMaps
+      .filter((configMap) =>
+        selector.every(([key, value]) => configMap.metadata.labels[key] === value),
+      )
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((configMap) => {
+        const row = [
+          command.allNamespaces
+            ? `${configMap.metadata.namespace}/${configMap.metadata.name}`
+            : configMap.metadata.name,
+          String(Object.keys(configMap.data).length),
+          `${Math.max(0, this.clock.tick - configMap.metadata.creationTick)}s`,
+        ];
+        if (command.showLabels) {
+          row.push(formatLabels(configMap.metadata.labels));
+        }
+        return row;
+      });
+
+    if (rows.length === 0) {
+      return {
+        ok: true,
+        output: command.allNamespaces
+          ? "No resources found."
+          : `No resources found in ${command.namespace} namespace.`,
+      };
+    }
+
+    return { ok: true, output: formatTable(headers, rows) };
+  }
+
+  #getSecrets(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const secrets = command.name
+      ? [this.store.get<KubeSecret>("Secret", command.name, command.namespace)].filter(
+          (secret): secret is KubeSecret => secret !== undefined,
+        )
+      : this.store.list<KubeSecret>(
+          "Secret",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+
+    if (command.name !== undefined && secrets.length === 0) {
+      return notFound("secrets", command.name);
+    }
+
+    const selector = Object.entries(command.selector);
+    const headers = ["NAME", "TYPE", "DATA", "AGE"];
+    if (command.showLabels) {
+      headers.push("LABELS");
+    }
+    const rows = secrets
+      .filter((secret) => selector.every(([key, value]) => secret.metadata.labels[key] === value))
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((secret) => {
+        const row = [
+          command.allNamespaces
+            ? `${secret.metadata.namespace}/${secret.metadata.name}`
+            : secret.metadata.name,
+          secret.type,
+          String(Object.keys(secret.data).length),
+          `${Math.max(0, this.clock.tick - secret.metadata.creationTick)}s`,
+        ];
+        if (command.showLabels) {
+          row.push(formatLabels(secret.metadata.labels));
+        }
+        return row;
+      });
+
+    if (rows.length === 0) {
+      return {
+        ok: true,
+        output: command.allNamespaces
+          ? "No resources found."
+          : `No resources found in ${command.namespace} namespace.`,
+      };
+    }
+
+    return { ok: true, output: formatTable(headers, rows) };
+  }
+
   #getIngresses(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
     const ingresses = command.name
       ? [this.store.get<KubeIngress>("Ingress", command.name, command.namespace)].filter(
@@ -1073,6 +1382,24 @@ export class SimEngine {
       return { ok: true, output: `ingress.networking.k8s.io "${command.name}" deleted` };
     }
 
+    if (command.resource === "configmaps") {
+      const configMap = this.store.get<KubeConfigMap>("ConfigMap", command.name, command.namespace);
+      if (configMap === undefined) {
+        return notFound("configmaps", command.name);
+      }
+      this.store.delete("ConfigMap", configMap.metadata.name, configMap.metadata.namespace);
+      return { ok: true, output: `configmap "${command.name}" deleted` };
+    }
+
+    if (command.resource === "secrets") {
+      const secret = this.store.get<KubeSecret>("Secret", command.name, command.namespace);
+      if (secret === undefined) {
+        return notFound("secrets", command.name);
+      }
+      this.store.delete("Secret", secret.metadata.name, secret.metadata.namespace);
+      return { ok: true, output: `secret "${command.name}" deleted` };
+    }
+
     if (command.resource !== "pods") {
       return notSimulated("deleting", command.resource);
     }
@@ -1148,6 +1475,19 @@ export class SimEngine {
       return notFound("deployments.apps", command.name);
     }
 
+    const containerLines = deployment.spec.template.containers.flatMap((container) => {
+      const lines = [`  ${container.name}:`, `    Image: ${container.image}`];
+      for (const source of container.envFrom ?? []) {
+        lines.push(`    EnvFrom: ${source.kind}/${source.name}`);
+      }
+      for (const variable of container.env ?? []) {
+        if (variable.source === undefined) {
+          lines.push(`    ${variable.name}: ${variable.value}`);
+        }
+      }
+      return lines;
+    });
+
     return {
       ok: true,
       output: [
@@ -1158,9 +1498,7 @@ export class SimEngine {
         `Replicas:               ${deployment.spec.replicas} desired | ${deployment.status.updatedReplicas} updated | ${deployment.status.availableReplicas} available`,
         "StrategyType:           RollingUpdate",
         "Containers:",
-        ...deployment.spec.template.containers.map(
-          (container) => `  ${container.name}:\n    Image: ${container.image}`,
-        ),
+        ...containerLines,
       ].join("\n"),
     };
   }

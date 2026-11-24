@@ -373,6 +373,76 @@ test("Ingress lesson routes a request through a Service", async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
+test("ConfigMap lesson injects env into a Deployment", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/configmaps-101");
+
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type(
+    "kubectl create configmap app-config --from-literal=APP_MODE=production --from-literal=LOG_LEVEL=debug",
+  );
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=2");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl set env deployment/web --from=configmap/app-config");
+  await page.keyboard.press("Enter");
+
+  await page.getByRole("button", { name: "Pause clock" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+
+  await expect(page.locator('[data-check="ConfigMap has app settings"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="APP_MODE is injected"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="Deployment is ready"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.getByTestId("cluster-configmap-app-config")).toBeVisible();
+  await expect(page.getByTestId("cluster-configmap-app-config")).toHaveAttribute("data-keys", "2");
+  expect(pageErrors).toEqual([]);
+});
+
+test("Secret lesson injects a redacted value into a Deployment", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/secrets-101");
+
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type(
+    "kubectl create secret generic db-secret --from-literal=DB_PASSWORD=s3cr3t",
+  );
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl create deployment api --image=nginx --replicas=1");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl set env deployment/api --from=secret/db-secret");
+  await page.keyboard.press("Enter");
+
+  await page.getByRole("button", { name: "Pause clock" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+
+  await expect(page.locator('[data-check="Secret contains DB_PASSWORD"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="DB_PASSWORD is injected"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="Deployment is ready"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.getByTestId("cluster-secret-db-secret")).toBeVisible();
+  await expect(page.getByTestId("cluster-secret-db-secret")).not.toContainText("s3cr3t");
+  expect(pageErrors).toEqual([]);
+});
+
 test("cluster map fits a mobile lesson", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });

@@ -120,7 +120,7 @@ export function guardLessonCommand(input: string, checks: LessonCheck[]): Lesson
         }
       }
 
-      if (parsed.verb === "set" && deploymentChecks.length > 0) {
+      if (parsed.verb === "set" && parsed.action === "image" && deploymentChecks.length > 0) {
         const images = [
           ...new Set(
             deploymentChecks.flatMap((check) => (check.image === undefined ? [] : [check.image])),

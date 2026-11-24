@@ -189,6 +189,14 @@
   border-left-color: var(--color-info);
 }
 
+.configMap {
+  border-left-color: var(--color-warning);
+}
+
+.secret {
+  border-left-color: var(--color-danger);
+}
+
 .deployment[data-state="progressing"] {
   border-left-color: var(--color-warning);
 }

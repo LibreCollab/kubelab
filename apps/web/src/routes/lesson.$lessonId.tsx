@@ -1,9 +1,11 @@
 import { curriculumLessons, getLesson, type Lesson } from "@kubelab/content";
 import {
+  type KubeConfigMap,
   type KubeDeployment,
   type KubeIngress,
   type KubeNode,
   type KubeReplicaSet,
+  type KubeSecret,
   type KubeService,
   type Pod,
   SimEngine,
@@ -166,6 +168,8 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
       deployments: engine.store.list<KubeDeployment>("Deployment"),
       services: engine.store.list<KubeService>("Service"),
       ingresses: engine.store.list<KubeIngress>("Ingress"),
+      configMaps: engine.store.list<KubeConfigMap>("ConfigMap"),
+      secrets: engine.store.list<KubeSecret>("Secret"),
       commands: engine.commands,
       answers,
     });
@@ -363,6 +367,8 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
               pods={engine.store.list<Pod>("Pod")}
               services={engine.store.list<KubeService>("Service")}
               ingresses={engine.store.list<KubeIngress>("Ingress")}
+              configMaps={engine.store.list<KubeConfigMap>("ConfigMap")}
+              secrets={engine.store.list<KubeSecret>("Secret")}
             />
           </div>
         ) : null}

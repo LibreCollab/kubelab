@@ -1,8 +1,10 @@
 import type { LessonCheck } from "@kubelab/content";
 import {
   filterPods,
+  type KubeConfigMap,
   type KubeDeployment,
   type KubeIngress,
+  type KubeSecret,
   type KubeService,
   type ParsedCommand,
   type Pod,
@@ -15,6 +17,8 @@ export interface CheckContext {
   deployments?: KubeDeployment[];
   services?: KubeService[];
   ingresses?: KubeIngress[];
+  configMaps?: KubeConfigMap[];
+  secrets?: KubeSecret[];
   answers?: Record<string, number>;
 }
 
@@ -72,6 +76,47 @@ export function evaluateCheck(check: LessonCheck, context: CheckContext): CheckR
       label: check.label,
       pass: matches.length > 0,
     };
+  }
+
+  if (check.type === "configmap") {
+    const matches = (context.configMaps ?? []).filter(
+      (configMap) =>
+        configMap.metadata.namespace === check.namespace &&
+        configMap.metadata.name === check.name &&
+        Object.entries(check.data).every(([key, value]) => configMap.data[key] === value),
+    );
+    return { label: check.label, pass: matches.length > 0 };
+  }
+
+  if (check.type === "secret") {
+    const matches = (context.secrets ?? []).filter(
+      (secret) =>
+        secret.metadata.namespace === check.namespace &&
+        secret.metadata.name === check.name &&
+        check.keys.every((key) => secret.data[key] !== undefined),
+    );
+    return { label: check.label, pass: matches.length > 0 };
+  }
+
+  if (check.type === "env") {
+    const deployment = (context.deployments ?? []).find(
+      (candidate) =>
+        candidate.metadata.namespace === check.namespace &&
+        candidate.metadata.name === check.deployment,
+    );
+    const matches = deployment?.spec.template.containers.some(
+      (container) =>
+        (container.env ?? []).some(
+          (variable) => variable.name === check.name && variable.value === check.value,
+        ) &&
+        (check.sourceKind === undefined ||
+          (container.envFrom ?? []).some(
+            (source) =>
+              source.kind === check.sourceKind &&
+              (check.sourceName === undefined || source.name === check.sourceName),
+          )),
+    );
+    return { label: check.label, pass: matches === true };
   }
 
   if (check.type === "dns") {

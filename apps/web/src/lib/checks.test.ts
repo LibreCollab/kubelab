@@ -1,7 +1,9 @@
 import { getLesson, type LessonCheck } from "@kubelab/content";
 import {
+  type KubeConfigMap,
   type KubeDeployment,
   type KubeIngress,
+  type KubeSecret,
   type KubeService,
   type ParsedCommand,
   type Pod,
@@ -492,6 +494,64 @@ describe("lesson completability", () => {
       deployments: sim.store.list<KubeDeployment>("Deployment"),
       services: sim.store.list<KubeService>("Service"),
       ingresses: sim.store.list<KubeIngress>("Ingress"),
+      commands: sim.commands,
+      answers: { q1: 0 },
+    });
+
+    expect(results.filter((result) => !result.pass)).toEqual([]);
+  });
+
+  it("completes the ConfigMap lesson with its documented commands", () => {
+    const lesson = getLesson("configmaps-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const sim = engine();
+    sim.execute(
+      "kubectl create configmap app-config --from-literal=APP_MODE=production --from-literal=LOG_LEVEL=debug",
+    );
+    sim.execute("kubectl create deployment web --image=nginx --replicas=2");
+    sim.execute("kubectl set env deployment/web --from=configmap/app-config");
+    sim.step();
+    sim.step();
+
+    const results = evaluateChecks(lesson.checks, {
+      pods: sim.store.list<Pod>("Pod"),
+      deployments: sim.store.list<KubeDeployment>("Deployment"),
+      services: sim.store.list<KubeService>("Service"),
+      ingresses: sim.store.list<KubeIngress>("Ingress"),
+      configMaps: sim.store.list<KubeConfigMap>("ConfigMap"),
+      secrets: sim.store.list<KubeSecret>("Secret"),
+      commands: sim.commands,
+      answers: { q1: 0 },
+    });
+
+    expect(results.filter((result) => !result.pass)).toEqual([]);
+  });
+
+  it("completes the Secret lesson with its documented commands", () => {
+    const lesson = getLesson("secrets-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const sim = engine();
+    sim.execute("kubectl create secret generic db-secret --from-literal=DB_PASSWORD=s3cr3t");
+    sim.execute("kubectl create deployment api --image=nginx --replicas=1");
+    sim.execute("kubectl set env deployment/api --from=secret/db-secret");
+    sim.step();
+    sim.step();
+
+    const results = evaluateChecks(lesson.checks, {
+      pods: sim.store.list<Pod>("Pod"),
+      deployments: sim.store.list<KubeDeployment>("Deployment"),
+      services: sim.store.list<KubeService>("Service"),
+      ingresses: sim.store.list<KubeIngress>("Ingress"),
+      configMaps: sim.store.list<KubeConfigMap>("ConfigMap"),
+      secrets: sim.store.list<KubeSecret>("Secret"),
       commands: sim.commands,
       answers: { q1: 0 },
     });

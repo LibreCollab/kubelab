@@ -92,13 +92,15 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 
 - 34 lessons across 12 core units plus 5 certification readiness checks:
   interactive kubectl lessons for Pods, labels, lifecycle, Deployments, Services,
-  Cluster DNS, and Ingress; theory + knowledge-check quizzes for the remaining
-  units.
-- Simulated `kubectl get nodes|pods|deployments|replicasets|services|endpoints|ingresses`,
-  `run`, `create deployment|ingress`, `expose`, `scale`, `set image`, `rollout`,
-  `exec`, `describe`, `delete`, and `help`, with virtual-clock reconciliation.
+  Cluster DNS, Ingress, ConfigMaps, and Secrets; theory + knowledge-check quizzes
+  for the remaining units.
+- Simulated `kubectl get nodes|pods|deployments|replicasets|services|endpoints|ingresses|configmaps|secrets`,
+  `run`, `create deployment|ingress|configmap|secret`, `expose`, `scale`,
+  `set image|env`, `rollout`, `exec`, `describe`, `delete`, and `help`, with
+  virtual-clock reconciliation.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →
-  Pods, Service endpoint selection, and Ingress → Service routing.
+  Pods, Service endpoint selection, Ingress → Service routing, and ConfigMap /
+  Secret wiring.
 - Readline-style terminal editing: paste, insert at cursor, backspace/delete,
   Home/End, arrow keys, Ctrl/Alt word navigation, Ctrl+A/E/U/K/W, and ↑/↓ history.
 - Checkpoints stay pending on wrong values (name, labels, image, phase). Guided

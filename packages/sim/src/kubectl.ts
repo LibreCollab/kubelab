@@ -37,6 +37,20 @@ export type ParsedCommand =
       namespace: string;
     }
   | {
+      verb: "create";
+      resource: "configmaps";
+      name: string;
+      data: Record<string, string>;
+      namespace: string;
+    }
+  | {
+      verb: "create";
+      resource: "secrets";
+      name: string;
+      data: Record<string, string>;
+      namespace: string;
+    }
+  | {
       verb: "expose";
       resource: "deployments" | "pods";
       name: string;
@@ -49,10 +63,20 @@ export type ParsedCommand =
   | { verb: "scale"; resource: "deployments"; name: string; replicas: number; namespace: string }
   | {
       verb: "set";
+      action: "image";
       resource: "deployments";
       name: string;
       container: string;
       image: string;
+      namespace: string;
+    }
+  | {
+      verb: "set";
+      action: "env";
+      resource: "deployments";
+      name: string;
+      fromKind: "ConfigMap" | "Secret";
+      fromName: string;
       namespace: string;
     }
   | {
@@ -174,6 +198,11 @@ function normalizeResource(resource: string): string {
     case "ing":
     case "ingress":
       return "ingresses";
+    case "cm":
+    case "configmap":
+      return "configmaps";
+    case "secret":
+      return "secrets";
     default:
       return base;
   }
@@ -181,6 +210,17 @@ function normalizeResource(resource: string): string {
 
 function unknownFlag(token: string): ParseError {
   return { error: `unknown flag: ${token.split("=")[0]}` };
+}
+
+function parseLiteral(raw: string): { name: string; value: string } | ParseError {
+  const equals = raw.indexOf("=");
+  if (equals <= 0) {
+    return { error: `invalid literal "${raw}": use KEY=VALUE` };
+  }
+  return {
+    name: raw.slice(0, equals),
+    value: raw.slice(equals + 1),
+  };
 }
 
 function flagArgument(tokens: string[], index: number): string | undefined {
@@ -642,6 +682,144 @@ function parseCreate(tokens: string[]): ParsedCommand | ParseError {
   return { verb: "create", resource: "deployments", name, image, replicas, namespace };
 }
 
+function parseCreateConfigMap(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  const data: Record<string, string> = {};
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "--from-literal" || token.startsWith("--from-literal=")) {
+      const value =
+        token === "--from-literal"
+          ? flagArgument(tokens, index)
+          : token.slice("--from-literal=".length);
+      if (value === undefined) {
+        return { error: "flag needs an argument: --from-literal" };
+      }
+      const literal = parseLiteral(value);
+      if ("error" in literal) {
+        return literal;
+      }
+      data[literal.name] = literal.value;
+      if (token === "--from-literal") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const resource = positional[0];
+  const name = positional[1];
+  if (resource === undefined || name === undefined) {
+    return { error: "create configmap requires <name> --from-literal=KEY=VALUE" };
+  }
+  if (positional.length > 2) {
+    return { error: "create configmap accepts exactly a ConfigMap name" };
+  }
+  if (Object.keys(data).length === 0) {
+    return { error: "create configmap requires at least one --from-literal" };
+  }
+
+  return { verb: "create", resource: "configmaps", name, data, namespace };
+}
+
+function parseCreateSecret(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  const data: Record<string, string> = {};
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "--from-literal" || token.startsWith("--from-literal=")) {
+      const value =
+        token === "--from-literal"
+          ? flagArgument(tokens, index)
+          : token.slice("--from-literal=".length);
+      if (value === undefined) {
+        return { error: "flag needs an argument: --from-literal" };
+      }
+      const literal = parseLiteral(value);
+      if ("error" in literal) {
+        return literal;
+      }
+      data[literal.name] = literal.value;
+      if (token === "--from-literal") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const resource = positional[0];
+  if (resource === undefined) {
+    return { error: "create secret requires generic <name> --from-literal=KEY=VALUE" };
+  }
+  const generic = positional[1] === "generic";
+  const name = generic ? positional[2] : undefined;
+  if (!generic || name === undefined) {
+    return { error: "create secret requires generic <name> --from-literal=KEY=VALUE" };
+  }
+  if (positional.length > 3) {
+    return { error: "create secret accepts exactly a Secret name" };
+  }
+  if (Object.keys(data).length === 0) {
+    return { error: "create secret requires at least one --from-literal" };
+  }
+
+  return { verb: "create", resource: "secrets", name, data, namespace };
+}
+
 function parseIngressRule(raw: string): IngressRule | ParseError {
   const equals = raw.lastIndexOf("=");
   if (equals <= 0 || equals === raw.length - 1) {
@@ -959,6 +1137,7 @@ function parseScale(tokens: string[]): ParsedCommand | ParseError {
 
 function parseSet(tokens: string[]): ParsedCommand | ParseError {
   let namespace = "default";
+  let from: string | undefined;
   const positional: string[] = [];
 
   for (let index = 2; index < tokens.length; index += 1) {
@@ -968,7 +1147,7 @@ function parseSet(tokens: string[]): ParsedCommand | ParseError {
     }
 
     if (token === "-n" || token === "--namespace") {
-      const value = tokens[index + 1];
+      const value = flagArgument(tokens, index);
       if (value === undefined) {
         return { error: `flag needs an argument: ${token}` };
       }
@@ -982,6 +1161,19 @@ function parseSet(tokens: string[]): ParsedCommand | ParseError {
       continue;
     }
 
+    if (token === "--from" || token.startsWith("--from=")) {
+      const value =
+        token === "--from" ? flagArgument(tokens, index) : token.slice("--from=".length);
+      if (value === undefined) {
+        return { error: "flag needs an argument: --from" };
+      }
+      from = value;
+      if (token === "--from") {
+        index += 1;
+      }
+      continue;
+    }
+
     if (token.startsWith("-")) {
       return unknownFlag(token);
     }
@@ -989,20 +1181,55 @@ function parseSet(tokens: string[]): ParsedCommand | ParseError {
     positional.push(token);
   }
 
-  if (positional[0] !== "image") {
-    return { error: "only `kubectl set image` is simulated" };
+  const action = positional[0];
+  if (action !== "image" && action !== "env") {
+    return { error: "only `kubectl set image` and `kubectl set env` are simulated" };
   }
 
   const rest = positional.slice(1);
+  const slashTarget = rest[0]?.includes("/") ?? false;
   const target = splitTarget(rest);
   if ("error" in target) {
     return target;
   }
   if (normalizeResource(target.resource) !== "deployments") {
-    return { error: "only Deployment image updates are simulated" };
+    return { error: `only Deployment ${action} updates are simulated` };
   }
 
-  const slashTarget = rest[0]?.includes("/") ?? false;
+  if (action === "env") {
+    if (rest.length > (slashTarget ? 1 : 2)) {
+      return { error: "set env accepts a Deployment and no assignment" };
+    }
+    if (from === undefined) {
+      return { error: "set env requires --from=configmap/<name> or --from=secret/<name>" };
+    }
+    const slash = from.indexOf("/");
+    if (slash <= 0 || slash === from.length - 1) {
+      return { error: "invalid --from value: use configmap/<name> or secret/<name>" };
+    }
+    const kind = from.slice(0, slash);
+    const fromName = from.slice(slash + 1);
+    if (kind !== "configmap" && kind !== "secret") {
+      return { error: "invalid --from kind: use configmap or secret" };
+    }
+    if (rest.length !== (slashTarget ? 1 : 2)) {
+      return { error: "set env accepts a Deployment and no assignment" };
+    }
+    return {
+      verb: "set",
+      action: "env",
+      resource: "deployments",
+      name: target.name,
+      fromKind: kind === "configmap" ? "ConfigMap" : "Secret",
+      fromName,
+      namespace,
+    };
+  }
+
+  if (from !== undefined) {
+    return { error: "--from is only supported with kubectl set env" };
+  }
+
   if (rest.length > (slashTarget ? 2 : 3)) {
     return { error: "set image accepts one <container>=<image> assignment" };
   }
@@ -1019,6 +1246,7 @@ function parseSet(tokens: string[]): ParsedCommand | ParseError {
 
   return {
     verb: "set",
+    action: "image",
     resource: "deployments",
     name: target.name,
     container,
@@ -1109,8 +1337,17 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
       return parseRun(tokens);
     case "create": {
       const resource = tokens[2];
-      if (resource !== undefined && normalizeResource(resource) === "ingresses") {
-        return parseCreateIngress(tokens);
+      if (resource !== undefined) {
+        const normalized = normalizeResource(resource);
+        if (normalized === "ingresses") {
+          return parseCreateIngress(tokens);
+        }
+        if (normalized === "configmaps") {
+          return parseCreateConfigMap(tokens);
+        }
+        if (normalized === "secrets") {
+          return parseCreateSecret(tokens);
+        }
       }
       return parseCreate(tokens);
     }

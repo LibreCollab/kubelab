@@ -77,6 +77,7 @@ fixed below.
 | 54 | No public deployment path for the Kubelab subdomain | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS docs |
 | 55 | Landing page promised under-the-hood animations; lessons only showed text terminal output | Live cluster map for Nodes → Deployments → ReplicaSets → Pods and Services → Endpoints |
 | 56 | DNS and Ingress lessons were quiz-only despite being core Unit 4 skills | Simulator now resolves Service DNS and routes HTTP through Ingress; both lessons are terminal checkpoints |
+| 57 | ConfigMaps and Secrets were quiz-only despite being core Unit 5 skills | Added configmap/secret creation, envFrom wiring, env checks, and redacted Secret display |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
