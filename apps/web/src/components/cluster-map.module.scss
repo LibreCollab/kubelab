@@ -185,6 +185,10 @@
   border-left-color: var(--color-accent);
 }
 
+.ingress {
+  border-left-color: var(--color-info);
+}
+
 .deployment[data-state="progressing"] {
   border-left-color: var(--color-warning);
 }

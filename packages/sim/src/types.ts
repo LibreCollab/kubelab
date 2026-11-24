@@ -77,6 +77,21 @@ export interface KubeDeployment extends KubeObject {
   };
 }
 
+export interface IngressRule {
+  host: string;
+  path: string;
+  serviceName: string;
+  servicePort: number;
+}
+
+export interface KubeIngress extends KubeObject {
+  kind: "Ingress";
+  spec: {
+    ingressClassName?: string;
+    rules: IngressRule[];
+  };
+}
+
 export type ServiceType = "ClusterIP" | "NodePort" | "LoadBalancer";
 
 export interface KubeService extends KubeObject {

@@ -142,6 +142,33 @@ describe("lesson guard", () => {
     }
   });
 
+  it("rejects an Ingress rule that contradicts the lesson", () => {
+    const ingress = getLesson("ingress-101")?.checks ?? [];
+
+    expect(
+      guardLessonCommand(
+        "kubectl create ingress web --rule=shop.example.com/=web:80 -n demo",
+        ingress,
+      ).ok,
+    ).toBe(true);
+
+    const result = guardLessonCommand(
+      "kubectl create ingress web --rule=wrong.example.com/=web:80 -n demo",
+      ingress,
+    );
+    expect(result.ok).toBe(false);
+    if (!result.ok) {
+      expect(result.error).toContain("host shop.example.com");
+    }
+
+    const ingressOnly: LessonCheck[] = ingress.filter((check) => check.type === "ingress");
+    const bypass = guardLessonCommand(
+      "kubectl create ingress web --rule=wrong.example.com/=web:80 -n demo",
+      ingressOnly,
+    );
+    expect(bypass.ok).toBe(false);
+  });
+
   it("validates each named pod in a multi-pod lesson", () => {
     const multi = getLesson("labels-101")?.checks ?? [];
 

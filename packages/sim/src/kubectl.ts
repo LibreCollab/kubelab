@@ -1,3 +1,5 @@
+import type { IngressRule } from "./types";
+
 export type OutputFormat = "table" | "wide" | "yaml";
 
 export type ParsedCommand =
@@ -27,6 +29,14 @@ export type ParsedCommand =
       namespace: string;
     }
   | {
+      verb: "create";
+      resource: "ingresses";
+      name: string;
+      rule: IngressRule;
+      ingressClassName?: string;
+      namespace: string;
+    }
+  | {
       verb: "expose";
       resource: "deployments" | "pods";
       name: string;
@@ -50,6 +60,13 @@ export type ParsedCommand =
       action: "status" | "undo";
       resource: "deployments";
       name: string;
+      namespace: string;
+    }
+  | {
+      verb: "exec";
+      name: string;
+      command: string;
+      args: string[];
       namespace: string;
     }
   | { verb: "delete"; resource: string; name: string; namespace: string }
@@ -154,6 +171,9 @@ function normalizeResource(resource: string): string {
     case "ep":
     case "endpoint":
       return "endpoints";
+    case "ing":
+    case "ingress":
+      return "ingresses";
     default:
       return base;
   }
@@ -406,6 +426,65 @@ function parseRun(tokens: string[]): ParsedCommand | ParseError {
   return { verb: "run", name, image, labels, namespace };
 }
 
+function parseExec(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let name: string | undefined;
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    if (token === "--") {
+      const executable = tokens[index + 1];
+      if (name === undefined) {
+        return { error: "exec requires a Pod name: kubectl exec <pod> -- <command>" };
+      }
+      if (executable === undefined) {
+        return { error: "exec requires a command after --" };
+      }
+      return {
+        verb: "exec",
+        name,
+        command: executable,
+        args: tokens.slice(index + 2),
+        namespace,
+      };
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    if (name !== undefined) {
+      return { error: "exec accepts one Pod name" };
+    }
+    name = token;
+  }
+
+  if (name === undefined) {
+    return { error: "exec requires a Pod name: kubectl exec <pod> -- <command>" };
+  }
+
+  return { error: "exec requires a command after --" };
+}
+
 function parseTarget(tokens: string[], verb: "delete" | "describe"): ParsedCommand | ParseError {
   let namespace = "default";
   const positional: string[] = [];
@@ -561,6 +640,137 @@ function parseCreate(tokens: string[]): ParsedCommand | ParseError {
   }
 
   return { verb: "create", resource: "deployments", name, image, replicas, namespace };
+}
+
+function parseIngressRule(raw: string): IngressRule | ParseError {
+  const equals = raw.lastIndexOf("=");
+  if (equals <= 0 || equals === raw.length - 1) {
+    return { error: "invalid --rule value: use host/path=service:port" };
+  }
+
+  const hostPath = raw.slice(0, equals);
+  const backend = raw.slice(equals + 1);
+  const slash = hostPath.indexOf("/");
+  if (slash <= 0) {
+    return { error: "invalid --rule value: use host/path=service:port" };
+  }
+
+  const host = hostPath.slice(0, slash);
+  const path = hostPath.slice(slash) || "/";
+  const colon = backend.lastIndexOf(":");
+  if (colon <= 0 || colon === backend.length - 1) {
+    return { error: "invalid --rule backend: use service:port" };
+  }
+
+  const serviceName = backend.slice(0, colon);
+  const servicePort = parsePositiveInteger(backend.slice(colon + 1));
+  if (
+    host.length === 0 ||
+    path.length === 0 ||
+    serviceName.length === 0 ||
+    servicePort === undefined
+  ) {
+    return { error: "invalid --rule value: use host/path=service:port" };
+  }
+
+  return { host, path, serviceName, servicePort };
+}
+
+function parseCreateIngress(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let ingressClassName: string | undefined;
+  let rule: IngressRule | undefined;
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+
+    const flagValue = (flag: string): string | undefined => {
+      if (token === flag) {
+        return flagArgument(tokens, index);
+      }
+      if (token.startsWith(`${flag}=`)) {
+        return token.slice(flag.length + 1);
+      }
+      return undefined;
+    };
+
+    if (token === "--rule" || token.startsWith("--rule=")) {
+      const value = flagValue("--rule");
+      if (value === undefined) {
+        return { error: "flag needs an argument: --rule" };
+      }
+      if (rule !== undefined) {
+        return { error: "only one --rule is simulated" };
+      }
+      const parsed = parseIngressRule(value);
+      if ("error" in parsed) {
+        return parsed;
+      }
+      rule = parsed;
+      if (token === "--rule") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token === "--class" || token.startsWith("--class=")) {
+      const value = flagValue("--class");
+      if (value === undefined || value.length === 0) {
+        return { error: "flag needs an argument: --class" };
+      }
+      ingressClassName = value;
+      if (token === "--class") {
+        index += 1;
+      }
+      continue;
+    }
+
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+
+    positional.push(token);
+  }
+
+  const resource = positional[0];
+  const name = positional[1];
+  if (resource === undefined || name === undefined) {
+    return { error: "create ingress requires <name> --rule=host/path=service:port" };
+  }
+  if (positional.length > 2) {
+    return { error: "create ingress accepts exactly an Ingress name" };
+  }
+  if (rule === undefined) {
+    return { error: "create ingress requires --rule=host/path=service:port" };
+  }
+
+  return {
+    verb: "create",
+    resource: "ingresses",
+    name,
+    rule,
+    ...(ingressClassName === undefined ? {} : { ingressClassName }),
+    namespace,
+  };
 }
 
 function parseExpose(tokens: string[]): ParsedCommand | ParseError {
@@ -897,8 +1107,15 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
       return parseGet(tokens);
     case "run":
       return parseRun(tokens);
-    case "create":
+    case "create": {
+      const resource = tokens[2];
+      if (resource !== undefined && normalizeResource(resource) === "ingresses") {
+        return parseCreateIngress(tokens);
+      }
       return parseCreate(tokens);
+    }
+    case "exec":
+      return parseExec(tokens);
     case "expose":
       return parseExpose(tokens);
     case "scale":

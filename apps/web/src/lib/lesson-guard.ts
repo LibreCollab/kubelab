@@ -12,11 +12,65 @@ export type LessonGuardResult = { ok: true } | { ok: false; error: string };
 export function guardLessonCommand(input: string, checks: LessonCheck[]): LessonGuardResult {
   const parsed = parseKubectl(input);
 
-  if ("error" in parsed || parsed.verb === "help" || parsed.verb === "get") {
+  if (
+    "error" in parsed ||
+    parsed.verb === "help" ||
+    parsed.verb === "get" ||
+    parsed.verb === "exec"
+  ) {
     return { ok: true };
   }
 
   if (parsed.verb !== "run") {
+    if (parsed.verb === "create" && parsed.resource === "ingresses") {
+      const ingressChecks = checks.filter(
+        (check): check is Extract<LessonCheck, { type: "ingress" }> =>
+          check.type === "ingress" && check.name === parsed.name,
+      );
+
+      if (ingressChecks.length > 0) {
+        const namespaceMatches = ingressChecks.filter(
+          (check) => check.namespace === parsed.namespace,
+        );
+        if (namespaceMatches.length === 0) {
+          const namespaces = [...new Set(ingressChecks.map((check) => check.namespace))];
+          return {
+            ok: false,
+            error: `error: this lesson expects namespace ${namespaces.map((namespace) => `"${namespace}"`).join(" or ")} (got "${parsed.namespace}")`,
+          };
+        }
+
+        const ingress = namespaceMatches[0];
+        if (ingress === undefined) {
+          return { ok: true };
+        }
+        if (ingress.host !== undefined && ingress.host !== parsed.rule.host) {
+          return {
+            ok: false,
+            error: `error: this lesson expects host ${ingress.host} (got ${parsed.rule.host})`,
+          };
+        }
+        if (ingress.path !== undefined && ingress.path !== parsed.rule.path) {
+          return {
+            ok: false,
+            error: `error: this lesson expects path ${ingress.path} (got ${parsed.rule.path})`,
+          };
+        }
+        if (ingress.serviceName !== undefined && ingress.serviceName !== parsed.rule.serviceName) {
+          return {
+            ok: false,
+            error: `error: this lesson expects Service ${ingress.serviceName} (got ${parsed.rule.serviceName})`,
+          };
+        }
+        if (ingress.servicePort !== undefined && ingress.servicePort !== parsed.rule.servicePort) {
+          return {
+            ok: false,
+            error: `error: this lesson expects Service port ${ingress.servicePort} (got ${parsed.rule.servicePort})`,
+          };
+        }
+      }
+    }
+
     const expected = checks.filter(
       (check): check is Extract<LessonCheck, { type: "command" }> =>
         check.type === "command" &&

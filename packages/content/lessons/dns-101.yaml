@@ -15,6 +15,37 @@ scenario:
 objectives:
   - Service DNS
 checks:
+  - type: command
+    label: Created the demo Deployment
+    verb: create
+    resource: deployments
+    name: web
+    namespace: demo
+    image: nginx
+    replicas: 2
+  - type: command
+    label: Exposed the Service
+    verb: expose
+    resource: deployments
+    name: web
+    namespace: demo
+  - type: service
+    label: Service has a ClusterIP
+    namespace: demo
+    name: web
+    serviceType: ClusterIP
+    port: 80
+  - type: command
+    label: Started the client Pod
+    verb: run
+    name: client
+    namespace: demo
+    image: busybox
+  - type: dns
+    label: Resolved web from the client
+    namespace: demo
+    name: web
+    pod: client
   - type: quiz
     id: q1
     label: Service DNS
@@ -25,5 +56,8 @@ checks:
       - demo.web.cluster
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: web.demo.svc.cluster.local
+  - "Create the workload: kubectl create deployment web --image=nginx --replicas=2 -n demo"
+  - "Expose it: kubectl expose deployment web --port=80 -n demo"
+  - "Start a client: kubectl run client --image=busybox -n demo"
+  - "Resolve it once the client is Running: kubectl exec client -n demo -- nslookup web"
+solution: The client resolves web through CoreDNS as web.demo.svc.cluster.local.

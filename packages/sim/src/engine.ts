@@ -1,4 +1,5 @@
 import { VirtualClock } from "./clock";
+import { resolveServiceDns } from "./dns";
 import { EventBus } from "./events";
 import { MAX_REPLICAS, type ParsedCommand, parseKubectl } from "./kubectl";
 import { filterPods, matchesLabels, type PodFilter } from "./selectors";
@@ -6,6 +7,7 @@ import { ClusterStore } from "./store";
 import type {
   CommandResult,
   KubeDeployment,
+  KubeIngress,
   KubeNode,
   KubeReplicaSet,
   KubeService,
@@ -21,19 +23,31 @@ export interface SimEngineOptions {
 const HELP = `kubectl controls the Kubelab simulated cluster.
 
 Supported in this scaffold:
-  kubectl get pods|deployments|replicasets|services|endpoints [-n ns] [-A] [name]
+  kubectl get pods|deployments|replicasets|services|endpoints|ingresses [-n ns] [-A] [name]
   kubectl get nodes [name]
   kubectl run <name> --image=<image> [--labels=key=value]
   kubectl create deployment <name> --image=<image> [--replicas=N]
+  kubectl create ingress <name> --rule=host/path=service:port
+  kubectl exec <pod> [-n ns] -- <command> [args...]
   kubectl expose deployment|pod <name> --port=80 [--type=ClusterIP]
   kubectl scale deployment <name> --replicas=N
   kubectl set image deployment/<name> <container>=<image>
   kubectl rollout status|undo deployment/<name>
-  kubectl describe pod|deployment|service <name>
-  kubectl delete pod|deployment|service <name>
+  kubectl describe pod|deployment|service|ingress <name>
+  kubectl delete pod|deployment|service|ingress <name>
   kubectl help
 
-Coming next: apply, exec, logs, ingress, config.`;
+Coming next: apply, logs, config, storage.`;
+
+function matchesIngressPath(rulePath: string, requestPath: string): boolean {
+  if (rulePath === "/") {
+    return true;
+  }
+  if (requestPath === rulePath) {
+    return true;
+  }
+  return requestPath.startsWith(rulePath.endsWith("/") ? rulePath : `${rulePath}/`);
+}
 
 function formatLabels(labels: Record<string, string>): string {
   const entries = Object.entries(labels).sort(([left], [right]) => left.localeCompare(right));
@@ -169,7 +183,11 @@ export class SimEngine {
       case "run":
         return this.#run(parsed);
       case "create":
-        return this.#createDeployment(parsed);
+        return parsed.resource === "ingresses"
+          ? this.#createIngress(parsed)
+          : this.#createDeployment(parsed);
+      case "exec":
+        return this.#exec(parsed);
       case "expose":
         return this.#expose(parsed);
       case "scale":
@@ -212,6 +230,10 @@ export class SimEngine {
 
     if (command.resource === "endpoints") {
       return this.#getEndpoints(command);
+    }
+
+    if (command.resource === "ingresses") {
+      return this.#getIngresses(command);
     }
 
     return {
@@ -331,7 +353,9 @@ export class SimEngine {
     return { ok: true, output: `pod/${command.name} created` };
   }
 
-  #createDeployment(command: Extract<ParsedCommand, { verb: "create" }>): CommandResult {
+  #createDeployment(
+    command: Extract<ParsedCommand, { verb: "create"; resource: "deployments" }>,
+  ): CommandResult {
     if (command.replicas > MAX_REPLICAS) {
       return { ok: false, output: `error: replicas must be at most ${MAX_REPLICAS}` };
     }
@@ -375,6 +399,177 @@ export class SimEngine {
 
     this.store.upsert(deployment);
     return { ok: true, output: `deployment.apps/${command.name} created` };
+  }
+
+  #createIngress(
+    command: Extract<ParsedCommand, { verb: "create"; resource: "ingresses" }>,
+  ): CommandResult {
+    if (this.store.get<KubeIngress>("Ingress", command.name, command.namespace)) {
+      return {
+        ok: false,
+        output: `Error from server (AlreadyExists): ingresses.networking.k8s.io "${command.name}" already exists`,
+      };
+    }
+
+    this.store.upsert<KubeIngress>({
+      apiVersion: "networking.k8s.io/v1",
+      kind: "Ingress",
+      metadata: {
+        name: command.name,
+        namespace: command.namespace,
+        labels: { app: command.name },
+        uid: this.#nextUid("ingress"),
+        resourceVersion: 0,
+        creationTick: this.clock.tick,
+      },
+      spec: {
+        ...(command.ingressClassName === undefined
+          ? {}
+          : { ingressClassName: command.ingressClassName }),
+        rules: [command.rule],
+      },
+    });
+
+    return { ok: true, output: `ingress.networking.k8s.io/${command.name} created` };
+  }
+
+  #exec(command: Extract<ParsedCommand, { verb: "exec" }>): CommandResult {
+    const pod = this.store.get<Pod>("Pod", command.name, command.namespace);
+    if (pod === undefined) {
+      return notFound("pods", command.name);
+    }
+    if (pod.status.phase !== "Running") {
+      return {
+        ok: false,
+        output: `error: pod "${command.name}" is not running (${pod.status.phase})`,
+      };
+    }
+
+    if (command.command === "nslookup" || command.command === "getent") {
+      let query: string | undefined;
+      if (command.command === "getent") {
+        if (command.args[0] !== "hosts" || command.args.length !== 2) {
+          return { ok: false, output: "getent: usage: getent hosts <name>" };
+        }
+        query = command.args[1];
+      } else {
+        if (command.args.length !== 1) {
+          return { ok: false, output: "nslookup: usage: nslookup <name>" };
+        }
+        query = command.args[0];
+      }
+      if (query === undefined) {
+        return { ok: false, output: `${command.command}: missing host` };
+      }
+
+      const target = resolveServiceDns(query, command.namespace);
+      const service =
+        target === undefined
+          ? undefined
+          : this.store.get<KubeService>("Service", target.name, target.namespace);
+
+      if (target === undefined || service === undefined) {
+        return {
+          ok: false,
+          output: `** server can't find ${query}: NXDOMAIN`,
+        };
+      }
+
+      if (command.command === "getent") {
+        return { ok: true, output: `${service.spec.clusterIP} ${target.canonical}` };
+      }
+
+      return {
+        ok: true,
+        output: [
+          "Server:         10.96.0.10",
+          "Address:        10.96.0.10:53",
+          "",
+          `Name:           ${target.canonical}`,
+          `Address:        ${service.spec.clusterIP}`,
+        ].join("\n"),
+      };
+    }
+
+    if (command.command === "curl") {
+      const headerIndex = command.args.findIndex(
+        (argument) => argument === "-H" || argument === "--header",
+      );
+      const header = headerIndex === -1 ? undefined : command.args[headerIndex + 1];
+      const url = command.args.find(
+        (argument) => argument.startsWith("http://") || argument.startsWith("https://"),
+      );
+
+      let host = header?.toLowerCase().startsWith("host:")
+        ? (header.slice("host:".length).trim().split(":")[0] ?? "")
+        : undefined;
+      let path = "/";
+
+      if (url !== undefined) {
+        try {
+          const parsed = new URL(url);
+          host = host ?? parsed.hostname;
+          path = parsed.pathname.length === 0 ? "/" : parsed.pathname;
+        } catch {
+          return { ok: false, output: `curl: (3) URL rejected: ${url}` };
+        }
+      }
+
+      if (host === undefined || host.length === 0) {
+        return { ok: false, output: "curl: (6) Could not resolve host" };
+      }
+
+      const route = this.store
+        .list<KubeIngress>("Ingress", command.namespace)
+        .flatMap((ingress) =>
+          ingress.spec.rules.map((rule) => ({
+            ingress,
+            rule,
+          })),
+        )
+        .filter(
+          ({ rule }) =>
+            rule.host.toLowerCase() === host.toLowerCase() && matchesIngressPath(rule.path, path),
+        )
+        .sort((left, right) => right.rule.path.length - left.rule.path.length)[0];
+
+      if (route === undefined) {
+        return {
+          ok: false,
+          output: `HTTP/1.1 404 Not Found\nContent-Type: text/plain\n\nno Ingress rule for ${host}${path}`,
+        };
+      }
+
+      const service = this.store.get<KubeService>(
+        "Service",
+        route.rule.serviceName,
+        route.ingress.metadata.namespace,
+      );
+      const backend = service === undefined ? undefined : this.#servicePods(service)[0];
+      if (
+        service === undefined ||
+        !service.spec.ports.some((port) => port.port === route.rule.servicePort) ||
+        backend === undefined
+      ) {
+        return {
+          ok: false,
+          output: `HTTP/1.1 503 Service Unavailable\nContent-Type: text/plain\n\nno ready endpoints for ${route.rule.serviceName}`,
+        };
+      }
+
+      return {
+        ok: true,
+        output: [
+          "HTTP/1.1 200 OK",
+          "Content-Type: text/plain",
+          `X-Kubelab-Backend: ${service.metadata.name}`,
+          "",
+          `${route.ingress.metadata.name} -> ${service.metadata.name} -> ${backend.metadata.name} (${backend.status.podIP ?? "<none>"})`,
+        ].join("\n"),
+      };
+    }
+
+    return { ok: false, output: `error: executable file not found: ${command.command}` };
   }
 
   #expose(command: Extract<ParsedCommand, { verb: "expose" }>): CommandResult {
@@ -779,6 +974,60 @@ export class SimEngine {
     return { ok: true, output: formatTable(["NAME", "ENDPOINTS", "AGE"], rows) };
   }
 
+  #getIngresses(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const ingresses = command.name
+      ? [this.store.get<KubeIngress>("Ingress", command.name, command.namespace)].filter(
+          (ingress): ingress is KubeIngress => ingress !== undefined,
+        )
+      : this.store.list<KubeIngress>(
+          "Ingress",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+
+    if (command.name !== undefined && ingresses.length === 0) {
+      return notFound("ingresses.networking.k8s.io", command.name);
+    }
+
+    const selector = Object.entries(command.selector);
+    const filtered = ingresses
+      .filter((ingress) => selector.every(([key, value]) => ingress.metadata.labels[key] === value))
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name));
+
+    if (filtered.length === 0) {
+      const scope = command.allNamespaces
+        ? "No resources found."
+        : `No resources found in ${command.namespace} namespace.`;
+      return { ok: true, output: scope };
+    }
+
+    const headers = ["NAME", "CLASS", "HOSTS", "ADDRESS", "PORTS", "AGE"];
+    if (command.showLabels) {
+      headers.push("LABELS");
+    }
+
+    const rows = filtered.map((ingress) => {
+      const name = command.allNamespaces
+        ? `${ingress.metadata.namespace}/${ingress.metadata.name}`
+        : ingress.metadata.name;
+      const hosts = ingress.spec.rules.map((rule) => rule.host).join(",");
+      const ports = ingress.spec.rules.map((rule) => rule.servicePort).join(",");
+      const row = [
+        name,
+        ingress.spec.ingressClassName ?? "<none>",
+        hosts,
+        "<none>",
+        ports,
+        `${Math.max(0, this.clock.tick - ingress.metadata.creationTick)}s`,
+      ];
+      if (command.showLabels) {
+        row.push(formatLabels(ingress.metadata.labels));
+      }
+      return row;
+    });
+
+    return { ok: true, output: formatTable(headers, rows) };
+  }
+
   #delete(command: Extract<ParsedCommand, { verb: "delete" }>): CommandResult {
     const tick = this.clock.tick;
 
@@ -814,6 +1063,16 @@ export class SimEngine {
       return { ok: true, output: `service "${command.name}" deleted` };
     }
 
+    if (command.resource === "ingresses") {
+      const ingress = this.store.get<KubeIngress>("Ingress", command.name, command.namespace);
+      if (ingress === undefined) {
+        return notFound("ingresses.networking.k8s.io", command.name);
+      }
+
+      this.store.delete("Ingress", ingress.metadata.name, ingress.metadata.namespace);
+      return { ok: true, output: `ingress.networking.k8s.io "${command.name}" deleted` };
+    }
+
     if (command.resource !== "pods") {
       return notSimulated("deleting", command.resource);
     }
@@ -836,6 +1095,10 @@ export class SimEngine {
 
     if (command.resource === "services") {
       return this.#describeService(command);
+    }
+
+    if (command.resource === "ingresses") {
+      return this.#describeIngress(command);
     }
 
     if (command.resource !== "pods") {
@@ -925,6 +1188,28 @@ export class SimEngine {
         `Port:              ${service.spec.ports.map((port) => `${port.port}/${port.targetPort}`).join(", ")}`,
         `Endpoints:         ${endpoints.length > 0 ? endpoints : "<none>"}`,
         `Session Affinity:  None`,
+      ].join("\n"),
+    };
+  }
+
+  #describeIngress(command: Extract<ParsedCommand, { verb: "describe" }>): CommandResult {
+    const ingress = this.store.get<KubeIngress>("Ingress", command.name, command.namespace);
+    if (ingress === undefined) {
+      return notFound("ingresses.networking.k8s.io", command.name);
+    }
+
+    return {
+      ok: true,
+      output: [
+        `Name:             ${ingress.metadata.name}`,
+        `Namespace:        ${ingress.metadata.namespace}`,
+        `Labels:           ${formatLabels(ingress.metadata.labels)}`,
+        `Ingress Class:    ${ingress.spec.ingressClassName ?? "<none>"}`,
+        "Rules:",
+        ...ingress.spec.rules.map(
+          (rule) =>
+            `  Host: ${rule.host}\n  Path: ${rule.path}\n  Backend: ${rule.serviceName}:${rule.servicePort}`,
+        ),
       ].join("\n"),
     };
   }

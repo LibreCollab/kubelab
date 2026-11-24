@@ -307,6 +307,72 @@ test("service lesson exposes a deployment and shows endpoints", async ({ page })
   expect(pageErrors).toEqual([]);
 });
 
+test("DNS lesson resolves a Service from a Pod", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/dns-101");
+
+  const terminalOutput = page.locator(".xterm-rows");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=2 -n demo");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl expose deployment web --port=80 -n demo");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl run client --image=busybox -n demo");
+  await page.keyboard.press("Enter");
+
+  await page.getByRole("button", { name: "Pause clock" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl exec client -n demo -- nslookup web");
+  await page.keyboard.press("Enter");
+
+  await expect(terminalOutput).toContainText("web.demo.svc.cluster.local");
+  await expect(page.locator('[data-check="Resolved web from the client"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  expect(pageErrors).toEqual([]);
+});
+
+test("Ingress lesson routes a request through a Service", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/ingress-101");
+
+  const terminalOutput = page.locator(".xterm-rows");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=2 -n demo");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl expose deployment web --port=80 -n demo");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl run client --image=busybox -n demo");
+  await page.keyboard.press("Enter");
+
+  await page.getByRole("button", { name: "Pause clock" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+  await page.getByRole("button", { name: "Step" }).click();
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl create ingress web --rule=shop.example.com/=web:80 -n demo");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type(
+    'kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/',
+  );
+  await page.keyboard.press("Enter");
+
+  await expect(terminalOutput).toContainText("HTTP/1.1 200 OK");
+  await expect(page.locator('[data-check="Host routes to web"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="Tested the route with curl"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.getByTestId("cluster-ingress-web")).toBeVisible();
+  await expect(page.getByTestId("cluster-map")).toHaveAttribute("data-ingresses", "1");
+  expect(pageErrors).toEqual([]);
+});
+
 test("cluster map fits a mobile lesson", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
   await page.setViewportSize({ width: 390, height: 844 });

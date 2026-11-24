@@ -76,6 +76,7 @@ fixed below.
 | 53 | Header K went to the roadmap instead of the primary lesson CTA | Brand link starts the first lesson |
 | 54 | No public deployment path for the Kubelab subdomain | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS docs |
 | 55 | Landing page promised under-the-hood animations; lessons only showed text terminal output | Live cluster map for Nodes → Deployments → ReplicaSets → Pods and Services → Endpoints |
+| 56 | DNS and Ingress lessons were quiz-only despite being core Unit 4 skills | Simulator now resolves Service DNS and routes HTTP through Ingress; both lessons are terminal checkpoints |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -86,7 +87,7 @@ references in the docs.
 
 | Item | Why deferred | Trigger |
 |---|---|---|
-| `apply`, `logs`, `exec`, `-o yaml` | Not used by current lessons; faking output would teach wrong behavior | First lesson that needs it |
+| `apply`, `logs`, `-o yaml` | Not used by current lessons; faking output would teach wrong behavior | First lesson that needs it |
 | Progressive rollout (`maxSurge`, `maxUnavailable`) and full revision history | Workloads reconcile by swapping ReplicaSets atomically; enough for the first Deployment lessons | Lesson that teaches surge/unavailable math |
 | OAuth, Postgres schema, XP/streak persistence | Phase 2; anonymous-first IndexedDB comes first | Phase 2 |
 | Envoy TLS, rate limits, tracing, access logs | Local scaffold runs plain HTTP; minimal config by design | Deployment to Hetzner |

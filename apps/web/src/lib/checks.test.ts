@@ -1,6 +1,7 @@
 import { getLesson, type LessonCheck } from "@kubelab/content";
 import {
   type KubeDeployment,
+  type KubeIngress,
   type KubeService,
   type ParsedCommand,
   type Pod,
@@ -94,6 +95,32 @@ function makeService(): KubeService {
       selector: { app: "web" },
       ports: [{ port: 80, targetPort: 80 }],
       clusterIP: "10.96.0.1",
+    },
+  };
+}
+
+function makeIngress(): KubeIngress {
+  return {
+    apiVersion: "networking.k8s.io/v1",
+    kind: "Ingress",
+    metadata: {
+      name: "web",
+      namespace: "demo",
+      labels: { app: "web" },
+      uid: "ingress-1",
+      resourceVersion: 1,
+      creationTick: 0,
+    },
+    spec: {
+      ingressClassName: "nginx",
+      rules: [
+        {
+          host: "shop.example.com",
+          path: "/",
+          serviceName: "web",
+          servicePort: 80,
+        },
+      ],
     },
   };
 }
@@ -300,6 +327,48 @@ describe("lesson checks", () => {
     const withCommand = evaluateChecks(lesson.checks, context(pods, [command("kubectl get pods")]));
     expect(withCommand.every((result) => result.pass)).toBe(true);
   });
+
+  it("checks Ingress host, path, and backend", () => {
+    const check: LessonCheck = {
+      type: "ingress",
+      label: "shop route",
+      namespace: "demo",
+      name: "web",
+      host: "shop.example.com",
+      path: "/",
+      serviceName: "web",
+      servicePort: 80,
+    };
+
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [],
+        ingresses: [makeIngress()],
+      }).pass,
+    ).toBe(true);
+    expect(
+      evaluateCheck(check, {
+        pods: [],
+        commands: [],
+        ingresses: [
+          {
+            ...makeIngress(),
+            spec: {
+              rules: [
+                {
+                  host: "other.example.com",
+                  path: "/",
+                  serviceName: "web",
+                  servicePort: 80,
+                },
+              ],
+            },
+          },
+        ],
+      }).pass,
+    ).toBe(false);
+  });
 });
 
 describe("lesson completability", () => {
@@ -366,6 +435,65 @@ describe("lesson completability", () => {
       services: sim.store.list<KubeService>("Service"),
       commands: sim.commands,
       answers: { q1: 0, q2: 0 },
+    });
+
+    expect(results.filter((result) => !result.pass)).toEqual([]);
+  });
+
+  it("completes the DNS lesson with its documented commands", () => {
+    const lesson = getLesson("dns-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const sim = engine();
+    sim.execute("kubectl create deployment web --image=nginx --replicas=2 -n demo");
+    sim.execute("kubectl expose deployment web --port=80 -n demo");
+    sim.execute("kubectl run client --image=busybox -n demo");
+    sim.step();
+    sim.step();
+    const lookup = sim.execute("kubectl exec client -n demo -- nslookup web");
+    expect(lookup.ok).toBe(true);
+
+    const results = evaluateChecks(lesson.checks, {
+      pods: sim.store.list<Pod>("Pod"),
+      deployments: sim.store.list<KubeDeployment>("Deployment"),
+      services: sim.store.list<KubeService>("Service"),
+      ingresses: sim.store.list<KubeIngress>("Ingress"),
+      commands: sim.commands,
+      answers: { q1: 0 },
+    });
+
+    expect(results.filter((result) => !result.pass)).toEqual([]);
+  });
+
+  it("completes the Ingress lesson with its documented commands", () => {
+    const lesson = getLesson("ingress-101");
+    expect(lesson).toBeDefined();
+    if (lesson === undefined) {
+      return;
+    }
+
+    const sim = engine();
+    sim.execute("kubectl create deployment web --image=nginx --replicas=2 -n demo");
+    sim.execute("kubectl expose deployment web --port=80 -n demo");
+    sim.execute("kubectl run client --image=busybox -n demo");
+    sim.step();
+    sim.step();
+    sim.execute("kubectl create ingress web --rule=shop.example.com/=web:80 -n demo");
+    const request = sim.execute(
+      'kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/',
+    );
+    expect(request.ok).toBe(true);
+
+    const results = evaluateChecks(lesson.checks, {
+      pods: sim.store.list<Pod>("Pod"),
+      deployments: sim.store.list<KubeDeployment>("Deployment"),
+      services: sim.store.list<KubeService>("Service"),
+      ingresses: sim.store.list<KubeIngress>("Ingress"),
+      commands: sim.commands,
+      answers: { q1: 0 },
     });
 
     expect(results.filter((result) => !result.pass)).toEqual([]);

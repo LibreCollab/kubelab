@@ -91,13 +91,14 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 ## Current scaffold
 
 - 34 lessons across 12 core units plus 5 certification readiness checks:
-  interactive kubectl lessons for Pods, labels, lifecycle, Deployments, and
-  Services; theory + knowledge-check quizzes for the remaining units.
-- Simulated `kubectl get nodes|pods|deployments|replicasets|services|endpoints`,
-  `run`, `create deployment`, `expose`, `scale`, `set image`, `rollout`,
-  `describe`, `delete`, and `help`, with virtual-clock workload reconciliation.
+  interactive kubectl lessons for Pods, labels, lifecycle, Deployments, Services,
+  Cluster DNS, and Ingress; theory + knowledge-check quizzes for the remaining
+  units.
+- Simulated `kubectl get nodes|pods|deployments|replicasets|services|endpoints|ingresses`,
+  `run`, `create deployment|ingress`, `expose`, `scale`, `set image`, `rollout`,
+  `exec`, `describe`, `delete`, and `help`, with virtual-clock reconciliation.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →
-  Pods plus Service endpoint selection, updating with the virtual clock.
+  Pods, Service endpoint selection, and Ingress → Service routing.
 - Readline-style terminal editing: paste, insert at cursor, backspace/delete,
   Home/End, arrow keys, Ctrl/Alt word navigation, Ctrl+A/E/U/K/W, and ↑/↓ history.
 - Checkpoints stay pending on wrong values (name, labels, image, phase). Guided

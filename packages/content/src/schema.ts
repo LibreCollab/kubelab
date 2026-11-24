@@ -13,7 +13,18 @@ export const podCheckSchema = z.object({
 export const commandCheckSchema = z.object({
   type: z.literal("command"),
   label: z.string().min(1),
-  verb: z.enum(["get", "run", "delete", "describe", "create", "expose", "scale", "set", "rollout"]),
+  verb: z.enum([
+    "get",
+    "run",
+    "delete",
+    "describe",
+    "create",
+    "expose",
+    "scale",
+    "set",
+    "rollout",
+    "exec",
+  ]),
   resource: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   namespace: z.string().min(1).default("default"),
@@ -21,6 +32,7 @@ export const commandCheckSchema = z.object({
   replicas: z.number().int().nonnegative().optional(),
   image: z.string().min(1).optional(),
   container: z.string().min(1).optional(),
+  command: z.string().min(1).optional(),
 });
 
 export const deploymentCheckSchema = z.object({
@@ -32,6 +44,25 @@ export const deploymentCheckSchema = z.object({
   image: z.string().min(1).optional(),
   ready: z.literal(true).optional(),
   labels: z.record(z.string(), z.string()).default({}),
+});
+
+export const dnsCheckSchema = z.object({
+  type: z.literal("dns"),
+  label: z.string().min(1),
+  namespace: z.string().min(1).default("default"),
+  name: z.string().min(1),
+  pod: z.string().min(1).optional(),
+});
+
+export const ingressCheckSchema = z.object({
+  type: z.literal("ingress"),
+  label: z.string().min(1),
+  namespace: z.string().min(1).default("default"),
+  name: z.string().min(1),
+  host: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+  serviceName: z.string().min(1).optional(),
+  servicePort: z.number().int().positive().optional(),
 });
 
 export const serviceCheckSchema = z.object({
@@ -66,6 +97,8 @@ export const checkSchema = z.discriminatedUnion("type", [
   commandCheckSchema,
   deploymentCheckSchema,
   serviceCheckSchema,
+  dnsCheckSchema,
+  ingressCheckSchema,
   quizCheckSchema,
 ]);
 

@@ -1,5 +1,6 @@
 import {
   type KubeDeployment,
+  type KubeIngress,
   type KubeNode,
   type KubeReplicaSet,
   type KubeService,
@@ -16,6 +17,7 @@ export interface ClusterMapProps {
   replicaSets: KubeReplicaSet[];
   pods: Pod[];
   services: KubeService[];
+  ingresses: KubeIngress[];
 }
 
 function key(namespace: string, name: string): string {
@@ -98,7 +100,14 @@ function ReplicaSetRow({ replicaSet, pods }: { replicaSet: KubeReplicaSet; pods:
   );
 }
 
-export function ClusterMap({ nodes, deployments, replicaSets, pods, services }: ClusterMapProps) {
+export function ClusterMap({
+  nodes,
+  deployments,
+  replicaSets,
+  pods,
+  services,
+  ingresses,
+}: ClusterMapProps) {
   const replicaSetsByDeployment = new Map<string, KubeReplicaSet[]>();
   const replicaSetKeys = new Set<string>();
   for (const replicaSet of replicaSets) {
@@ -149,6 +158,7 @@ export function ClusterMap({ nodes, deployments, replicaSets, pods, services }: 
       data-running={runningPods}
       data-deployments={deployments.length}
       data-services={services.length}
+      data-ingresses={ingresses.length}
     >
       <header className={styles.mapHead}>
         <div>
@@ -295,6 +305,65 @@ export function ClusterMap({ nodes, deployments, replicaSets, pods, services }: 
         ) : (
           <p className={styles.empty}>Run a workload to populate the cluster graph.</p>
         )}
+
+        {ingresses.length > 0 ? (
+          <>
+            <div className={styles.sectionHead}>
+              <span>Ingress</span>
+              <span>
+                {ingresses.length} rule{ingresses.length === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div className={styles.services}>
+              {ingresses.map((ingress) => (
+                <article
+                  key={key(ingress.metadata.namespace, ingress.metadata.name)}
+                  className={`${styles.service} ${styles.ingress}`}
+                  data-object="ingress"
+                  data-testid={`cluster-ingress-${ingress.metadata.name}`}
+                >
+                  <div className={styles.deploymentHead}>
+                    <div>
+                      <span className={styles.kind}>Ingress</span>
+                      <strong>{objectName(ingress)}</strong>
+                    </div>
+                    <span className={styles.count}>
+                      {ingress.spec.rules.length} rule
+                      {ingress.spec.rules.length === 1 ? "" : "s"}
+                    </span>
+                  </div>
+                  {ingress.spec.rules.map((rule) => {
+                    const service = services.find(
+                      (candidate) =>
+                        candidate.metadata.namespace === ingress.metadata.namespace &&
+                        candidate.metadata.name === rule.serviceName,
+                    );
+                    const endpoints =
+                      service === undefined
+                        ? []
+                        : pods.filter(
+                            (pod) =>
+                              pod.metadata.namespace === service.metadata.namespace &&
+                              pod.status.phase === "Running" &&
+                              matchesLabels(pod.metadata.labels, service.spec.selector),
+                          );
+                    return (
+                      <p
+                        key={`${rule.host}${rule.path}`}
+                        className={styles.selector}
+                        data-service={rule.serviceName}
+                        data-endpoints={endpoints.length}
+                      >
+                        {rule.host}
+                        {rule.path} → {rule.serviceName}:{rule.servicePort} · {endpoints.length} ep
+                      </p>
+                    );
+                  })}
+                </article>
+              ))}
+            </div>
+          </>
+        ) : null}
 
         <div className={styles.sectionHead}>
           <span>Services</span>

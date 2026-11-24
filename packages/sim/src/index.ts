@@ -1,4 +1,5 @@
 export { VirtualClock } from "./clock";
+export { resolveServiceDns, type ServiceDnsTarget } from "./dns";
 export { SimEngine, type SimEngineOptions } from "./engine";
 export { EventBus } from "./events";
 export { type ParsedCommand, type ParseError, parseKubectl } from "./kubectl";
@@ -6,7 +7,9 @@ export { filterPods, matchesLabels, type PodFilter, podMatches } from "./selecto
 export { ClusterStore } from "./store";
 export type {
   CommandResult,
+  IngressRule,
   KubeDeployment,
+  KubeIngress,
   KubeNode,
   KubeObject,
   KubeReplicaSet,

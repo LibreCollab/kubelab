@@ -1,6 +1,7 @@
 import { curriculumLessons, getLesson, type Lesson } from "@kubelab/content";
 import {
   type KubeDeployment,
+  type KubeIngress,
   type KubeNode,
   type KubeReplicaSet,
   type KubeService,
@@ -123,7 +124,13 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
 
   const interactive = lesson.checks.some((check) => check.type !== "quiz");
   const timed = lesson.checks.some(
-    (check) => check.type === "pod" || check.type === "deployment" || check.type === "service",
+    (check) =>
+      check.type === "pod" ||
+      check.type === "deployment" ||
+      check.type === "service" ||
+      check.type === "dns" ||
+      check.type === "ingress" ||
+      (check.type === "command" && check.verb === "exec"),
   );
 
   useEffect(() => {
@@ -158,6 +165,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
       pods: engine.store.list<Pod>("Pod"),
       deployments: engine.store.list<KubeDeployment>("Deployment"),
       services: engine.store.list<KubeService>("Service"),
+      ingresses: engine.store.list<KubeIngress>("Ingress"),
       commands: engine.commands,
       answers,
     });
@@ -354,6 +362,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
               replicaSets={engine.store.list<KubeReplicaSet>("ReplicaSet")}
               pods={engine.store.list<Pod>("Pod")}
               services={engine.store.list<KubeService>("Service")}
+              ingresses={engine.store.list<KubeIngress>("Ingress")}
             />
           </div>
         ) : null}

@@ -2,9 +2,11 @@ import type { LessonCheck } from "@kubelab/content";
 import {
   filterPods,
   type KubeDeployment,
+  type KubeIngress,
   type KubeService,
   type ParsedCommand,
   type Pod,
+  resolveServiceDns,
 } from "@kubelab/sim";
 
 export interface CheckContext {
@@ -12,6 +14,7 @@ export interface CheckContext {
   commands: readonly ParsedCommand[];
   deployments?: KubeDeployment[];
   services?: KubeService[];
+  ingresses?: KubeIngress[];
   answers?: Record<string, number>;
 }
 
@@ -69,6 +72,62 @@ export function evaluateCheck(check: LessonCheck, context: CheckContext): CheckR
       label: check.label,
       pass: matches.length > 0,
     };
+  }
+
+  if (check.type === "dns") {
+    const service = (context.services ?? []).find(
+      (candidate) =>
+        candidate.metadata.namespace === check.namespace && candidate.metadata.name === check.name,
+    );
+    const resolved = context.commands.some((command) => {
+      if (
+        command.verb !== "exec" ||
+        command.namespace !== check.namespace ||
+        (check.pod !== undefined && command.name !== check.pod)
+      ) {
+        return false;
+      }
+      if (command.command !== "nslookup" && command.command !== "getent") {
+        return false;
+      }
+      let query: string | undefined;
+      if (command.command === "getent") {
+        if (command.args[0] !== "hosts" || command.args.length !== 2) {
+          return false;
+        }
+        query = command.args[1];
+      } else {
+        if (command.args.length !== 1) {
+          return false;
+        }
+        query = command.args[0];
+      }
+      if (query === undefined) {
+        return false;
+      }
+      const target = resolveServiceDns(query, command.namespace);
+      return target?.name === check.name && target.namespace === check.namespace;
+    });
+
+    return { label: check.label, pass: service !== undefined && resolved };
+  }
+
+  if (check.type === "ingress") {
+    const matches = (context.ingresses ?? []).filter((ingress) => {
+      if (ingress.metadata.namespace !== check.namespace || ingress.metadata.name !== check.name) {
+        return false;
+      }
+
+      return ingress.spec.rules.some(
+        (rule) =>
+          (check.host === undefined || rule.host === check.host) &&
+          (check.path === undefined || rule.path === check.path) &&
+          (check.serviceName === undefined || rule.serviceName === check.serviceName) &&
+          (check.servicePort === undefined || rule.servicePort === check.servicePort),
+      );
+    });
+
+    return { label: check.label, pass: matches.length > 0 };
   }
 
   if (check.type === "service") {
@@ -153,6 +212,12 @@ function matchesCommand(
 
   if (check.container !== undefined) {
     if (!("container" in command) || command.container !== check.container) {
+      return false;
+    }
+  }
+
+  if (check.command !== undefined) {
+    if (!("command" in command) || command.command !== check.command) {
       return false;
     }
   }

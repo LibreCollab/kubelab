@@ -104,6 +104,50 @@ describe("kubectl parser", () => {
     }
   });
 
+  it("parses exec and Ingress commands", () => {
+    const exec = parseKubectl("kubectl exec client -n demo -- nslookup web");
+    expect("error" in exec).toBe(false);
+    if (!("error" in exec) && exec.verb === "exec") {
+      expect(exec).toMatchObject({
+        name: "client",
+        namespace: "demo",
+        command: "nslookup",
+        args: ["web"],
+      });
+    }
+
+    const ingress = parseKubectl(
+      "kubectl create ingress web --rule=shop.example.com/=web:80 -n demo --class=nginx",
+    );
+    expect("error" in ingress).toBe(false);
+    if (!("error" in ingress) && ingress.verb === "create") {
+      expect(ingress.resource).toBe("ingresses");
+      if (ingress.resource === "ingresses") {
+        expect(ingress.rule).toEqual({
+          host: "shop.example.com",
+          path: "/",
+          serviceName: "web",
+          servicePort: 80,
+        });
+        expect(ingress.ingressClassName).toBe("nginx");
+      }
+    }
+
+    expect(
+      "error" in parseKubectl("kubectl create ingress web --rule=shop.example.com=web:80"),
+    ).toBe(true);
+    expect("error" in parseKubectl("kubectl create ingress web --rule=shop.example.com/=80")).toBe(
+      true,
+    );
+    expect("error" in parseKubectl("kubectl exec client nslookup web")).toBe(true);
+    expect(
+      "error" in
+        parseKubectl(
+          "kubectl create ingress web --rule=a.example.com/=web:80 --rule=b.example.com/=web:80",
+        ),
+    ).toBe(true);
+  });
+
   it("rejects partial numbers, empty assignments, and extra arguments", () => {
     expect(
       "error" in parseKubectl("kubectl create deployment web --image=nginx --replicas=3x"),
@@ -342,6 +386,100 @@ describe("engine", () => {
     expect(engine.execute("kubectl get deployments").output).toContain("No resources found");
     expect(engine.execute("kubectl get pods").output).toContain("No resources found");
     expect(engine.execute("kubectl get replicasets").output).toContain("No resources found");
+  });
+
+  it("resolves Service DNS through exec", () => {
+    const engine = createEngine();
+    engine.execute("kubectl create deployment web --image=nginx --replicas=2 -n demo");
+    engine.execute("kubectl expose deployment web --port=80 -n demo");
+    engine.execute("kubectl run client --image=busybox -n demo");
+    engine.step();
+    engine.step();
+
+    const nslookup = engine.execute("kubectl exec client -n demo -- nslookup web");
+    expect(nslookup.ok).toBe(true);
+    expect(nslookup.output).toContain("web.demo.svc.cluster.local");
+    expect(nslookup.output).toContain("10.96.0.");
+
+    const getent = engine.execute("kubectl exec client -n demo -- getent hosts web.demo");
+    expect(getent.ok).toBe(true);
+    expect(getent.output).toContain("web.demo.svc.cluster.local");
+  });
+
+  it("routes HTTP requests through Ingress to Service endpoints", () => {
+    const engine = createEngine();
+    engine.execute("kubectl create deployment web --image=nginx --replicas=2 -n demo");
+    engine.execute("kubectl expose deployment web --port=80 -n demo");
+    engine.execute("kubectl run client --image=busybox -n demo");
+    engine.step();
+    engine.step();
+
+    expect(
+      engine.execute(
+        "kubectl create ingress web --rule=shop.example.com/=web:80 -n demo --class=nginx",
+      ).ok,
+    ).toBe(true);
+    expect(engine.execute("kubectl get ingresses -n demo").output).toContain("shop.example.com");
+    expect(engine.execute("kubectl describe ingress web -n demo").output).toContain(
+      "Backend: web:80",
+    );
+
+    const curl = engine.execute(
+      'kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/',
+    );
+    expect(curl.ok).toBe(true);
+    expect(curl.output).toContain("HTTP/1.1 200 OK");
+    expect(curl.output).toContain("web -> web-");
+
+    expect(engine.execute("kubectl delete ingress web -n demo").ok).toBe(true);
+    expect(engine.execute("kubectl get ingresses -n demo").output).toContain("No resources found");
+  });
+
+  it("reports exec failures without recording them", () => {
+    const engine = createEngine();
+    engine.execute("kubectl run client --image=busybox");
+
+    expect(engine.execute("kubectl exec missing -- nslookup web").ok).toBe(false);
+
+    engine.step();
+    expect(engine.execute("kubectl exec client -- getent hosts web").ok).toBe(false);
+
+    engine.step();
+    expect(engine.execute("kubectl exec client -- nslookup web").output).toContain("NXDOMAIN");
+    expect(engine.execute("kubectl exec client -- whoami").ok).toBe(false);
+    expect(engine.execute("kubectl exec client -- getent web").ok).toBe(false);
+    expect(engine.execute("kubectl exec client -- getent hosts web extra").ok).toBe(false);
+    expect(engine.execute("kubectl exec client -- nslookup web extra").ok).toBe(false);
+    expect(engine.commands.some((command) => command.verb === "exec")).toBe(false);
+  });
+
+  it("enforces Ingress path boundaries and backend ports", () => {
+    const engine = createEngine();
+    engine.execute("kubectl create deployment web --image=nginx --replicas=1 -n demo");
+    engine.execute("kubectl expose deployment web --port=80 -n demo");
+    engine.execute("kubectl run client --image=busybox -n demo");
+    engine.step();
+    engine.step();
+    engine.execute("kubectl create ingress api --rule=shop.example.com/api=web:80 -n demo");
+
+    expect(
+      engine.execute(
+        'kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/api/users',
+      ).ok,
+    ).toBe(true);
+    expect(
+      engine.execute(
+        'kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/apifoo',
+      ).output,
+    ).toContain("404");
+
+    engine.execute("kubectl delete ingress api -n demo");
+    engine.execute("kubectl create ingress web --rule=shop.example.com/=web:81 -n demo");
+    expect(
+      engine.execute(
+        'kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/',
+      ).output,
+    ).toContain("503");
   });
 
   it("reports rollout status", () => {

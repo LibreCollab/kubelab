@@ -15,6 +15,52 @@ scenario:
 objectives:
   - Ingress routing
 checks:
+  - type: command
+    label: Created the demo Deployment
+    verb: create
+    resource: deployments
+    name: web
+    namespace: demo
+    image: nginx
+    replicas: 2
+  - type: command
+    label: Exposed the backend Service
+    verb: expose
+    resource: deployments
+    name: web
+    namespace: demo
+  - type: service
+    label: Backend Service exists
+    namespace: demo
+    name: web
+    serviceType: ClusterIP
+    port: 80
+  - type: command
+    label: Started the client Pod
+    verb: run
+    name: client
+    namespace: demo
+    image: busybox
+  - type: command
+    label: Created the Ingress rule
+    verb: create
+    resource: ingresses
+    name: web
+    namespace: demo
+  - type: ingress
+    label: Host routes to web
+    namespace: demo
+    name: web
+    host: shop.example.com
+    path: /
+    serviceName: web
+    servicePort: 80
+  - type: command
+    label: Tested the route with curl
+    verb: exec
+    name: client
+    namespace: demo
+    command: curl
   - type: quiz
     id: q1
     label: Ingress routing
@@ -25,5 +71,9 @@ checks:
       - DNS only
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Ingress is HTTP(S) host/path routing implemented by a controller.
+  - "Create the backend: kubectl create deployment web --image=nginx --replicas=2 -n demo"
+  - "Expose it: kubectl expose deployment web --port=80 -n demo"
+  - "Start a client: kubectl run client --image=busybox -n demo"
+  - "Create the rule: kubectl create ingress web --rule=shop.example.com/=web:80 -n demo"
+  - 'Test it: kubectl exec client -n demo -- curl -H "Host: shop.example.com" http://shop.example.com/'
+solution: The Ingress maps shop.example.com/ to Service web on port 80.
