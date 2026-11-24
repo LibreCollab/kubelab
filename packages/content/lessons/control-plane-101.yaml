@@ -11,10 +11,97 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-node-1
+        namespace: kube-system
+        labels:
+          component: etcd
+      spec:
+        nodeName: node-1
+        containers:
+          - name: etcd
+            image: registry.k8s.io/etcd:3.5.15
+      status:
+        phase: Running
+        podIP: 10.244.0.2
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-apiserver-node-1
+        namespace: kube-system
+        labels:
+          component: kube-apiserver
+      spec:
+        nodeName: node-1
+        containers:
+          - name: kube-apiserver
+            image: registry.k8s.io/kube-apiserver:v1.32.0
+      status:
+        phase: Running
+        podIP: 10.244.0.3
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-controller-manager-node-1
+        namespace: kube-system
+        labels:
+          component: kube-controller-manager
+      spec:
+        nodeName: node-1
+        containers:
+          - name: kube-controller-manager
+            image: registry.k8s.io/kube-controller-manager:v1.32.0
+      status:
+        phase: Running
+        podIP: 10.244.0.4
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: kube-scheduler-node-1
+        namespace: kube-system
+        labels:
+          component: kube-scheduler
+      spec:
+        nodeName: node-1
+        containers:
+          - name: kube-scheduler
+            image: registry.k8s.io/kube-scheduler:v1.32.0
+      status:
+        phase: Running
+        podIP: 10.244.0.5
+        conditions:
+          - type: Ready
+            status: "True"
 objectives:
   - State store
 checks:
+  - type: command
+    label: Listed control-plane Pods
+    verb: get
+    resource: pods
+    namespace: kube-system
+  - type: command
+    label: Found the state store
+    verb: describe
+    resource: pods
+    name: etcd-node-1
+    namespace: kube-system
+  - type: command
+    label: Checked the nodes
+    verb: get
+    resource: nodes
   - type: quiz
     id: q1
     label: State store
@@ -25,5 +112,7 @@ checks:
       - kube-proxy
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: etcd is the cluster's source of truth.
+  - "Find control-plane Pods: kubectl get pods -n kube-system"
+  - "Inspect etcd: kubectl describe pod etcd-node-1 -n kube-system"
+  - "Check the worker nodes: kubectl get nodes"
+solution: etcd is the cluster's source of truth; the API server fronts it.

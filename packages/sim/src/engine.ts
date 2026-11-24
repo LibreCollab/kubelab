@@ -1,14 +1,18 @@
+import { parse as parseYaml } from "yaml";
 import { VirtualClock } from "./clock";
 import { resolveServiceDns } from "./dns";
 import { EventBus } from "./events";
-import { MAX_REPLICAS, type ParsedCommand, parseKubectl } from "./kubectl";
+import { MAX_REPLICAS, type ParsedCommand, parseCommand } from "./kubectl";
 import { filterPods, isPodReady, matchesLabels, type PodFilter } from "./selectors";
+
 import { ClusterStore } from "./store";
 import type {
   CommandResult,
+  KubeApplication,
   KubeConfigMap,
   KubeDeployment,
   KubeEvent,
+  KubeHelmRelease,
   KubeHorizontalPodAutoscaler,
   KubeIngress,
   KubeNamespace,
@@ -23,6 +27,7 @@ import type {
   KubeSecret,
   KubeService,
   KubeStorageClass,
+  KubeWidget,
   Pod,
   PodTemplate,
   Scenario,
@@ -51,7 +56,11 @@ Supported in this scaffold:
   kubectl set image deployment/<name> <container>=<image>
   kubectl set env deployment/<name> --from=configmap|secret/<name>
   kubectl rollout status|undo deployment/<name>
+  kubectl apply -f <file> | -k <dir>
   kubectl describe pod|deployment|service|ingress|node|pvc|networkpolicy|role|rolebinding|namespace|hpa <name>
+  helm list|status|history
+  argocd app list|get
+  kubectl kustomize <dir>
   kubectl delete pod|deployment|service|ingress|configmap|secret <name>
   kubectl help
 
@@ -179,6 +188,7 @@ export class SimEngine {
   #uid = 0;
   #ipCounter = 0;
   #serviceCounter = 0;
+  #files: Record<string, string> = {};
 
   constructor(options: SimEngineOptions = {}) {
     this.clock = new VirtualClock(options.intervalMs ?? 500);
@@ -192,6 +202,7 @@ export class SimEngine {
   }
 
   seed(scenario: Scenario): void {
+    this.#files = scenario.files ?? {};
     for (const node of scenario.nodes) {
       const kubeNode: KubeNode = {
         apiVersion: "v1",
@@ -282,7 +293,7 @@ export class SimEngine {
   }
 
   execute(input: string): CommandResult {
-    const parsed = parseKubectl(input);
+    const parsed = parseCommand(input);
 
     if ("error" in parsed) {
       return { ok: false, output: `error: ${parsed.error}` };
@@ -322,6 +333,14 @@ export class SimEngine {
         return this.#logs(parsed);
       case "auth":
         return this.#auth(parsed);
+      case "helm":
+        return this.#helm(parsed);
+      case "argocd":
+        return this.#argocd(parsed);
+      case "kustomize":
+        return this.#kustomize(parsed);
+      case "apply":
+        return this.#apply(parsed);
       case "expose":
         return this.#expose(parsed);
       case "scale":
@@ -416,6 +435,11 @@ export class SimEngine {
 
     if (command.resource === "events") {
       return this.#getEvents(command);
+    }
+
+    const customKind = this.#customKind(command.resource);
+    if (this.store.list(customKind).length > 0) {
+      return this.#getSimple(command, customKind, command.resource);
     }
 
     return {
@@ -802,6 +826,37 @@ export class SimEngine {
         .sort((left, right) => right.rule.path.length - left.rule.path.length)[0];
 
       if (route === undefined) {
+        const dnsTarget = resolveServiceDns(host, command.namespace);
+        const directService =
+          dnsTarget === undefined
+            ? undefined
+            : this.store.get<KubeService>("Service", dnsTarget.name, dnsTarget.namespace);
+        if (directService !== undefined) {
+          const backend = this.#servicePods(directService)[0];
+          if (backend === undefined) {
+            return {
+              ok: false,
+              output: `HTTP/1.1 503 Service Unavailable\nContent-Type: text/plain\n\nno ready endpoints for ${directService.metadata.name}`,
+            };
+          }
+          if (!this.#ingressAllowed(backend)) {
+            return {
+              ok: true,
+              output: `HTTP/1.1 403 Forbidden\nContent-Type: text/plain\n\nNetworkPolicy denied access to ${directService.metadata.name}`,
+            };
+          }
+          return {
+            ok: true,
+            output: [
+              "HTTP/1.1 200 OK",
+              "Content-Type: text/plain",
+              `X-Kubelab-Backend: ${directService.metadata.name}`,
+              "",
+              `${directService.metadata.name} -> ${backend.metadata.name} (${backend.status.podIP ?? "<none>"})`,
+            ].join("\n"),
+          };
+        }
+
         return {
           ok: false,
           output: `HTTP/1.1 404 Not Found\nContent-Type: text/plain\n\nno Ingress rule for ${host}${path}`,
@@ -822,6 +877,13 @@ export class SimEngine {
         return {
           ok: false,
           output: `HTTP/1.1 503 Service Unavailable\nContent-Type: text/plain\n\nno ready endpoints for ${route.rule.serviceName}`,
+        };
+      }
+
+      if (!this.#ingressAllowed(backend)) {
+        return {
+          ok: true,
+          output: `HTTP/1.1 403 Forbidden\nContent-Type: text/plain\n\nNetworkPolicy denied access to ${service.metadata.name}`,
         };
       }
 
@@ -1769,11 +1831,214 @@ export class SimEngine {
     };
   }
 
-  #logs(command: Extract<ParsedCommand, { verb: "logs" }>): CommandResult {
-    if (command.follow) {
-      return { ok: false, output: "error: --follow is not simulated yet" };
+  #apply(command: Extract<ParsedCommand, { verb: "apply" }>): CommandResult {
+    const source = command.path ?? command.file;
+    if (source === undefined) {
+      return { ok: false, output: "error: apply requires a file or directory" };
+    }
+    const content = this.#files[source];
+    if (content === undefined) {
+      return { ok: false, output: `error: unable to read ${source}` };
     }
 
+    let parsed: unknown;
+    try {
+      parsed = parseYaml(content);
+    } catch (error) {
+      return {
+        ok: false,
+        output: `error: failed to parse ${source}: ${error instanceof Error ? error.message : "invalid YAML"}`,
+      };
+    }
+
+    const manifests = Array.isArray(parsed)
+      ? parsed
+      : typeof parsed === "object" && parsed !== null && "items" in parsed
+        ? (parsed as { items: unknown[] }).items
+        : [parsed];
+    const created: string[] = [];
+
+    for (const manifest of manifests) {
+      if (typeof manifest !== "object" || manifest === null) {
+        continue;
+      }
+      const raw = manifest as Record<string, unknown>;
+      const kind = raw.kind;
+      const metadata = raw.metadata;
+      if (typeof kind !== "string" || typeof metadata !== "object" || metadata === null) {
+        continue;
+      }
+      const name = (metadata as Record<string, unknown>).name;
+      if (typeof name !== "string" || name.length === 0) {
+        continue;
+      }
+
+      if (kind === "Deployment") {
+        raw.status ??= {
+          replicas: 0,
+          readyReplicas: 0,
+          updatedReplicas: 0,
+          availableReplicas: 0,
+        };
+      } else if (kind === "Pod") {
+        raw.status ??= { phase: "Pending" };
+      } else if (kind === "PersistentVolumeClaim") {
+        raw.status ??= { phase: "Pending" };
+      } else if (kind === "PersistentVolume") {
+        raw.status ??= { phase: "Available" };
+      } else if (kind === "Namespace") {
+        raw.status ??= { phase: "Active" };
+      } else if (kind === "Service") {
+        const spec = raw.spec as Record<string, unknown> | undefined;
+        if (spec !== undefined && spec.clusterIP === undefined) {
+          this.#serviceCounter += 1;
+          spec.clusterIP = `10.96.${Math.floor((this.#serviceCounter - 1) / 254)}.${((this.#serviceCounter - 1) % 254) + 1}`;
+        }
+      } else if (kind === "Secret") {
+        const stringData = raw.stringData as Record<string, string> | undefined;
+        if (stringData !== undefined) {
+          raw.data = Object.fromEntries(
+            Object.entries(stringData).map(([key, value]) => [key, encodeBase64(value)]),
+          );
+          delete raw.stringData;
+        }
+      }
+
+      this.#seedObject(raw);
+      created.push(`${kind.toLowerCase()}/${name} configured`);
+    }
+
+    return {
+      ok: created.length > 0,
+      output:
+        created.length > 0
+          ? created.join("\n")
+          : `error: no supported resources found in ${source}`,
+    };
+  }
+
+  #helm(command: Extract<ParsedCommand, { verb: "helm" }>): CommandResult {
+    const releases = this.store
+      .list<KubeHelmRelease>(
+        "HelmRelease",
+        command.action === "list" ? undefined : command.namespace,
+      )
+      .filter((release) => command.name === undefined || release.metadata.name === command.name);
+
+    if (command.action === "list") {
+      const rows = releases
+        .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+        .map((release) => [
+          release.metadata.name,
+          String(release.history.at(-1)?.revision ?? 1),
+          release.status,
+          `${release.chartName}-${release.chartVersion}`,
+          release.appVersion ?? "",
+        ]);
+      return {
+        ok: true,
+        output:
+          rows.length === 0
+            ? "NAME	REVISION	STATUS	CHART	APP VERSION"
+            : formatTable(["NAME", "REVISION", "STATUS", "CHART", "APP VERSION"], rows),
+      };
+    }
+
+    const release = releases[0];
+    if (release === undefined) {
+      return {
+        ok: false,
+        output: `Error: release: not found`,
+      };
+    }
+
+    if (command.action === "history") {
+      return {
+        ok: true,
+        output: formatTable(
+          ["REVISION", "STATUS", "CHART", "DESCRIPTION"],
+          release.history.map((entry) => [
+            String(entry.revision),
+            entry.status,
+            entry.chart,
+            entry.description,
+          ]),
+        ),
+      };
+    }
+
+    return {
+      ok: true,
+      output: [
+        `NAME: ${release.metadata.name}`,
+        `NAMESPACE: ${release.metadata.namespace}`,
+        `STATUS: ${release.status}`,
+        `CHART: ${release.chartName}-${release.chartVersion}`,
+        `APP VERSION: ${release.appVersion ?? ""}`,
+        `REVISION: ${release.history.at(-1)?.revision ?? 1}`,
+      ].join("\n"),
+    };
+  }
+
+  #argocd(command: Extract<ParsedCommand, { verb: "argocd" }>): CommandResult {
+    const applications = this.store
+      .list<KubeApplication>("Application")
+      .filter(
+        (application) => command.name === undefined || application.metadata.name === command.name,
+      );
+
+    if (command.action === "list") {
+      const rows = applications
+        .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+        .map((application) => [
+          application.metadata.name,
+          application.syncStatus,
+          application.healthStatus,
+          `${application.source.repoURL}/${application.source.path}`,
+        ]);
+      return {
+        ok: true,
+        output: formatTable(["NAME", "SYNC STATUS", "HEALTH", "SOURCE"], rows),
+      };
+    }
+
+    if (command.action === "sync") {
+      const application = applications[0];
+      if (application === undefined) {
+        return { ok: false, output: "Application not found" };
+      }
+      this.store.upsert({ ...application, syncStatus: "Synced", healthStatus: "Healthy" });
+      return { ok: true, output: `Sync successful for ${application.metadata.name}` };
+    }
+
+    const application = applications[0];
+    if (application === undefined) {
+      return { ok: false, output: "Application not found" };
+    }
+
+    return {
+      ok: true,
+      output: [
+        `Name: ${application.metadata.name}`,
+        `Sync Status: ${application.syncStatus}`,
+        `Health: ${application.healthStatus}`,
+        `Repo: ${application.source.repoURL}`,
+        `Path: ${application.source.path}`,
+        `Revision: ${application.source.revision ?? "HEAD"}`,
+        `Destination: ${application.destination.namespace}`,
+      ].join("\n"),
+    };
+  }
+
+  #kustomize(command: Extract<ParsedCommand, { verb: "kustomize" }>): CommandResult {
+    const output = this.#files[command.path];
+    if (output === undefined) {
+      return { ok: false, output: `error: unable to read kustomization directory ${command.path}` };
+    }
+    return { ok: true, output };
+  }
+
+  #logs(command: Extract<ParsedCommand, { verb: "logs" }>): CommandResult {
     const pod = this.store.get<Pod>("Pod", command.name, command.namespace);
     if (pod === undefined) {
       return notFound("pods", command.name);
@@ -2002,6 +2267,10 @@ export class SimEngine {
     }
 
     if (command.resource !== "pods") {
+      const customKind = this.#customKind(command.resource);
+      if (this.store.get(customKind, command.name, command.namespace) !== undefined) {
+        return this.#describeGeneric(command, customKind);
+      }
       return notSimulated("describing", command.resource);
     }
 
@@ -2238,8 +2507,11 @@ export class SimEngine {
     const readyNodes = this.store.list<KubeNode>("Node").filter((node) => node.status.ready);
     const tick = this.clock.tick;
 
+    this.#reconcileWidgets();
+    this.#reconcileAutoscalers();
     this.#reconcileDeployments();
     this.#reconcileReplicaSets();
+    this.#reconcileStorage();
 
     for (const pod of this.store.list<Pod>("Pod")) {
       if (pod.status.phase !== "Pending") {
@@ -2308,6 +2580,122 @@ export class SimEngine {
     this.#updateDeploymentStatuses();
   }
 
+  #reconcileWidgets(): void {
+    for (const widget of this.store.list<KubeWidget>("Widget")) {
+      if (widget.status.phase !== "Ready") {
+        this.store.upsert({ ...widget, status: { phase: "Ready" } });
+      }
+    }
+  }
+
+  #reconcileAutoscalers(): void {
+    for (const autoscaler of this.store.list<KubeHorizontalPodAutoscaler>(
+      "HorizontalPodAutoscaler",
+    )) {
+      const deployment = this.store.get<KubeDeployment>(
+        "Deployment",
+        autoscaler.spec.scaleTargetRef.name,
+        autoscaler.metadata.namespace,
+      );
+      if (deployment === undefined) {
+        continue;
+      }
+      const desired = Math.min(
+        autoscaler.spec.maxReplicas,
+        Math.max(autoscaler.spec.minReplicas, autoscaler.status.desiredReplicas),
+      );
+      if (deployment.spec.replicas === desired) {
+        continue;
+      }
+      this.store.upsert({
+        ...deployment,
+        spec: { ...deployment.spec, replicas: desired },
+        status: {
+          replicas: 0,
+          readyReplicas: 0,
+          updatedReplicas: 0,
+          availableReplicas: 0,
+        },
+      });
+    }
+  }
+
+  #reconcileStorage(): void {
+    for (const claim of this.store.list<KubePersistentVolumeClaim>("PersistentVolumeClaim")) {
+      if (claim.status.phase !== "Pending") {
+        continue;
+      }
+      const request = claim.spec.resources.requests.storage;
+      const accessModes = claim.spec.accessModes;
+      const volume = this.store
+        .list<KubePersistentVolume>("PersistentVolume")
+        .find(
+          (candidate) =>
+            candidate.status.phase === "Available" &&
+            candidate.spec.capacity.storage === request &&
+            candidate.spec.accessModes.some((mode) => accessModes.includes(mode)) &&
+            (claim.spec.storageClassName === undefined ||
+              candidate.spec.storageClassName === claim.spec.storageClassName),
+        );
+
+      if (volume !== undefined) {
+        this.store.upsert({
+          ...volume,
+          spec: {
+            ...volume.spec,
+            claimRef: { namespace: claim.metadata.namespace, name: claim.metadata.name },
+          },
+          status: { phase: "Bound" },
+        });
+        this.store.upsert({
+          ...claim,
+          spec: { ...claim.spec, volumeName: volume.metadata.name },
+          status: { phase: "Bound", capacity: volume.spec.capacity.storage },
+        });
+        continue;
+      }
+
+      const storageClass =
+        claim.spec.storageClassName === undefined
+          ? undefined
+          : this.store.get<KubeStorageClass>("StorageClass", claim.spec.storageClassName, "");
+      if (
+        storageClass === undefined ||
+        storageClass.provisioner === "kubernetes.io/no-provisioner"
+      ) {
+        continue;
+      }
+
+      const volumeName = `pvc-${claim.metadata.uid.toLowerCase()}`;
+      this.store.upsert<KubePersistentVolume>({
+        apiVersion: "v1",
+        kind: "PersistentVolume",
+        metadata: {
+          name: volumeName,
+          namespace: "",
+          labels: {},
+          uid: this.#nextUid("pv"),
+          resourceVersion: 0,
+          creationTick: this.clock.tick,
+        },
+        spec: {
+          capacity: { storage: request },
+          accessModes,
+          ...(claim.spec.storageClassName === undefined
+            ? {}
+            : { storageClassName: claim.spec.storageClassName }),
+          claimRef: { namespace: claim.metadata.namespace, name: claim.metadata.name },
+        },
+        status: { phase: "Bound" },
+      });
+      this.store.upsert({
+        ...claim,
+        spec: { ...claim.spec, volumeName },
+        status: { phase: "Bound", capacity: request },
+      });
+    }
+  }
+
   #reconcileDeployments(): void {
     const tick = this.clock.tick;
 
@@ -2345,22 +2733,37 @@ export class SimEngine {
         });
       }
 
+      const oldReplicaSets = replicaSets.filter(
+        (replicaSet) =>
+          replicaSet.metadata.name !== current.metadata.name && replicaSet.spec.replicas > 0,
+      );
+      const rolling = oldReplicaSets.length > 0 && deployment.spec.replicas > 0;
+      const currentReady = this.#replicaSetPods(current).filter(isPodReady).length;
+      const currentReplicas = rolling
+        ? Math.min(deployment.spec.replicas, Math.max(1, currentReady + 1))
+        : deployment.spec.replicas;
+
       this.store.upsert({
         ...current,
         spec: {
           ...current.spec,
-          replicas: deployment.spec.replicas,
+          replicas: currentReplicas,
           template: deployment.spec.template,
         },
       });
 
+      let oldBudget = rolling ? Math.max(0, deployment.spec.replicas - currentReady) : 0;
       for (const replicaSet of replicaSets) {
         if (
-          replicaSet.metadata.name !== current.metadata.name &&
-          replicaSet.metadata.namespace === current.metadata.namespace &&
-          replicaSet.spec.replicas !== 0
+          replicaSet.metadata.name === current.metadata.name ||
+          replicaSet.metadata.namespace !== current.metadata.namespace
         ) {
-          this.store.upsert({ ...replicaSet, spec: { ...replicaSet.spec, replicas: 0 } });
+          continue;
+        }
+        const replicas = Math.min(replicaSet.spec.replicas, oldBudget);
+        oldBudget -= replicas;
+        if (replicaSet.spec.replicas !== replicas) {
+          this.store.upsert({ ...replicaSet, spec: { ...replicaSet.spec, replicas } });
         }
       }
     }
@@ -2463,6 +2866,22 @@ export class SimEngine {
       );
   }
 
+  #ingressAllowed(pod: Pod): boolean {
+    const policies = this.store
+      .list<KubeNetworkPolicy>("NetworkPolicy", pod.metadata.namespace)
+      .filter(
+        (policy) =>
+          Object.keys(policy.spec.podSelector).length === 0 ||
+          matchesLabels(pod.metadata.labels, policy.spec.podSelector),
+      )
+      .filter((policy) => policy.spec.policyTypes.includes("Ingress"));
+
+    if (policies.length === 0) {
+      return true;
+    }
+    return policies.some((policy) => (policy.spec.ingress ?? []).length > 0);
+  }
+
   #servicePods(service: KubeService): Pod[] {
     if (Object.keys(service.spec.selector).length === 0) {
       return [];
@@ -2473,6 +2892,12 @@ export class SimEngine {
       .filter(
         (pod) => isPodReady(pod) && matchesLabels(pod.metadata.labels, service.spec.selector),
       );
+  }
+
+  #customKind(resource: string): string {
+    const base = resource.split(".")[0] ?? resource;
+    const singular = base.endsWith("s") ? base.slice(0, -1) : base;
+    return `${singular.charAt(0).toUpperCase()}${singular.slice(1)}`;
   }
 
   #nextUid(prefix: string): string {

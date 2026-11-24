@@ -11,10 +11,69 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        replicas: 3
+        template:
+          labels:
+            app: web
+          containers:
+            - name: nginx
+              image: nginx
+      status:
+        replicas: 3
+        readyReplicas: 3
+        updatedReplicas: 3
+        availableReplicas: 3
+    - apiVersion: helm.kubelab.io/v1
+      kind: HelmRelease
+      metadata:
+        name: web
+      chartName: nginx
+      chartVersion: 15.4.0
+      appVersion: 1.27.0
+      status: deployed
+      history:
+        - revision: 1
+          status: superseded
+          chart: nginx-15.3.0
+          description: Install complete
+        - revision: 2
+          status: deployed
+          chart: nginx-15.4.0
+          description: Upgrade complete
 objectives:
   - Helm chart
+  - Release history
 checks:
+  - type: command
+    label: Listed releases
+    verb: helm
+    action: list
+  - type: command
+    label: Inspected the release
+    verb: helm
+    action: status
+    name: web
+  - type: command
+    label: Read release history
+    verb: helm
+    action: history
+    name: web
+  - type: command
+    label: Upgraded the release
+    verb: helm
+    action: upgrade
+    name: web
+  - type: command
+    label: Rolled back the release
+    verb: helm
+    action: rollback
+    name: web
   - type: quiz
     id: q1
     label: Helm chart
@@ -25,5 +84,9 @@ checks:
       - a CNI plugin
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Charts package templates with values.
+  - "List installed releases: helm list"
+  - "Inspect the current release: helm status web"
+  - "See its revisions: helm history web"
+  - "Upgrade with values: helm upgrade web ./chart --set replicas=5"
+  - "Roll back: helm rollback web 1"
+solution: The web release has two revisions and currently deploys nginx-15.4.0.

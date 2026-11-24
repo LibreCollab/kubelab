@@ -11,10 +11,34 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: example.kubelab.io/v1
+      kind: Widget
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        size: 3
+        color: green
+      status:
+        phase: Pending
 objectives:
   - Operator
 checks:
+  - type: command
+    label: Listed Widget resources
+    verb: get
+    resource: widgets
+  - type: command
+    label: Inspected a Widget
+    verb: describe
+    resource: widgets
+    name: web
+  - type: command
+    label: Observed reconciliation
+    verb: get
+    resource: widgets
   - type: quiz
     id: q1
     label: Operator
@@ -25,5 +49,7 @@ checks:
       - only schedules Pods
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Operators combine CRDs with reconciliation logic.
+  - "List custom resources: kubectl get widgets"
+  - "Inspect the resource: kubectl describe widgets web"
+  - "Notice the custom spec and controller-managed status."
+solution: The Widget CRD adds a new API; its controller reconciles Widget resources into Ready state.

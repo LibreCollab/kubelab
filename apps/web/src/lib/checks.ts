@@ -267,6 +267,18 @@ function matchesCommand(
     }
   }
 
+  if (check.path !== undefined) {
+    if (!("path" in command) || command.path !== check.path) {
+      return false;
+    }
+  }
+
+  if (check.file !== undefined) {
+    if (!("file" in command) || command.file !== check.file) {
+      return false;
+    }
+  }
+
   if (check.subjectVerb !== undefined) {
     if (!("subjectVerb" in command) || command.subjectVerb !== check.subjectVerb) {
       return false;

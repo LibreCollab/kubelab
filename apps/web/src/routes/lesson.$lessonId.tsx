@@ -118,7 +118,12 @@ function mutatesCluster(command: ParsedCommand): boolean {
   if (command.verb === "run" || command.verb === "create" || command.verb === "expose") {
     return true;
   }
-  if (command.verb === "scale" || command.verb === "set" || command.verb === "delete") {
+  if (
+    command.verb === "scale" ||
+    command.verb === "set" ||
+    command.verb === "delete" ||
+    command.verb === "apply"
+  ) {
     return true;
   }
   return command.verb === "rollout" && command.action === "undo";
@@ -155,6 +160,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
             }),
       })),
       objects: lesson.scenario.objects,
+      files: lesson.scenario.files,
     });
     return instance;
   }, [lesson]);

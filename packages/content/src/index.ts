@@ -103,5 +103,108 @@ export const certificationTracks: CertificationTrack[] = certificationTrackDefin
   }),
 );
 
+export interface ExamQuestion {
+  id: string;
+  prompt: string;
+  options: string[];
+  answer: number;
+  lessonId: string;
+  lessonTitle: string;
+  unit: string;
+  label: string;
+}
+
+export interface CertificationExam {
+  id: string;
+  name: string;
+  description: string;
+  durationMinutes: number;
+  passingScore: number;
+  questions: ExamQuestion[];
+  labs: Array<{ lessonId: string; lessonTitle: string }>;
+}
+
+const examUnits: Record<string, string[]> = {
+  kcna: [
+    "containers",
+    "architecture",
+    "workloads",
+    "services",
+    "config",
+    "storage",
+    "scheduling",
+    "networking",
+    "security",
+    "observability",
+  ],
+  kcsa: ["architecture", "services", "config", "networking", "security", "observability"],
+  cka: [
+    "architecture",
+    "workloads",
+    "services",
+    "config",
+    "storage",
+    "scheduling",
+    "networking",
+    "observability",
+  ],
+  ckad: ["workloads", "services", "config", "storage", "scheduling", "observability"],
+  cks: ["config", "services", "networking", "security", "observability"],
+};
+
+const examPool = lessons
+  .filter((lesson) => lesson.unit !== "certification")
+  .flatMap((lesson) =>
+    lesson.checks.flatMap((check) =>
+      check.type === "quiz"
+        ? [
+            {
+              id: `${lesson.id}:${check.id}`,
+              prompt: check.question,
+              options: check.options,
+              answer: check.answer,
+              lessonId: lesson.id,
+              lessonTitle: lesson.title,
+              unit: lesson.unit,
+              label: check.label,
+            } satisfies ExamQuestion,
+          ]
+        : [],
+    ),
+  );
+
+export const certificationExams: CertificationExam[] = certificationTracks.map((track) => {
+  const allowedUnits = new Set(examUnits[track.id] ?? []);
+  const questions = examPool
+    .filter((question) => allowedUnits.has(question.unit))
+    .sort((left, right) => left.id.localeCompare(right.id))
+    .slice(0, 10);
+
+  return {
+    id: track.id,
+    name: track.name,
+    description: track.description,
+    durationMinutes: 15,
+    passingScore: 70,
+    questions,
+    labs: [...new Map(questions.map((question) => [question.lessonId, question])).values()]
+      .slice(0, 4)
+      .map((question) => ({
+        lessonId: question.lessonId,
+        lessonTitle: question.lessonTitle,
+      })),
+  };
+});
+
+export const examQuestionsById = new Map(
+  certificationExams.flatMap((exam) =>
+    exam.questions.map((question) => [question.id, question] as const),
+  ),
+);
+
+export function getCertificationExam(id: string): CertificationExam | undefined {
+  return certificationExams.find((exam) => exam.id === id);
+}
+
 export type { Lesson, LessonCheck, LessonSpec } from "./schema";
 export { lessonSpecSchema } from "./schema";

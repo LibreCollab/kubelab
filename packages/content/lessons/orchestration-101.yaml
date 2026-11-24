@@ -15,6 +15,22 @@ scenario:
 objectives:
   - Desired state
 checks:
+  - type: command
+    label: Declared three replicas
+    verb: create
+    resource: deployments
+    name: web
+    image: nginx
+    replicas: 3
+  - type: command
+    label: Observed Pod placement
+    verb: get
+    resource: pods
+  - type: command
+    label: Scaled the desired state
+    verb: scale
+    resource: deployments
+    name: web
   - type: quiz
     id: q1
     label: Desired state
@@ -25,5 +41,7 @@ checks:
       - Treat YAML as documentation only
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
+  - "Declare it: kubectl create deployment web --image=nginx --replicas=3"
+  - "Watch it reconcile: kubectl get pods -o wide"
+  - "Change desired state: kubectl scale deployment web --replicas=5"
 solution: Controllers continuously reconcile actual state toward desired state.

@@ -18,7 +18,11 @@ export function guardLessonCommand(input: string, checks: LessonCheck[]): Lesson
     parsed.verb === "get" ||
     parsed.verb === "exec" ||
     parsed.verb === "logs" ||
-    parsed.verb === "auth"
+    parsed.verb === "auth" ||
+    parsed.verb === "helm" ||
+    parsed.verb === "argocd" ||
+    parsed.verb === "kustomize" ||
+    parsed.verb === "apply"
   ) {
     return { ok: true };
   }

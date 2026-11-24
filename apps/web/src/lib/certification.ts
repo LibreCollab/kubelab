@@ -1,0 +1,113 @@
+import type { CertificationExam, ExamQuestion } from "@kubelab/content";
+
+import { progressDb } from "./progress-db";
+
+export interface ExamAttempt {
+  id?: number;
+  trackId: string;
+  score: number;
+  total: number;
+  passed: boolean;
+  completedAt: number;
+  answers: Record<string, number>;
+  weakUnits: string[];
+}
+
+export interface ReviewCard {
+  id: string;
+  trackId: string;
+  questionId: string;
+  dueAt: number;
+  intervalDays: number;
+  lapses: number;
+}
+
+export interface ExamResult {
+  score: number;
+  total: number;
+  percent: number;
+  passed: boolean;
+  weakUnits: string[];
+  incorrect: ExamQuestion[];
+}
+
+const DAY = 24 * 60 * 60 * 1000;
+const INTERVALS = [1, 3, 7, 14, 30];
+
+export function gradeExam(exam: CertificationExam, answers: Record<string, number>): ExamResult {
+  const incorrect = exam.questions.filter((question) => answers[question.id] !== question.answer);
+  const score = exam.questions.length - incorrect.length;
+  const percent =
+    exam.questions.length === 0 ? 0 : Math.round((score / exam.questions.length) * 100);
+  const weakUnits = [...new Set(incorrect.map((question) => question.unit))];
+
+  return {
+    score,
+    total: exam.questions.length,
+    percent,
+    passed: percent >= exam.passingScore,
+    weakUnits,
+    incorrect,
+  };
+}
+
+export async function saveExamAttempt(
+  exam: CertificationExam,
+  answers: Record<string, number>,
+  result: ExamResult,
+): Promise<number> {
+  const attempt: ExamAttempt = {
+    trackId: exam.id,
+    score: result.score,
+    total: result.total,
+    passed: result.passed,
+    completedAt: Date.now(),
+    answers,
+    weakUnits: result.weakUnits,
+  };
+  const id = await progressDb.examAttempts.add(attempt);
+
+  for (const question of exam.questions) {
+    const correct = answers[question.id] === question.answer;
+    const card = await progressDb.reviewCards.get(question.id);
+    if (correct && card === undefined) {
+      continue;
+    }
+
+    const now = Date.now();
+    const intervalDays = correct
+      ? (INTERVALS[Math.min((card?.lapses ?? 0) + 1, INTERVALS.length - 1)] ?? 1)
+      : 0;
+    await progressDb.reviewCards.put({
+      id: question.id,
+      trackId: exam.id,
+      questionId: question.id,
+      dueAt: now + intervalDays * DAY,
+      intervalDays,
+      lapses: correct ? (card?.lapses ?? 0) : (card?.lapses ?? 0) + 1,
+    });
+  }
+
+  return id;
+}
+
+export async function dueReviewCards(now = Date.now()): Promise<ReviewCard[]> {
+  return progressDb.reviewCards.where("dueAt").belowOrEqual(now).sortBy("dueAt");
+}
+
+export async function answerReviewCard(card: ReviewCard, correct: boolean): Promise<void> {
+  const lapses = correct ? card.lapses : card.lapses + 1;
+  const intervalDays = correct
+    ? (INTERVALS[Math.min(card.lapses + 1, INTERVALS.length - 1)] ?? 1)
+    : 1;
+  await progressDb.reviewCards.put({
+    ...card,
+    dueAt: Date.now() + intervalDays * DAY,
+    intervalDays,
+    lapses,
+  });
+}
+
+export async function latestExamAttempts(): Promise<ExamAttempt[]> {
+  return progressDb.examAttempts.orderBy("completedAt").reverse().limit(10).toArray();
+}

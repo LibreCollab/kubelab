@@ -187,6 +187,46 @@ export interface KubeEvent extends KubeObject {
   involvedObject: { kind: string; name: string; namespace?: string };
 }
 
+export interface KubeHelmRelease extends KubeObject {
+  kind: "HelmRelease";
+  chartName: string;
+  chartVersion: string;
+  appVersion?: string;
+  status: string;
+  history: Array<{
+    revision: number;
+    status: string;
+    chart: string;
+    description: string;
+  }>;
+}
+
+export interface KubeApplication extends KubeObject {
+  kind: "Application";
+  source: {
+    repoURL: string;
+    path: string;
+    revision?: string;
+  };
+  destination: {
+    namespace: string;
+    server?: string;
+  };
+  syncStatus: "Synced" | "OutOfSync";
+  healthStatus: "Healthy" | "Progressing" | "Degraded";
+}
+
+export interface KubeWidget extends KubeObject {
+  kind: "Widget";
+  spec: {
+    size: number;
+    color: string;
+  };
+  status: {
+    phase: "Ready";
+  };
+}
+
 export interface KubeHorizontalPodAutoscaler extends KubeObject {
   kind: "HorizontalPodAutoscaler";
   spec: {
@@ -280,6 +320,7 @@ export interface ScenarioNode {
 export interface Scenario {
   nodes: ScenarioNode[];
   objects?: unknown[];
+  files?: Record<string, string>;
 }
 
 export interface CommandResult {

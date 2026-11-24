@@ -44,6 +44,9 @@ export function RootLayout() {
           <Link to="/" activeProps={{ className: "is-active" }}>
             Roadmap
           </Link>
+          <Link to="/practice" activeProps={{ className: "is-active" }}>
+            Practice
+          </Link>
           <span className="badge badge-muted">pre-alpha</span>
         </nav>
       </header>

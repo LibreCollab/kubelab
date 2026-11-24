@@ -15,6 +15,16 @@ scenario:
 objectives:
   - Reproducible image
 checks:
+  - type: command
+    label: Ran a tagged image
+    verb: run
+    name: web
+    image: nginx:1.27
+  - type: command
+    label: Checked the image in the Pod
+    verb: describe
+    resource: pods
+    name: web
   - type: quiz
     id: q1
     label: Reproducible image
@@ -25,5 +35,7 @@ checks:
       - nginx
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Use a digest when you need exact bytes.
+  - "Run a pinned image: kubectl run web --image=nginx:1.27"
+  - "Inspect it: kubectl describe pod web"
+  - "Compare mutable latest tags with digests."
+solution: A digest is the most reproducible reference; a version tag is the next best lesson default.

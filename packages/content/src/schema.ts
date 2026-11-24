@@ -26,15 +26,23 @@ export const commandCheckSchema = z.object({
     "exec",
     "logs",
     "auth",
+    "helm",
+    "argocd",
+    "kustomize",
+    "apply",
   ]),
   resource: z.string().min(1).optional(),
   name: z.string().min(1).optional(),
   namespace: z.string().min(1).default("default"),
-  action: z.enum(["status", "undo"]).optional(),
+  action: z
+    .enum(["status", "undo", "list", "history", "get", "install", "upgrade", "rollback", "sync"])
+    .optional(),
   replicas: z.number().int().nonnegative().optional(),
   image: z.string().min(1).optional(),
   container: z.string().min(1).optional(),
   command: z.string().min(1).optional(),
+  path: z.string().min(1).optional(),
+  file: z.string().min(1).optional(),
   subjectVerb: z.string().min(1).optional(),
   subjectResource: z.string().min(1).optional(),
   as: z.string().min(1).optional(),
@@ -93,6 +101,7 @@ export const ingressCheckSchema = z.object({
   name: z.string().min(1),
   host: z.string().min(1).optional(),
   path: z.string().min(1).optional(),
+  file: z.string().min(1).optional(),
   serviceName: z.string().min(1).optional(),
   servicePort: z.number().int().positive().optional(),
 });
@@ -141,9 +150,11 @@ const scenarioObjectSchema = z
   .object({
     apiVersion: z.string().optional(),
     kind: z.enum([
+      "Application",
       "ConfigMap",
       "Deployment",
       "Event",
+      "HelmRelease",
       "HorizontalPodAutoscaler",
       "Ingress",
       "Namespace",
@@ -157,6 +168,7 @@ const scenarioObjectSchema = z
       "Service",
       "ServiceAccount",
       "StorageClass",
+      "Widget",
     ]),
     metadata: z
       .object({
@@ -235,6 +247,7 @@ export const lessonSpecSchema = z.object({
       )
       .min(1),
     objects: z.array(scenarioObjectSchema).default([]),
+    files: z.record(z.string(), z.string()).default({}),
   }),
   objectives: z.array(z.string().min(1)).min(1),
   checks: z.array(checkSchema).min(1),

@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { type KubeDeployment, type Pod, parseKubectl, SimEngine } from "./index";
+import {
+  type KubeDeployment,
+  type KubePersistentVolumeClaim,
+  type Pod,
+  parseKubectl,
+  SimEngine,
+} from "./index";
 
 function createEngine(): SimEngine {
   const engine = new SimEngine({ intervalMs: 1000 });
@@ -321,6 +327,8 @@ describe("engine", () => {
     expect(engine.execute("kubectl set image deployment/web nginx=nginx:1.27").ok).toBe(true);
     engine.step();
     engine.step();
+    engine.step();
+    engine.step();
 
     expect(engine.execute("kubectl describe deployment web").output).toContain("nginx:1.27");
     expect(engine.execute("kubectl get deployments").output).toContain("2/2");
@@ -328,11 +336,15 @@ describe("engine", () => {
     expect(engine.execute("kubectl rollout undo deployment/web").ok).toBe(true);
     engine.step();
     engine.step();
+    engine.step();
+    engine.step();
 
     expect(engine.execute("kubectl describe deployment web").output).toContain("Image: nginx");
     expect(engine.execute("kubectl get deployments").output).toContain("2/2");
 
     expect(engine.execute("kubectl rollout undo deployment/web").ok).toBe(true);
+    engine.step();
+    engine.step();
     engine.step();
     engine.step();
     expect(engine.execute("kubectl describe deployment web").output).toContain("nginx:1.27");
@@ -784,7 +796,7 @@ describe("engine", () => {
     expect(engine.execute("kubectl logs web").ok).toBe(false);
     expect(engine.execute("kubectl logs web -c missing").ok).toBe(false);
     expect(engine.execute("kubectl logs web -c web").output).toBe("hello");
-    expect(engine.execute("kubectl logs web --follow").ok).toBe(false);
+    expect(engine.execute("kubectl logs web -c web --follow").output).toBe("hello");
   });
 
   it("denies RBAC requests for the wrong subject", () => {
@@ -818,6 +830,150 @@ describe("engine", () => {
     expect(
       engine.execute("kubectl auth can-i get pods --as=system:serviceaccount:default:other").output,
     ).toBe("no");
+  });
+
+  it("reconciles HPAs and dynamically provisions PVCs", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Deployment",
+          metadata: { name: "web" },
+          spec: {
+            replicas: 3,
+            template: { labels: { app: "web" }, containers: [{ name: "web", image: "nginx" }] },
+          },
+          status: { replicas: 3, readyReplicas: 3, updatedReplicas: 3, availableReplicas: 3 },
+        },
+        {
+          kind: "HorizontalPodAutoscaler",
+          metadata: { name: "web" },
+          spec: {
+            minReplicas: 2,
+            maxReplicas: 8,
+            scaleTargetRef: { kind: "Deployment", name: "web" },
+          },
+          status: { currentReplicas: 3, desiredReplicas: 5 },
+        },
+        {
+          kind: "StorageClass",
+          metadata: { name: "fast" },
+          provisioner: "ebs.csi.aws.com",
+          reclaimPolicy: "Delete",
+          volumeBindingMode: "Immediate",
+        },
+        {
+          kind: "PersistentVolumeClaim",
+          metadata: { name: "data" },
+          spec: {
+            accessModes: ["ReadWriteOnce"],
+            resources: { requests: { storage: "2Gi" } },
+            storageClassName: "fast",
+          },
+          status: { phase: "Pending" },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<KubeDeployment>("Deployment", "web")?.spec.replicas).toBe(5);
+    expect(
+      engine.store.get<KubePersistentVolumeClaim>("PersistentVolumeClaim", "data")?.status.phase,
+    ).toBe("Bound");
+    expect(engine.execute("kubectl get pvc data").output).toContain("Bound");
+  });
+
+  it("enforces default-deny NetworkPolicy for Service requests", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.60",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "client", labels: { app: "client" } },
+          spec: { nodeName: "node-1", containers: [{ name: "client", image: "busybox" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.61",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Service",
+          metadata: { name: "web" },
+          spec: {
+            type: "ClusterIP",
+            selector: { app: "web" },
+            ports: [{ port: 80, targetPort: 80 }],
+            clusterIP: "10.96.0.60",
+          },
+        },
+        {
+          kind: "NetworkPolicy",
+          metadata: { name: "deny-all" },
+          spec: { podSelector: {}, policyTypes: ["Ingress"], ingress: [], egress: [] },
+        },
+      ],
+    });
+
+    const result = engine.execute("kubectl exec client -- curl http://web");
+    expect(result.output).toContain("403");
+    expect(result.output).toContain("NetworkPolicy");
+  });
+
+  it("applies manifests from seeded files and Kustomize paths", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      files: {
+        "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 2
+  template:
+    labels:
+      app: web
+    containers:
+      - name: nginx
+        image: nginx
+`,
+        "overlays/prod": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: prod-web
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: prod-web
+    containers:
+      - name: nginx
+        image: nginx:1.27
+`,
+      },
+    });
+
+    expect(engine.execute("kubectl apply -f deployment.yaml").ok).toBe(true);
+    expect(engine.store.get<KubeDeployment>("Deployment", "web")?.spec.replicas).toBe(2);
+    engine.step();
+    expect(engine.store.list<Pod>("Pod", "default")).toHaveLength(2);
+
+    expect(engine.execute("kubectl apply -k overlays/prod").ok).toBe(true);
+    expect(engine.store.get<KubeDeployment>("Deployment", "prod-web")?.spec.replicas).toBe(1);
+    expect(engine.execute("kubectl describe deployment prod-web").output).toContain("nginx:1.27");
   });
 
   it("reports rollout status", () => {

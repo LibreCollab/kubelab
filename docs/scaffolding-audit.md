@@ -79,6 +79,7 @@ fixed below.
 | 56 | DNS and Ingress lessons were quiz-only despite being core Unit 4 skills | Simulator now resolves Service DNS and routes HTTP through Ingress; both lessons are terminal checkpoints |
 | 57 | ConfigMaps and Secrets were quiz-only despite being core Unit 5 skills | Added configmap/secret creation, envFrom wiring, env checks, and redacted Secret display |
 | 58 | Units 6–10 were quiz-only despite covering core CKA/security/ops skills | Added seeded storage, scheduling, network policy, RBAC, event/log, and probe inspection scenarios with terminal checkpoints |
+| 59 | Units 11–12 and certification tracks were quiz-only | Added Helm/Kustomize/GitOps/CRD terminal scenarios, timed mock exams, scoring/review, and spaced repetition |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -89,8 +90,8 @@ references in the docs.
 
 | Item | Why deferred | Trigger |
 |---|---|---|
-| `apply`, `-o yaml` | Not used by current lessons; faking output would teach wrong behavior | First lesson that needs it |
-| Progressive rollout (`maxSurge`, `maxUnavailable`) and full revision history | Workloads reconcile by swapping ReplicaSets atomically; enough for the first Deployment lessons | Lesson that teaches surge/unavailable math |
+| `-o yaml` | Not used by current lessons; faking output would teach wrong behavior | First lesson that needs it |
+| Configurable rollout math (`maxSurge`/`maxUnavailable`) and complete revision history UI | The simulator now rolls incrementally with bounded surge and retains ReplicaSet history; exposing strategy knobs can wait | Lesson that teaches surge math |
 | OAuth, Postgres schema, XP/streak persistence | Phase 2; anonymous-first IndexedDB comes first | Phase 2 |
 | Envoy TLS, rate limits, tracing, access logs | Local scaffold runs plain HTTP; minimal config by design | Deployment to Hetzner |
 | CSP | xterm injects inline styles; needs nonces/hashes, not a blind header | Before public launch |

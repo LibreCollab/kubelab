@@ -136,12 +136,13 @@ cluster state.
   Everything — image pull delays, backoff, probe failures — is scheduled on
   virtual time, so lessons are fast but realistic.
 - **Controllers** (simplified but faithful):
-  - **MVP**: Deployment → ReplicaSet → Pods (atomic ReplicaSet swap on image
-    changes); Scheduler (filter: resources, nodeSelector, taints/tolerations →
-    score: spread, least-allocated → bind); Kubelet (image pull, lifecycle,
-    probes, restart backoff, OOM/eviction); Service/Endpoints
-    (ClusterIP/NodePort) and DNS (`svc.ns.svc.cluster.local`). Progressive
-    `maxSurge`/`maxUnavailable` stays deferred until a lesson needs it.
+  - **MVP**: Deployment → ReplicaSet → Pods with incremental rolling updates
+    (one-surge at a time, old replicas retained until new ones are Ready);
+    Scheduler (filter: resources, nodeSelector, taints/tolerations → score:
+    spread, least-allocated → bind); Kubelet (image pull, lifecycle, probes,
+    restart backoff, OOM/eviction); Service/Endpoints (ClusterIP/NodePort) and
+    DNS (`svc.ns.svc.cluster.local`). Configurable `maxSurge`/`maxUnavailable`
+    math remains deferred.
   - **Certification tracks**: PV/PVC + StorageClass, Job/CronJob, Ingress; later
     RBAC authorizer, NetworkPolicy, HPA.
 - **Event sourcing**: every command and controller action is an event → enables
@@ -163,9 +164,10 @@ matter for teaching.
 (table, wide, label selectors, `--show-labels`), `describe`, `run`, `create
 deployment|ingress|configmap|secret`, `expose`, `scale`, `set image|env`,
 `rollout`, `exec` for DNS/HTTP/environment checks, `logs`, `auth can-i`,
-seeded storage/network/RBAC/event inspection, `delete`, and `help`. The wider
-command set above is the Phase 1 target; `apply` and `-o yaml` are intentionally
-not faked yet.
+`apply -f/-k`, seeded storage/network/RBAC/event inspection, `delete`, and
+`help`. Helm, Argo CD, and Kustomize inspection are also simulated. The wider
+command set above is the Phase 1 target; `-o yaml` is intentionally not faked
+yet.
 
 ### Lesson validation
 
@@ -228,11 +230,12 @@ Skill tree (prereq graph) with unit gates:
 13. **Certification tracks** — see [Certification targets](#certification-targets).
 
 **Content now spans units 1–12 plus five certification readiness checks.**
-Units 1–10 include interactive kubectl lessons (workloads, services/DNS/Ingress,
-configuration, storage, scheduling, networking, RBAC, and observability) with a
-live cluster map; Helm/Kustomize and GitOps/operators remain guided theory plus
-knowledge checks until their toolchains get dedicated simulators. Timed mock exams
-remain Phase 3; the current cert lessons are readiness checks.
+Units 1–12 include interactive terminal lessons (workloads, services/DNS/Ingress,
+configuration, storage, scheduling, networking, RBAC, observability, Helm,
+Kustomize, GitOps, and operators) with a live cluster map and toolchain
+simulators. Certification tracks include timed mock exams, weak-area review, and
+spaced repetition; conceptual container and control-plane lessons remain
+quiz-based. Task-based cert scenarios remain Phase 3.
 
 ### Certification targets
 
@@ -404,15 +407,16 @@ picker on small screens).
   animation. Proves the whole bet.
 - **Phase 1 — MVP (4–6 wks)**: roadmap UI, XP/streaks, local progress
   (IndexedDB, no backend), static build behind Envoy on a single 8 GB VPS. The
-  content scaffold already covers all core units and cert readiness checks;
-  interactive depth is focused on Pods/labels/lifecycle.
+  content scaffold covers all core units and cert readiness checks; interactive
+  depth now spans workloads, networking, storage, security, toolchains, and
+  observability.
 - **Phase 2**: Go API + Postgres on a single VPS (accounts, sync); request-flow +
   rolling-update visualizations; fault-injection debugging lessons;
-  quizzes/spaced repetition.
+  expanded spaced repetition.
 - **Phase 2.5 (triggered)**: split observability onto its own host when the
   trigger fires.
-- **Phase 3**: **KCNA + KCSA + CKA** tracks and mock exams, then CKAD/CKS;
-  Helm/GitOps units; i18n scaffolding.
+- **Phase 3**: task-based **KCNA + KCSA + CKA** mock exams, then CKAD/CKS;
+  fault-injection labs; i18n scaffolding.
 - **Phase 4 (optional)**: BYO-cluster practice first (kind/k3d); vcluster sandbox
   only after demand is proven; leaderboards only if retention data asks.
 

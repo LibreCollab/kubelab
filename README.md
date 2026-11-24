@@ -91,14 +91,15 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 ## Current scaffold
 
 - 34 lessons across 12 core units plus 5 certification readiness checks:
-  interactive kubectl lessons through Pods, Deployments, Services, DNS, Ingress,
-  ConfigMaps, Secrets, Storage, Scheduling, Networking, RBAC, and Observability;
-  Helm/Kustomize/GitOps remain guided theory + knowledge checks.
-- Simulated `kubectl get` across core, storage, networking, and RBAC resources;
-  `run`, `create deployment|ingress|configmap|secret`, `expose`, `scale`,
-  `set image|env`, `rollout`, `exec`, `logs`, `auth can-i`, `describe`,
-  `delete`, and `help`, with seeded inspection scenarios and virtual-clock
-  reconciliation.
+  interactive terminal lessons through Pods, Deployments, Services, DNS, Ingress,
+  ConfigMaps, Secrets, Storage, Scheduling, Networking, RBAC, Observability, Helm,
+  Kustomize, GitOps, and operators.
+- Simulated `kubectl` across core, storage, networking, RBAC, events, and custom
+  resources, including `apply -f/-k`; `helm` release inspection; `argocd`
+  applications; Kustomize rendering; plus `exec`, `logs`, `auth can-i`, and
+  virtual-clock reconciliation.
+- Timed certification mock exams with scoring, weak-area review, and
+  spaced-repetition practice for missed questions.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →
   Pods, Service endpoint selection, Ingress → Service routing, and ConfigMap /
   Secret wiring.
@@ -115,9 +116,9 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
   answers, linear unlock rules, continue/next navigation, and reset.
 - Terminal UI, dynamic roadmap with per-lesson completion/current/locked states,
   every unit and certification track, and quiz cards for knowledge checks.
-- Playwright E2E covering landing, quizzes, terminal/checkpoint, strict label and
-  image validation, the live cluster map, sticky terminal, editing/history, and
-  the API proxy.
+- Playwright E2E covering landing, quizzes, terminal checkpoints, workloads,
+  storage/networking/security/observability lessons, mock exams, the live
+  cluster map, sticky terminal, editing/history, and the API proxy.
 - Go API with `/api/healthz`, SPA embedding, graceful shutdown.
 - Envoy + Compose config and a CI workflow.
 

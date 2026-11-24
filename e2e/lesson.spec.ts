@@ -269,6 +269,7 @@ test("deployment lesson runs a scale and image rollout", async ({ page }) => {
   await expect(page.locator('[data-check="Deployment scaled and updated"]')).toHaveAttribute(
     "data-state",
     "pass",
+    { timeout: 10_000 },
   );
   await openClusterMap(page);
   await expect(page.getByTestId("cluster-deployment-web")).toHaveAttribute("data-state", "ready");
@@ -469,6 +470,134 @@ test("read-only commands do not open the cluster scene", async ({ page }) => {
   await page.keyboard.press("Enter");
 
   await expect(page.getByTestId("cluster-scene")).toHaveCount(0);
+});
+
+test("container and control-plane lessons are interactive", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+
+  await page.goto("/lesson/images-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl run web --image=nginx:1.27");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-check="Ran a tagged image"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await page.keyboard.type("kubectl describe pod web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("nginx:1.27");
+
+  await page.goto("/lesson/control-plane-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get pods -n kube-system");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("etcd-node-1");
+  await page.keyboard.type("kubectl describe pod etcd-node-1 -n kube-system");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("Running");
+  await page.keyboard.type("kubectl get nodes");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("node-1");
+  expect(pageErrors).toEqual([]);
+});
+
+test("certification mock exam starts, submits, and reviews", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/exam/cka");
+
+  await expect(page.getByRole("heading", { name: "CKA" })).toBeVisible();
+  await expect(page.getByText("10 questions")).toBeVisible();
+  await page.getByRole("button", { name: "Start exam" }).click();
+  await expect(page.getByText("Answered 0 / 10")).toBeVisible();
+  await page.getByRole("button", { name: "Submit exam" }).click();
+  await expect(page.getByText("Not passed")).toBeVisible();
+  await expect(page.getByText("0/10 correct")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Practice missed questions" })).toBeVisible();
+  await page.getByRole("link", { name: "Practice missed questions" }).click();
+  await expect(page.getByRole("heading", { name: "Practice queue" })).toBeVisible();
+  await expect(page.getByText("10 due")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("practice queue renders when empty", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/practice");
+  await expect(page.getByRole("heading", { name: "Practice queue" })).toBeVisible();
+  await expect(page.getByText("Nothing due right now")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("toolchain lessons expose Helm, Kustomize, GitOps, and CRDs", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+
+  await page.goto("/lesson/helm-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("helm list");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("nginx-15.4.0");
+  await page.keyboard.type("helm status web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("STATUS: deployed");
+  await page.keyboard.type("helm history web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("Upgrade complete");
+  await page.keyboard.type("helm upgrade web ./chart --set replicas=5");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-check="Upgraded the release"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await page.keyboard.type("helm rollback web 1");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-check="Rolled back the release"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+
+  await page.goto("/lesson/kustomize-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl kustomize base");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("replicas: 1");
+  await page.keyboard.type("kubectl kustomize overlays/prod");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("replicas: 3");
+  await page.keyboard.type("kubectl apply -k overlays/prod");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-check="Applied the overlay"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+  await expect(page.locator('[data-check="Prod Deployment is active"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+    { timeout: 6_000 },
+  );
+
+  await page.goto("/lesson/gitops-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("argocd app list");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("OutOfSync");
+  await page.keyboard.type("argocd app get web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("deploy/web");
+  await page.keyboard.type("argocd app sync web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator('[data-check="Synced the application"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
+
+  await page.goto("/lesson/operators-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get widgets");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("web");
+  await page.keyboard.type("kubectl describe widgets web");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("green");
+  expect(pageErrors).toEqual([]);
 });
 
 test("storage lessons expose PVC and StorageClass state", async ({ page }) => {

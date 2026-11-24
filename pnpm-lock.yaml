@@ -97,7 +97,11 @@ importers:
         specifier: ^4.0.0
         version: 4.6.7
 
-  packages/sim: {}
+  packages/sim:
+    dependencies:
+      yaml:
+        specifier: ^2.8.0
+        version: 2.9.1
 
   packages/ui:
     dependencies:

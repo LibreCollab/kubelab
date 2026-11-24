@@ -296,6 +296,13 @@ export function HomePage() {
                 <h3>{track.name}</h3>
                 <p>{track.description}</p>
                 <LessonRows items={track.lessons} access={access} />
+                <Link
+                  className={styles.trackExam}
+                  to="/exam/$trackId"
+                  params={{ trackId: track.id }}
+                >
+                  Start mock exam →
+                </Link>
               </article>
             );
           })}

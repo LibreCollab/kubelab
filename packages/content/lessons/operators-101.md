@@ -3,3 +3,9 @@ An operator extends Kubernetes with CustomResourceDefinitions and a controller t
 - CRDs add new API types.
 - Controllers reconcile custom resources.
 - Operators automate things like backups, failover, and upgrades.
+
+```bash
+kubectl get widgets
+kubectl describe widgets web
+kubectl get widgets
+```

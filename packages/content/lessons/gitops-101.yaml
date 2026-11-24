@@ -11,10 +11,38 @@ scenario:
     - name: node-1
       cpu: "4"
       memory: 8Gi
-  objects: []
+  objects:
+    - apiVersion: argoproj.io/v1alpha1
+      kind: Application
+      metadata:
+        name: web
+        namespace: argocd
+      source:
+        repoURL: https://github.com/LibreCollab/kubelab
+        path: deploy/web
+        revision: main
+      destination:
+        namespace: default
+        server: https://kubernetes.default.svc
+      syncStatus: OutOfSync
+      healthStatus: Healthy
 objectives:
   - GitOps
 checks:
+  - type: command
+    label: Listed Argo CD apps
+    verb: argocd
+    action: list
+  - type: command
+    label: Inspected the application
+    verb: argocd
+    action: get
+    name: web
+  - type: command
+    label: Synced the application
+    verb: argocd
+    action: sync
+    name: web
   - type: quiz
     id: q1
     label: GitOps
@@ -25,5 +53,8 @@ checks:
       - a container runtime
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Git is the desired-state source of truth.
+  - "List applications: argocd app list"
+  - "Inspect drift: argocd app get web"
+  - "Compare the Git revision with cluster sync status."
+  - "Sync drift: argocd app sync web"
+solution: The web Application is healthy but OutOfSync with the main branch.

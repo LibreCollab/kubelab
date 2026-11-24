@@ -12,9 +12,57 @@ scenario:
       cpu: "4"
       memory: 8Gi
   objects: []
+  files:
+    "base": |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        replicas: 1
+        template:
+          labels:
+            app: web
+          containers:
+            - name: nginx
+              image: nginx:1.27
+    "overlays/prod": |
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+        labels:
+          environment: prod
+      spec:
+        replicas: 3
+        template:
+          labels:
+            app: web
+          containers:
+            - name: nginx
+              image: nginx:1.27
 objectives:
   - Kustomize
 checks:
+  - type: command
+    label: Rendered the base
+    verb: kustomize
+    path: base
+  - type: command
+    label: Rendered the prod overlay
+    verb: kustomize
+    path: overlays/prod
+  - type: command
+    label: Applied the overlay
+    verb: apply
+    path: overlays/prod
+  - type: deployment
+    label: Prod Deployment is active
+    namespace: default
+    name: web
+    replicas: 3
+    image: nginx:1.27
+    ready: true
   - type: quiz
     id: q1
     label: Kustomize
@@ -25,5 +73,8 @@ checks:
       - builds images
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: Kustomize uses overlays and patches, not templates.
+  - "Render the base: kubectl kustomize base"
+  - "Render the overlay: kubectl kustomize overlays/prod"
+  - "Compare the replica count and environment label."
+  - "Apply the rendered overlay: kubectl apply -k overlays/prod"
+solution: The prod overlay changes the base Deployment to three replicas and adds environment=prod.

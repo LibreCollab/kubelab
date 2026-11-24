@@ -108,6 +108,28 @@ export type ParsedCommand =
       as?: string;
       namespace: string;
     }
+  | {
+      verb: "helm";
+      action: "list" | "status" | "history" | "install" | "upgrade" | "rollback";
+      name?: string;
+      chart?: string;
+      values?: Record<string, string>;
+      revision?: number;
+      namespace: string;
+    }
+  | {
+      verb: "argocd";
+      action: "list" | "get" | "sync";
+      name?: string;
+      namespace: string;
+    }
+  | { verb: "kustomize"; path: string }
+  | {
+      verb: "apply";
+      file?: string;
+      path?: string;
+      namespace: string;
+    }
   | { verb: "delete"; resource: string; name: string; namespace: string }
   | { verb: "describe"; resource: string; name: string; namespace: string }
   | { verb: "help" };
@@ -246,6 +268,8 @@ function normalizeResource(resource: string): string {
     case "ev":
     case "event":
       return "events";
+    case "widget":
+      return "widgets";
     default:
       return base;
   }
@@ -691,6 +715,232 @@ function parseAuth(tokens: string[]): ParsedCommand | ParseError {
     subjectVerb: positional[1] ?? "",
     subjectResource: normalizeResource(positional[2] ?? ""),
     ...(as === undefined ? {} : { as }),
+    namespace,
+  };
+}
+
+function parseHelm(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  const values: Record<string, string> = {};
+  const positional: string[] = [];
+
+  for (let index = 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+    if (token === "--set" || token.startsWith("--set=")) {
+      const value = token === "--set" ? flagArgument(tokens, index) : token.slice("--set=".length);
+      if (value === undefined) {
+        return { error: "flag needs an argument: --set" };
+      }
+      const literal = parseLiteral(value);
+      if ("error" in literal) {
+        return literal;
+      }
+      values[literal.name] = literal.value;
+      if (token === "--set") {
+        index += 1;
+      }
+      continue;
+    }
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+    positional.push(token);
+  }
+
+  const action = positional[0];
+  if (
+    action !== "list" &&
+    action !== "status" &&
+    action !== "history" &&
+    action !== "install" &&
+    action !== "upgrade" &&
+    action !== "rollback"
+  ) {
+    return { error: "helm supports: list, status, history, install, upgrade, rollback" };
+  }
+  if (action === "list") {
+    if (positional.length > 1) {
+      return { error: "helm list accepts no name" };
+    }
+    return { verb: "helm", action, namespace };
+  }
+  if (action === "status" || action === "history") {
+    if (positional[1] === undefined) {
+      return { error: `helm ${action} requires a release name` };
+    }
+    return { verb: "helm", action, name: positional[1], namespace };
+  }
+  if (action === "rollback") {
+    const name = positional[1];
+    const revision = parsePositiveInteger(positional[2]);
+    if (name === undefined || revision === undefined) {
+      return { error: "helm rollback requires <name> <revision>" };
+    }
+    return { verb: "helm", action, name, revision, namespace };
+  }
+  const name = positional[1];
+  const chart = positional[2];
+  if (name === undefined || chart === undefined) {
+    return { error: `helm ${action} requires <name> <chart>` };
+  }
+  if (positional.length > 3) {
+    return { error: `helm ${action} accepts one chart` };
+  }
+  return {
+    verb: "helm",
+    action,
+    name,
+    chart,
+    ...(Object.keys(values).length === 0 ? {} : { values }),
+    namespace,
+  };
+}
+
+function parseArgocd(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  const positional: string[] = [];
+
+  for (let index = 1; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+    positional.push(token);
+  }
+
+  if (positional[0] !== "app") {
+    return { error: "argocd supports: app list, app get <name>" };
+  }
+  const action = positional[1];
+  if (action !== "list" && action !== "get" && action !== "sync") {
+    return { error: "argocd app supports: list, get, sync" };
+  }
+  if (action === "list" && positional.length !== 2) {
+    return { error: "argocd app list accepts no name" };
+  }
+  if ((action === "get" || action === "sync") && positional[2] === undefined) {
+    return { error: `argocd app ${action} requires a name` };
+  }
+
+  return {
+    verb: "argocd",
+    action,
+    ...(action === "list" ? {} : { name: positional[2] }),
+    namespace,
+  };
+}
+
+function parseKustomize(tokens: string[]): ParsedCommand | ParseError {
+  const path = tokens[2];
+  if (path === undefined || tokens.length > 3) {
+    return { error: "kustomize requires exactly one directory" };
+  }
+  return { verb: "kustomize", path };
+}
+
+export function parseCommand(input: string): ParsedCommand | ParseError {
+  const tokens = tokenize(input);
+  if (tokens[0] === "helm") {
+    return parseHelm(tokens);
+  }
+  if (tokens[0] === "argocd") {
+    return parseArgocd(tokens);
+  }
+  return parseKubectl(input);
+}
+
+function parseApply(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let file: string | undefined;
+  let path: string | undefined;
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+    if (token === "-f" || token === "--filename") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      file = value;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--filename=")) {
+      file = token.slice("--filename=".length);
+      continue;
+    }
+    if (token === "-k" || token === "--kustomize") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      path = value;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("--kustomize=")) {
+      path = token.slice("--kustomize=".length);
+      continue;
+    }
+    return unknownFlag(token);
+  }
+
+  if ((file === undefined) === (path === undefined)) {
+    return { error: "apply requires exactly one of -f <file> or -k <dir>" };
+  }
+
+  return {
+    verb: "apply",
+    ...(file === undefined ? {} : { file }),
+    ...(path === undefined ? {} : { path }),
     namespace,
   };
 }
@@ -1527,6 +1777,10 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
       return parseLogs(tokens);
     case "auth":
       return parseAuth(tokens);
+    case "kustomize":
+      return parseKustomize(tokens);
+    case "apply":
+      return parseApply(tokens);
     case "expose":
       return parseExpose(tokens);
     case "scale":

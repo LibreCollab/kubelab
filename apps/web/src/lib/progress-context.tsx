@@ -145,10 +145,19 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   );
 
   const reset = useCallback(async () => {
-    await progressDb.transaction("rw", progressDb.lessons, progressDb.meta, async () => {
-      await progressDb.lessons.clear();
-      await progressDb.meta.clear();
-    });
+    await progressDb.transaction(
+      "rw",
+      progressDb.lessons,
+      progressDb.meta,
+      progressDb.examAttempts,
+      progressDb.reviewCards,
+      async () => {
+        await progressDb.lessons.clear();
+        await progressDb.meta.clear();
+        await progressDb.examAttempts.clear();
+        await progressDb.reviewCards.clear();
+      },
+    );
     await refresh();
   }, [refresh]);
 
