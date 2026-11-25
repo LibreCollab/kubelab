@@ -620,3 +620,10 @@
   border-color: var(--color-accent);
   text-decoration: none;
 }
+
+.trackActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  margin-top: var(--space-3);
+}

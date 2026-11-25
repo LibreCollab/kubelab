@@ -161,13 +161,13 @@ cluster state.
 matter for teaching.
 
 **Scaffold now**: object store, virtual clock, scheduler/kubelet stub, `get`
-(table, wide, label selectors, `--show-labels`), `describe`, `run`, `create
-deployment|ingress|configmap|secret`, `expose`, `scale`, `set image|env`,
-`rollout`, `exec` for DNS/HTTP/environment checks, `logs`, `auth can-i`,
-`apply -f/-k`, seeded storage/network/RBAC/event inspection, `delete`, and
-`help`. Helm, Argo CD, and Kustomize inspection are also simulated. The wider
-command set above is the Phase 1 target; `-o yaml` is intentionally not faked
-yet.
+(table, wide, YAML, label selectors, `--show-labels`), `top pods|nodes`,
+`describe`, `run`, `create deployment|ingress|configmap|secret`, `expose`,
+`scale`, `set image|env`, `rollout`, `exec` for DNS/HTTP/environment checks,
+`logs`, `auth can-i`, `apply -f/-k` with comma-separated files and directory
+manifests, NetworkPolicy peer/egress evaluation, configurable rolling-update
+strategies, seeded storage/RBAC/event inspection, `delete`, and `help`. Helm,
+Argo CD, and Kustomize inspection are also simulated.
 
 ### Lesson validation
 
@@ -233,9 +233,9 @@ Skill tree (prereq graph) with unit gates:
 Units 1–12 include interactive terminal lessons (workloads, services/DNS/Ingress,
 configuration, storage, scheduling, networking, RBAC, observability, Helm,
 Kustomize, GitOps, and operators) with a live cluster map and toolchain
-simulators. Certification tracks include timed mock exams, weak-area review, and
-spaced repetition; conceptual container and control-plane lessons remain
-quiz-based. Task-based cert scenarios remain Phase 3.
+simulators. Certification tracks include timed knowledge exams, hands-on lab
+exams, weak-area review, exam history, and spaced repetition. Conceptual
+container and control-plane theory still starts from quiz checkpoints.
 
 ### Certification targets
 
@@ -415,8 +415,9 @@ picker on small screens).
   expanded spaced repetition.
 - **Phase 2.5 (triggered)**: split observability onto its own host when the
   trigger fires.
-- **Phase 3**: task-based **KCNA + KCSA + CKA** mock exams, then CKAD/CKS;
-  fault-injection labs; i18n scaffolding.
+- **Phase 3**: expand the current task-based KCNA/KCSA/CKA lab exams into full
+  CKAD/CKS banks and longer randomized sessions; fault-injection labs; i18n
+  scaffolding.
 - **Phase 4 (optional)**: BYO-cluster practice first (kind/k3d); vcluster sandbox
   only after demand is proven; leaderboards only if retention data asks.
 

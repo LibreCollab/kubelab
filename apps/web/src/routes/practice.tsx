@@ -8,7 +8,9 @@ import {
   answerReviewCard,
   dueReviewCards,
   type ExamAttempt,
+  type LabExamAttempt,
   latestExamAttempts,
+  latestLabExamAttempts,
   type ReviewCard,
 } from "../lib/certification";
 import styles from "./certification.module.scss";
@@ -26,18 +28,22 @@ export function PracticePage() {
   const [correctCount, setCorrectCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [attempts, setAttempts] = useState<ExamAttempt[]>([]);
+  const [labAttempts, setLabAttempts] = useState<LabExamAttempt[]>([]);
 
   useEffect(() => {
-    void Promise.all([dueReviewCards(), latestExamAttempts()]).then(([cards, recent]) => {
-      setItems(
-        cards.flatMap((card) => {
-          const question = examQuestionsById.get(card.questionId);
-          return question === undefined ? [] : [{ card, question }];
-        }),
-      );
-      setAttempts(recent);
-      setLoading(false);
-    });
+    void Promise.all([dueReviewCards(), latestExamAttempts(), latestLabExamAttempts()]).then(
+      ([cards, recent, labs]) => {
+        setItems(
+          cards.flatMap((card) => {
+            const question = examQuestionsById.get(card.questionId);
+            return question === undefined ? [] : [{ card, question }];
+          }),
+        );
+        setAttempts(recent);
+        setLabAttempts(labs);
+        setLoading(false);
+      },
+    );
   }, []);
 
   const item = items[index];
@@ -98,13 +104,25 @@ export function PracticePage() {
         </section>
       ) : null}
 
-      {attempts.length > 0 ? (
+      {attempts.length + labAttempts.length > 0 ? (
         <section className={styles.history}>
           <h2>Recent exams</h2>
           {attempts.map((attempt) => (
-            <div key={attempt.id} className={styles.historyRow}>
+            <div key={`mcq-${attempt.id}`} className={styles.historyRow}>
               <Link to="/exam/$trackId" params={{ trackId: attempt.trackId }}>
-                {attempt.trackId.toUpperCase()}
+                {attempt.trackId.toUpperCase()} knowledge
+              </Link>
+              <span>
+                {attempt.score}/{attempt.total}
+              </span>
+              <span data-passed={attempt.passed}>{attempt.passed ? "Passed" : "Not passed"}</span>
+              <span>{new Date(attempt.completedAt).toLocaleDateString()}</span>
+            </div>
+          ))}
+          {labAttempts.map((attempt) => (
+            <div key={`lab-${attempt.id}`} className={styles.historyRow}>
+              <Link to="/lab-exam/$trackId" params={{ trackId: attempt.trackId }}>
+                {attempt.trackId.toUpperCase()} hands-on
               </Link>
               <span>
                 {attempt.score}/{attempt.total}

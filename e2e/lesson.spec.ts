@@ -501,6 +501,23 @@ test("container and control-plane lessons are interactive", async ({ page }) => 
   expect(pageErrors).toEqual([]);
 });
 
+test("hands-on certification lab starts and reviews tasks", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lab-exam/cka");
+
+  await expect(page.getByRole("heading", { name: "CKA lab" })).toBeVisible();
+  await expect(page.getByText("3 tasks")).toBeVisible();
+  await page.getByRole("button", { name: "Start lab" }).click();
+  await expect(page.getByRole("button", { name: /Task 1/ })).toBeVisible();
+  await expect(page.locator(".xterm-screen")).toBeVisible();
+  await page.getByRole("button", { name: "Submit lab exam" }).click();
+  await expect(page.getByText("Tasks incomplete")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Deployments and rollouts" })).toBeVisible();
+  await page.getByRole("link", { name: "Practice missed questions" }).click();
+  await expect(page.getByText("CKA hands-on")).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
 test("certification mock exam starts, submits, and reviews", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
   await page.goto("/exam/cka");

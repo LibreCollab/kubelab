@@ -1,4 +1,4 @@
-import { parse as parseYaml } from "yaml";
+import { parseAllDocuments, stringify as stringifyYaml } from "yaml";
 import { VirtualClock } from "./clock";
 import { resolveServiceDns } from "./dns";
 import { EventBus } from "./events";
@@ -28,6 +28,7 @@ import type {
   KubeService,
   KubeStorageClass,
   KubeWidget,
+  NetworkPolicyPeer,
   Pod,
   PodTemplate,
   Scenario,
@@ -42,7 +43,8 @@ const HELP = `kubectl controls the Kubelab simulated cluster.
 Supported in this scaffold:
   kubectl get pods|deployments|replicasets|services|endpoints|ingresses|configmaps|secrets
   kubectl get pv|pvc|storageclass|networkpolicy|serviceaccount|role|rolebinding|namespace|hpa|events
-  kubectl get nodes [name]
+  kubectl get nodes [name] [-o yaml]
+  kubectl top pods|nodes
   kubectl run <name> --image=<image> [--labels=key=value]
   kubectl create deployment <name> --image=<image> [--replicas=N]
   kubectl create configmap <name> --from-literal=KEY=VALUE
@@ -153,6 +155,72 @@ function nodeMatchesPod(node: KubeNode, pod: Pod): boolean {
     return false;
   }
   return (node.spec?.taints ?? []).every((taint) => toleratesTaint(pod, taint));
+}
+
+function resolveStrategyCount(
+  value: number | string | undefined,
+  desired: number,
+  fallback: number,
+): number {
+  if (value === undefined) {
+    return fallback;
+  }
+  if (typeof value === "number") {
+    return Math.max(0, value);
+  }
+  const percent = /^(\d+)%$/.exec(value);
+  if (percent !== null) {
+    return Math.max(0, Math.ceil((desired * Number(percent[1])) / 100));
+  }
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? fallback : Math.max(0, parsed);
+}
+
+function ipInCidr(ip: string, cidr: string): boolean {
+  const [network, bitsText] = cidr.split("/");
+  const bits = Number(bitsText);
+  if (network === undefined || Number.isNaN(bits)) {
+    return false;
+  }
+  const ipParts = ip.split(".").map(Number);
+  const networkParts = network.split(".").map(Number);
+  if (ipParts.length !== 4 || networkParts.length !== 4) {
+    return false;
+  }
+  const ipValue = ipParts.reduce((value, part) => (value << 8) | part, 0) >>> 0;
+  const networkValue = networkParts.reduce((value, part) => (value << 8) | part, 0) >>> 0;
+  const mask = bits === 0 ? 0 : (0xffffffff << (32 - bits)) >>> 0;
+  return (ipValue & mask) === (networkValue & mask);
+}
+
+function hashString(value: string): number {
+  let hash = 2166136261;
+  for (let index = 0; index < value.length; index += 1) {
+    hash ^= value.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
+function parseCpuMillis(value: string): number {
+  if (value.endsWith("m")) {
+    return Number(value.slice(0, -1)) || 1000;
+  }
+  return (Number(value) || 1) * 1000;
+}
+
+function parseMemoryBytes(value: string): number {
+  const units: Record<string, number> = {
+    Ki: 1024,
+    Mi: 1024 ** 2,
+    Gi: 1024 ** 3,
+    Ti: 1024 ** 4,
+  };
+  const match = /^(\d+(?:\.\d+)?)([KMGT]i)?$/.exec(value);
+  if (match === null) {
+    return 1024 ** 3;
+  }
+  return Number(match[1]) * (match[2] === undefined ? 1 : (units[match[2]] ?? 1));
 }
 
 function formatTable(headers: string[], rows: string[][]): string {
@@ -327,6 +395,8 @@ export class SimEngine {
           return this.#createSecret(parsed);
         }
         return this.#createDeployment(parsed);
+      case "top":
+        return this.#top(parsed);
       case "exec":
         return this.#exec(parsed);
       case "logs":
@@ -358,7 +428,7 @@ export class SimEngine {
 
   #get(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
     if (command.output === "yaml") {
-      return { ok: false, output: "error: -o yaml is not implemented in this scaffold yet" };
+      return this.#getYaml(command);
     }
 
     if (command.resource === "pods") {
@@ -445,6 +515,129 @@ export class SimEngine {
     return {
       ok: false,
       output: `error: the server doesn't have a resource type "${command.resource}" in this lesson`,
+    };
+  }
+
+  #getYaml(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const resources: Record<string, { kind: string; clusterScoped?: boolean }> = {
+      pods: { kind: "Pod" },
+      nodes: { kind: "Node", clusterScoped: true },
+      deployments: { kind: "Deployment" },
+      replicasets: { kind: "ReplicaSet" },
+      services: { kind: "Service" },
+      ingresses: { kind: "Ingress" },
+      configmaps: { kind: "ConfigMap" },
+      secrets: { kind: "Secret" },
+      storageclasses: { kind: "StorageClass", clusterScoped: true },
+      persistentvolumes: { kind: "PersistentVolume", clusterScoped: true },
+      persistentvolumeclaims: { kind: "PersistentVolumeClaim" },
+      networkpolicies: { kind: "NetworkPolicy" },
+      serviceaccounts: { kind: "ServiceAccount" },
+      roles: { kind: "Role" },
+      rolebindings: { kind: "RoleBinding" },
+      namespaces: { kind: "Namespace", clusterScoped: true },
+      horizontalpodautoscalers: { kind: "HorizontalPodAutoscaler" },
+      events: { kind: "Event" },
+    };
+    const target = resources[command.resource] ?? {
+      kind: this.#customKind(command.resource),
+    };
+    const namespace = target.clusterScoped || command.allNamespaces ? undefined : command.namespace;
+    const objects = command.name
+      ? [
+          this.store.get<KubeObject>(
+            target.kind,
+            command.name,
+            target.clusterScoped ? "" : command.namespace,
+          ),
+        ].filter((object): object is KubeObject => object !== undefined)
+      : this.store.list<KubeObject>(target.kind, namespace);
+
+    if (command.name !== undefined && objects.length === 0) {
+      return notFound(command.resource, command.name);
+    }
+
+    const selector = Object.entries(command.selector);
+    const filtered = objects
+      .filter((object) => selector.every(([key, value]) => object.metadata.labels[key] === value))
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name));
+
+    if (filtered.length === 0) {
+      return {
+        ok: true,
+        output: command.allNamespaces
+          ? "No resources found."
+          : `No resources found in ${command.namespace} namespace.`,
+      };
+    }
+
+    return {
+      ok: true,
+      output: filtered.map((object) => stringifyYaml(object).trimEnd()).join("\n---\n"),
+    };
+  }
+
+  #top(command: Extract<ParsedCommand, { verb: "top" }>): CommandResult {
+    if (command.resource === "nodes") {
+      const nodes = this.store
+        .list<KubeNode>("Node")
+        .filter((node) => command.name === undefined || node.metadata.name === command.name)
+        .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name));
+      if (command.name !== undefined && nodes.length === 0) {
+        return notFound("nodes", command.name);
+      }
+      return {
+        ok: true,
+        output: formatTable(
+          ["NAME", "CPU(cores)", "CPU%", "MEMORY(bytes)", "MEMORY%"],
+          nodes.map((node) => {
+            const cpu = parseCpuMillis(node.status.allocatable.cpu);
+            const memory = parseMemoryBytes(node.status.allocatable.memory);
+            const usedCpu = Math.max(12, Math.round(cpu * 0.18));
+            const usedMemory = Math.max(64, Math.round(memory * 0.31));
+            return [
+              node.metadata.name,
+              `${usedCpu}m`,
+              `${Math.round((usedCpu / cpu) * 100)}%`,
+              `${Math.round(usedMemory / (1024 * 1024))}Mi`,
+              `${Math.round((usedMemory / memory) * 100)}%`,
+            ];
+          }),
+        ),
+      };
+    }
+
+    const pods = filterPods(this.store.list<Pod>("Pod"), {
+      ...(command.allNamespaces ? {} : { namespace: command.namespace }),
+      ...(command.name === undefined ? {} : { name: command.name }),
+    }).sort((left, right) => left.metadata.name.localeCompare(right.metadata.name));
+    if (command.name !== undefined && pods.length === 0) {
+      return notFound("pods", command.name);
+    }
+    if (pods.length === 0) {
+      return {
+        ok: true,
+        output: command.allNamespaces
+          ? "No resources found."
+          : `No resources found in ${command.namespace} namespace.`,
+      };
+    }
+    return {
+      ok: true,
+      output: formatTable(
+        ["NAME", "CPU(cores)", "MEMORY(bytes)"],
+        pods.map((pod) => {
+          const cpu = 8 + (hashString(pod.metadata.name) % 92);
+          const memory = 32 + (hashString(`${pod.metadata.name}:memory`) % 224);
+          return [
+            command.allNamespaces
+              ? `${pod.metadata.namespace}/${pod.metadata.name}`
+              : pod.metadata.name,
+            `${cpu}m`,
+            `${memory}Mi`,
+          ];
+        }),
+      ),
     };
   }
 
@@ -839,7 +1032,7 @@ export class SimEngine {
               output: `HTTP/1.1 503 Service Unavailable\nContent-Type: text/plain\n\nno ready endpoints for ${directService.metadata.name}`,
             };
           }
-          if (!this.#ingressAllowed(backend)) {
+          if (!this.#ingressAllowed(backend, pod)) {
             return {
               ok: true,
               output: `HTTP/1.1 403 Forbidden\nContent-Type: text/plain\n\nNetworkPolicy denied access to ${directService.metadata.name}`,
@@ -880,7 +1073,7 @@ export class SimEngine {
         };
       }
 
-      if (!this.#ingressAllowed(backend)) {
+      if (!this.#ingressAllowed(backend, pod)) {
         return {
           ok: true,
           output: `HTTP/1.1 403 Forbidden\nContent-Type: text/plain\n\nNetworkPolicy denied access to ${service.metadata.name}`,
@@ -1836,76 +2029,88 @@ export class SimEngine {
     if (source === undefined) {
       return { ok: false, output: "error: apply requires a file or directory" };
     }
-    const content = this.#files[source];
-    if (content === undefined) {
-      return { ok: false, output: `error: unable to read ${source}` };
-    }
 
-    let parsed: unknown;
-    try {
-      parsed = parseYaml(content);
-    } catch (error) {
-      return {
-        ok: false,
-        output: `error: failed to parse ${source}: ${error instanceof Error ? error.message : "invalid YAML"}`,
-      };
-    }
-
-    const manifests = Array.isArray(parsed)
-      ? parsed
-      : typeof parsed === "object" && parsed !== null && "items" in parsed
-        ? (parsed as { items: unknown[] }).items
-        : [parsed];
+    const sources = source
+      .split(",")
+      .map((entry) => entry.trim())
+      .filter((entry) => entry.length > 0);
     const created: string[] = [];
 
-    for (const manifest of manifests) {
-      if (typeof manifest !== "object" || manifest === null) {
-        continue;
-      }
-      const raw = manifest as Record<string, unknown>;
-      const kind = raw.kind;
-      const metadata = raw.metadata;
-      if (typeof kind !== "string" || typeof metadata !== "object" || metadata === null) {
-        continue;
-      }
-      const name = (metadata as Record<string, unknown>).name;
-      if (typeof name !== "string" || name.length === 0) {
-        continue;
+    for (const current of sources) {
+      const content = this.#readManifestSource(current);
+      if (content === undefined) {
+        return { ok: false, output: `error: unable to read ${current}` };
       }
 
-      if (kind === "Deployment") {
-        raw.status ??= {
-          replicas: 0,
-          readyReplicas: 0,
-          updatedReplicas: 0,
-          availableReplicas: 0,
+      let parsed: unknown;
+      try {
+        const documents = parseAllDocuments(content).map((document) => document.toJS());
+        parsed = documents.length === 1 ? documents[0] : documents;
+      } catch (error) {
+        return {
+          ok: false,
+          output: `error: failed to parse ${current}: ${error instanceof Error ? error.message : "invalid YAML"}`,
         };
-      } else if (kind === "Pod") {
-        raw.status ??= { phase: "Pending" };
-      } else if (kind === "PersistentVolumeClaim") {
-        raw.status ??= { phase: "Pending" };
-      } else if (kind === "PersistentVolume") {
-        raw.status ??= { phase: "Available" };
-      } else if (kind === "Namespace") {
-        raw.status ??= { phase: "Active" };
-      } else if (kind === "Service") {
-        const spec = raw.spec as Record<string, unknown> | undefined;
-        if (spec !== undefined && spec.clusterIP === undefined) {
-          this.#serviceCounter += 1;
-          spec.clusterIP = `10.96.${Math.floor((this.#serviceCounter - 1) / 254)}.${((this.#serviceCounter - 1) % 254) + 1}`;
-        }
-      } else if (kind === "Secret") {
-        const stringData = raw.stringData as Record<string, string> | undefined;
-        if (stringData !== undefined) {
-          raw.data = Object.fromEntries(
-            Object.entries(stringData).map(([key, value]) => [key, encodeBase64(value)]),
-          );
-          delete raw.stringData;
-        }
       }
 
-      this.#seedObject(raw);
-      created.push(`${kind.toLowerCase()}/${name} configured`);
+      const manifests = Array.isArray(parsed)
+        ? parsed
+        : typeof parsed === "object" && parsed !== null && "items" in parsed
+          ? (parsed as { items: unknown[] }).items
+          : [parsed];
+
+      for (const manifest of manifests) {
+        if (typeof manifest !== "object" || manifest === null) {
+          continue;
+        }
+        const raw = manifest as Record<string, unknown>;
+        const kind = raw.kind;
+        const metadata = raw.metadata;
+        if (typeof kind !== "string" || typeof metadata !== "object" || metadata === null) {
+          continue;
+        }
+        const name = (metadata as Record<string, unknown>).name;
+        if (typeof name !== "string" || name.length === 0) {
+          continue;
+        }
+
+        if (kind === "Deployment") {
+          raw.status ??= {
+            replicas: 0,
+            readyReplicas: 0,
+            updatedReplicas: 0,
+            availableReplicas: 0,
+          };
+        } else if (kind === "Pod") {
+          raw.status ??= { phase: "Pending" };
+        } else if (kind === "PersistentVolumeClaim") {
+          raw.status ??= { phase: "Pending" };
+        } else if (kind === "PersistentVolume") {
+          raw.status ??= { phase: "Available" };
+        } else if (kind === "Namespace") {
+          raw.status ??= { phase: "Active" };
+        } else if (kind === "Service") {
+          const spec = raw.spec as Record<string, unknown> | undefined;
+          if (spec !== undefined) {
+            spec.type ??= "ClusterIP";
+            if (spec.clusterIP === undefined) {
+              this.#serviceCounter += 1;
+              spec.clusterIP = `10.96.${Math.floor((this.#serviceCounter - 1) / 254)}.${((this.#serviceCounter - 1) % 254) + 1}`;
+            }
+          }
+        } else if (kind === "Secret") {
+          const stringData = raw.stringData as Record<string, string> | undefined;
+          if (stringData !== undefined) {
+            raw.data = Object.fromEntries(
+              Object.entries(stringData).map(([key, value]) => [key, encodeBase64(value)]),
+            );
+            delete raw.stringData;
+          }
+        }
+
+        this.#seedObject(raw);
+        created.push(`${kind.toLowerCase()}/${name} configured`);
+      }
     }
 
     return {
@@ -1915,6 +2120,20 @@ export class SimEngine {
           ? created.join("\n")
           : `error: no supported resources found in ${source}`,
     };
+  }
+
+  #readManifestSource(source: string): string | undefined {
+    if (this.#files[source] !== undefined) {
+      return this.#files[source];
+    }
+    const prefix = `${source.replace(/\/$/, "")}/`;
+    const nested = Object.entries(this.#files)
+      .filter(([name]) => name.startsWith(prefix))
+      .sort(([left], [right]) => left.localeCompare(right));
+    if (nested.length === 0) {
+      return undefined;
+    }
+    return nested.map(([, content]) => content).join("\n---\n");
   }
 
   #helm(command: Extract<ParsedCommand, { verb: "helm" }>): CommandResult {
@@ -2738,9 +2957,22 @@ export class SimEngine {
           replicaSet.metadata.name !== current.metadata.name && replicaSet.spec.replicas > 0,
       );
       const rolling = oldReplicaSets.length > 0 && deployment.spec.replicas > 0;
+      const recreate = deployment.spec.strategy?.type === "Recreate";
+      const maxSurge = resolveStrategyCount(
+        deployment.spec.strategy?.rollingUpdate?.maxSurge,
+        deployment.spec.replicas,
+        1,
+      );
+      const maxUnavailable = resolveStrategyCount(
+        deployment.spec.strategy?.rollingUpdate?.maxUnavailable,
+        deployment.spec.replicas,
+        0,
+      );
       const currentReady = this.#replicaSetPods(current).filter(isPodReady).length;
       const currentReplicas = rolling
-        ? Math.min(deployment.spec.replicas, Math.max(1, currentReady + 1))
+        ? recreate
+          ? deployment.spec.replicas
+          : Math.min(deployment.spec.replicas + maxSurge, Math.max(1, currentReady + 1))
         : deployment.spec.replicas;
 
       this.store.upsert({
@@ -2752,7 +2984,17 @@ export class SimEngine {
         },
       });
 
-      let oldBudget = rolling ? Math.max(0, deployment.spec.replicas - currentReady) : 0;
+      let oldBudget = rolling
+        ? recreate
+          ? 0
+          : Math.max(
+              0,
+              Math.min(
+                deployment.spec.replicas + maxSurge - currentReplicas,
+                deployment.spec.replicas - maxUnavailable - currentReady,
+              ),
+            )
+        : 0;
       for (const replicaSet of replicaSets) {
         if (
           replicaSet.metadata.name === current.metadata.name ||
@@ -2866,20 +3108,85 @@ export class SimEngine {
       );
   }
 
-  #ingressAllowed(pod: Pod): boolean {
-    const policies = this.store
+  #ingressAllowed(target: Pod, source: Pod): boolean {
+    const ingressPolicies = this.#policiesFor(target).filter((policy) =>
+      this.#policyType(policy, "Ingress"),
+    );
+    const ingressAllowed =
+      ingressPolicies.length === 0 ||
+      ingressPolicies.some((policy) =>
+        (policy.spec.ingress ?? []).some((rule) =>
+          rule.from === undefined
+            ? true
+            : rule.from.some((peer) => this.#peerMatches(peer, source, target.metadata.namespace)),
+        ),
+      );
+    if (!ingressAllowed) {
+      return false;
+    }
+
+    const egressPolicies = this.#policiesFor(source).filter((policy) =>
+      this.#policyType(policy, "Egress"),
+    );
+    return (
+      egressPolicies.length === 0 ||
+      egressPolicies.some((policy) =>
+        (policy.spec.egress ?? []).some((rule) =>
+          rule.to === undefined
+            ? true
+            : rule.to.some((peer) => this.#peerMatches(peer, target, source.metadata.namespace)),
+        ),
+      )
+    );
+  }
+
+  #policiesFor(pod: Pod): KubeNetworkPolicy[] {
+    return this.store
       .list<KubeNetworkPolicy>("NetworkPolicy", pod.metadata.namespace)
       .filter(
         (policy) =>
           Object.keys(policy.spec.podSelector).length === 0 ||
           matchesLabels(pod.metadata.labels, policy.spec.podSelector),
-      )
-      .filter((policy) => policy.spec.policyTypes.includes("Ingress"));
+      );
+  }
 
-    if (policies.length === 0) {
-      return true;
+  #policyType(policy: KubeNetworkPolicy, type: "Ingress" | "Egress"): boolean {
+    if (policy.spec.policyTypes !== undefined) {
+      return policy.spec.policyTypes.includes(type);
     }
-    return policies.some((policy) => (policy.spec.ingress ?? []).length > 0);
+    return type === "Ingress"
+      ? policy.spec.ingress !== undefined
+      : policy.spec.egress !== undefined;
+  }
+
+  #peerMatches(peer: NetworkPolicyPeer, pod: Pod, namespace: string): boolean {
+    if (
+      peer.podSelector !== undefined &&
+      (peer.podSelector === null ||
+        !matchesLabels(pod.metadata.labels, peer.podSelector) ||
+        pod.metadata.namespace !== namespace)
+    ) {
+      return false;
+    }
+    if (peer.namespaceSelector !== undefined) {
+      const podNamespace = this.store.get<KubeNamespace>("Namespace", pod.metadata.namespace, "");
+      if (
+        podNamespace === undefined
+          ? Object.keys(peer.namespaceSelector).length > 0
+          : !matchesLabels(podNamespace.metadata.labels, peer.namespaceSelector)
+      ) {
+        return false;
+      }
+    }
+    if (peer.ipBlock !== undefined) {
+      if (pod.status.podIP === undefined || !ipInCidr(pod.status.podIP, peer.ipBlock.cidr)) {
+        return false;
+      }
+      if (peer.ipBlock.except?.some((cidr) => ipInCidr(pod.status.podIP ?? "", cidr)) === true) {
+        return false;
+      }
+    }
+    return true;
   }
 
   #servicePods(service: KubeService): Pod[] {

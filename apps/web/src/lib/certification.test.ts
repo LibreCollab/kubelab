@@ -14,6 +14,10 @@ describe("certification exams", () => {
       expect(exam.questions.every((question) => question.answer < question.options.length)).toBe(
         true,
       );
+      expect(exam.tasks).toHaveLength(3);
+      expect(exam.tasks.every((task) => task.checks.every((check) => check.type !== "quiz"))).toBe(
+        true,
+      );
     }
   });
 

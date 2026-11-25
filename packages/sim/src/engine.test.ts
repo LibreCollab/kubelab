@@ -48,6 +48,20 @@ describe("kubectl parser", () => {
     expect("error" in parseKubectl("kubectl get pods -o json")).toBe(true);
   });
 
+  it("parses top for pods and nodes", () => {
+    const pods = parseKubectl("kubectl top pods -A");
+    expect("error" in pods).toBe(false);
+    if (!("error" in pods) && pods.verb === "top") {
+      expect(pods).toMatchObject({ resource: "pods", allNamespaces: true });
+    }
+
+    const nodes = parseKubectl("kubectl top nodes node-1");
+    expect("error" in nodes).toBe(false);
+    if (!("error" in nodes) && nodes.verb === "top") {
+      expect(nodes).toMatchObject({ resource: "nodes", name: "node-1" });
+    }
+  });
+
   it("parses --output=wide", () => {
     const parsed = parseKubectl("kubectl get pods --output=wide");
     expect("error" in parsed).toBe(false);
@@ -930,6 +944,142 @@ describe("engine", () => {
     const result = engine.execute("kubectl exec client -- curl http://web");
     expect(result.output).toContain("403");
     expect(result.output).toContain("NetworkPolicy");
+  });
+
+  it("renders resources as YAML and reports top usage", () => {
+    const engine = createEngine();
+    engine.execute("kubectl create deployment web --image=nginx");
+    engine.step();
+    engine.step();
+
+    const yaml = engine.execute("kubectl get deployment web -o yaml");
+    expect(yaml.ok).toBe(true);
+    expect(yaml.output).toContain("kind: Deployment");
+    expect(yaml.output).toContain("image: nginx");
+
+    const pods = engine.execute("kubectl top pods");
+    expect(pods.ok).toBe(true);
+    expect(pods.output).toContain("CPU(cores)");
+    expect(pods.output).toContain("web-");
+
+    const nodes = engine.execute("kubectl top nodes");
+    expect(nodes.output).toContain("node-1");
+    expect(nodes.output).toContain("CPU%");
+  });
+
+  it("applies comma-separated files and directory manifests", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      files: {
+        "a.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: web
+    containers:
+      - name: nginx
+        image: nginx
+`,
+        "manifests/b.yaml": `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: settings
+data:
+  mode: prod
+`,
+        "manifests/c.yaml": `apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 80
+`,
+      },
+    });
+
+    expect(engine.execute("kubectl apply -f a.yaml,manifests").ok).toBe(true);
+    expect(engine.store.get<KubeDeployment>("Deployment", "web")).toBeDefined();
+    expect(engine.execute("kubectl get configmap settings").ok).toBe(true);
+    expect(engine.execute("kubectl get service web").ok).toBe(true);
+  });
+
+  it("allows only matching NetworkPolicy peers and enforces egress", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.10",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "client", labels: { app: "client" } },
+          spec: { nodeName: "node-1", containers: [{ name: "client", image: "busybox" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.11",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "intruder", labels: { app: "intruder" } },
+          spec: { nodeName: "node-1", containers: [{ name: "intruder", image: "busybox" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.12",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Service",
+          metadata: { name: "web" },
+          spec: {
+            type: "ClusterIP",
+            selector: { app: "web" },
+            ports: [{ port: 80, targetPort: 80 }],
+            clusterIP: "10.96.0.10",
+          },
+        },
+        {
+          kind: "NetworkPolicy",
+          metadata: { name: "allow-client" },
+          spec: {
+            podSelector: { app: "web" },
+            policyTypes: ["Ingress"],
+            ingress: [{ from: [{ podSelector: { app: "client" } }] }],
+          },
+        },
+        {
+          kind: "NetworkPolicy",
+          metadata: { name: "client-egress" },
+          spec: {
+            podSelector: { app: "client" },
+            policyTypes: ["Egress"],
+            egress: [{ to: [{ podSelector: { app: "web" } }] }],
+          },
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl exec client -- curl http://web").output).toContain("200");
+    expect(engine.execute("kubectl exec intruder -- curl http://web").output).toContain("403");
   });
 
   it("applies manifests from seeded files and Kustomize paths", () => {

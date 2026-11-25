@@ -6,7 +6,7 @@ import {
   type UnitDefinition,
   unitDefinitions,
 } from "./curriculum";
-import { type Lesson, lessonSpecSchema } from "./schema";
+import { type Lesson, type LessonCheck, type LessonSpec, lessonSpecSchema } from "./schema";
 
 interface Unit extends UnitDefinition {
   lessons: Lesson[];
@@ -114,6 +114,16 @@ export interface ExamQuestion {
   label: string;
 }
 
+export interface ExamTask {
+  id: string;
+  title: string;
+  instruction: string;
+  lessonId: string;
+  unit: string;
+  scenario: LessonSpec["scenario"];
+  checks: LessonCheck[];
+}
+
 export interface CertificationExam {
   id: string;
   name: string;
@@ -122,6 +132,7 @@ export interface CertificationExam {
   passingScore: number;
   questions: ExamQuestion[];
   labs: Array<{ lessonId: string; lessonTitle: string }>;
+  tasks: ExamTask[];
 }
 
 const examUnits: Record<string, string[]> = {
@@ -152,6 +163,155 @@ const examUnits: Record<string, string[]> = {
   cks: ["config", "services", "networking", "security", "observability"],
 };
 
+const extraExamQuestions: ExamQuestion[] = [
+  {
+    id: "cert:container-image",
+    prompt: "Which field identifies the container image a Pod should run?",
+    options: ["spec.containers[].image", "spec.image", "metadata.image", "status.image"],
+    answer: 0,
+    lessonId: "containers-101",
+    lessonTitle: "Containers",
+    unit: "containers",
+    label: "Container image",
+  },
+  {
+    id: "cert:kubelet",
+    prompt: "Which node component watches for assigned Pods and starts their containers?",
+    options: ["kube-apiserver", "kube-scheduler", "kubelet", "kube-proxy"],
+    answer: 2,
+    lessonId: "control-plane-101",
+    lessonTitle: "The control plane",
+    unit: "architecture",
+    label: "Node components",
+  },
+  {
+    id: "cert:deployment-revision",
+    prompt: "What does kubectl rollout undo deployment/web do?",
+    options: [
+      "Deletes the Deployment",
+      "Restores the previous ReplicaSet template",
+      "Scales the Deployment to zero",
+      "Edits the container image in place",
+    ],
+    answer: 1,
+    lessonId: "deployments-101",
+    lessonTitle: "Deployments and rollouts",
+    unit: "workloads",
+    label: "Rollbacks",
+  },
+  {
+    id: "cert:service-dns",
+    prompt: "A Pod in namespace team-a queries api. What Service name does that resolve to?",
+    options: ["api", "api.team-a", "api.team-a.svc", "api.team-a.svc.cluster.local"],
+    answer: 1,
+    lessonId: "dns-101",
+    lessonTitle: "Service discovery and DNS",
+    unit: "services",
+    label: "DNS search paths",
+  },
+  {
+    id: "cert:configmap-envfrom",
+    prompt: "Which Deployment field imports all keys from a ConfigMap as environment variables?",
+    options: ["env", "envFrom", "valueFrom", "volumes"],
+    answer: 1,
+    lessonId: "configmaps-101",
+    lessonTitle: "ConfigMaps",
+    unit: "config",
+    label: "Environment injection",
+  },
+  {
+    id: "cert:secret-encoding",
+    prompt: "How are Secret values stored in the data field?",
+    options: ["Plain text", "Base64-encoded", "Encrypted with TLS", "Hashed with SHA-256"],
+    answer: 1,
+    lessonId: "secrets-101",
+    lessonTitle: "Secrets",
+    unit: "config",
+    label: "Secret encoding",
+  },
+  {
+    id: "cert:pvc-binding",
+    prompt: "A PVC remains Pending. Which condition prevents binding?",
+    options: [
+      "The PVC requests more storage than any available PV",
+      "The PVC has a selector",
+      "The Pod is Running",
+      "The StorageClass has a provisioner",
+    ],
+    answer: 0,
+    lessonId: "persistent-volumes-101",
+    lessonTitle: "PersistentVolumes",
+    unit: "storage",
+    label: "Volume binding",
+  },
+  {
+    id: "cert:taint-toleration",
+    prompt: "A node has taint dedicated=db:NoSchedule. What must a Pod have to schedule there?",
+    options: ["nodeName", "A matching toleration", "A matching label", "hostNetwork: true"],
+    answer: 1,
+    lessonId: "scheduling-101",
+    lessonTitle: "Scheduling and placement",
+    unit: "scheduling",
+    label: "Taints and tolerations",
+  },
+  {
+    id: "cert:networkpolicy-deny",
+    prompt:
+      "A NetworkPolicy selects a Pod with policyTypes: [Ingress] and no ingress rules. What happens?",
+    options: [
+      "All ingress is allowed",
+      "All ingress is denied",
+      "Only same-namespace traffic is allowed",
+      "The policy is ignored",
+    ],
+    answer: 1,
+    lessonId: "network-policy-101",
+    lessonTitle: "NetworkPolicy",
+    unit: "networking",
+    label: "Default deny",
+  },
+  {
+    id: "cert:rolebinding",
+    prompt: "Which object grants a Role's permissions to a subject?",
+    options: ["Role", "RoleBinding", "ServiceAccount", "ClusterRole"],
+    answer: 1,
+    lessonId: "rbac-101",
+    lessonTitle: "RBAC",
+    unit: "security",
+    label: "Role bindings",
+  },
+  {
+    id: "cert:readiness",
+    prompt: "What does a readinessProbe control?",
+    options: [
+      "Whether the container restarts",
+      "Whether the Pod receives Service traffic",
+      "Whether the Pod is scheduled",
+      "Whether the image is pulled",
+    ],
+    answer: 1,
+    lessonId: "observability-101",
+    lessonTitle: "Logs, events, and readiness",
+    unit: "observability",
+    label: "Readiness probes",
+  },
+  {
+    id: "cert:rollout-status",
+    prompt: "Which command waits for a Deployment rollout to finish?",
+    options: [
+      "kubectl rollout status deployment/web",
+      "kubectl get deployment web -w",
+      "kubectl describe deployment web",
+      "kubectl scale deployment/web --replicas=1",
+    ],
+    answer: 0,
+    lessonId: "deployments-101",
+    lessonTitle: "Deployments and rollouts",
+    unit: "workloads",
+    label: "Rollout status",
+  },
+];
+
 const examPool = lessons
   .filter((lesson) => lesson.unit !== "certification")
   .flatMap((lesson) =>
@@ -173,9 +333,116 @@ const examPool = lessons
     ),
   );
 
+const taskSpecs: Record<string, Array<{ lessonId: string; instruction: string }>> = {
+  kcna: [
+    {
+      lessonId: "pods-101",
+      instruction:
+        "Create a Pod named web using nginx, label it app=web, and verify that it reaches Running.",
+    },
+    {
+      lessonId: "services-101",
+      instruction:
+        "Create a two-replica nginx Deployment named web, expose it on port 80, and verify its endpoints.",
+    },
+    {
+      lessonId: "deployments-101",
+      instruction:
+        "Create Deployment web with three nginx replicas, scale it to five, update to nginx:1.27, and check the rollout.",
+    },
+  ],
+  kcsa: [
+    {
+      lessonId: "rbac-101",
+      instruction:
+        "Inspect the deploy-bot ServiceAccount, Role, and RoleBinding, then test whether it can get Pods.",
+    },
+    {
+      lessonId: "network-policy-101",
+      instruction: "Inspect the deny-all NetworkPolicy and the Pods it selects.",
+    },
+    {
+      lessonId: "pod-security-101",
+      instruction: "Inspect the restricted namespace labels and the hardened web Pod.",
+    },
+  ],
+  cka: [
+    {
+      lessonId: "deployments-101",
+      instruction:
+        "Create Deployment web with three nginx replicas, scale it to five, update to nginx:1.27, and verify the rollout.",
+    },
+    {
+      lessonId: "scheduling-101",
+      instruction:
+        "Inspect node labels and taints, read node-2, and verify where the db Pod landed.",
+    },
+    {
+      lessonId: "persistent-volumes-101",
+      instruction:
+        "Inspect PVC data, its binding to a PersistentVolume, and the Pod that mounts it.",
+    },
+  ],
+  ckad: [
+    {
+      lessonId: "configmaps-101",
+      instruction:
+        "Create ConfigMap app-config, create Deployment web, inject the ConfigMap into its environment, and verify readiness.",
+    },
+    {
+      lessonId: "secrets-101",
+      instruction:
+        "Create Secret db-secret, create Deployment api, inject the Secret, and verify the environment value.",
+    },
+    {
+      lessonId: "ingress-101",
+      instruction:
+        "Create the web Deployment and Service, create an Ingress for shop.example.com, and verify routing with curl.",
+    },
+  ],
+  cks: [
+    {
+      lessonId: "rbac-101",
+      instruction: "Inspect RBAC for deploy-bot and verify it can get Pods.",
+    },
+    {
+      lessonId: "network-policy-101",
+      instruction: "Inspect the deny-all NetworkPolicy and the selected Pods.",
+    },
+    {
+      lessonId: "pod-security-101",
+      instruction: "Inspect the restricted Pod Security namespace and hardened web Pod.",
+    },
+  ],
+};
+
+function buildTask(
+  trackId: string,
+  spec: { lessonId: string; instruction: string },
+): ExamTask | undefined {
+  const lesson = lessonsById.get(spec.lessonId);
+  if (lesson === undefined) {
+    return undefined;
+  }
+  const checks = lesson.checks.filter((check) => check.type !== "quiz");
+  if (checks.length === 0) {
+    return undefined;
+  }
+
+  return {
+    id: `${trackId}-${lesson.id}`,
+    title: lesson.title,
+    instruction: spec.instruction,
+    lessonId: lesson.id,
+    unit: lesson.unit,
+    scenario: lesson.scenario,
+    checks,
+  };
+}
+
 export const certificationExams: CertificationExam[] = certificationTracks.map((track) => {
   const allowedUnits = new Set(examUnits[track.id] ?? []);
-  const questions = examPool
+  const questions = [...extraExamQuestions, ...examPool]
     .filter((question) => allowedUnits.has(question.unit))
     .sort((left, right) => left.id.localeCompare(right.id))
     .slice(0, 10);
@@ -193,6 +460,9 @@ export const certificationExams: CertificationExam[] = certificationTracks.map((
         lessonId: question.lessonId,
         lessonTitle: question.lessonTitle,
       })),
+    tasks: (taskSpecs[track.id] ?? [])
+      .map((spec) => buildTask(track.id, spec))
+      .filter((task): task is ExamTask => task !== undefined),
   };
 });
 

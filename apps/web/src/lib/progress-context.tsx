@@ -150,11 +150,13 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
       progressDb.lessons,
       progressDb.meta,
       progressDb.examAttempts,
+      progressDb.labExamAttempts,
       progressDb.reviewCards,
       async () => {
         await progressDb.lessons.clear();
         await progressDb.meta.clear();
         await progressDb.examAttempts.clear();
+        await progressDb.labExamAttempts.clear();
         await progressDb.reviewCards.clear();
       },
     );

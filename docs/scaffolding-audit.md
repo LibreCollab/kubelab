@@ -79,7 +79,7 @@ fixed below.
 | 56 | DNS and Ingress lessons were quiz-only despite being core Unit 4 skills | Simulator now resolves Service DNS and routes HTTP through Ingress; both lessons are terminal checkpoints |
 | 57 | ConfigMaps and Secrets were quiz-only despite being core Unit 5 skills | Added configmap/secret creation, envFrom wiring, env checks, and redacted Secret display |
 | 58 | Units 6–10 were quiz-only despite covering core CKA/security/ops skills | Added seeded storage, scheduling, network policy, RBAC, event/log, and probe inspection scenarios with terminal checkpoints |
-| 59 | Units 11–12 and certification tracks were quiz-only | Added Helm/Kustomize/GitOps/CRD terminal scenarios, timed mock exams, scoring/review, and spaced repetition |
+| 59 | Units 11–12 and certification tracks were quiz-only | Added Helm/Kustomize/GitOps/CRD terminal scenarios, timed knowledge and hands-on lab exams, scoring/review, history, and spaced repetition |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

@@ -150,13 +150,34 @@ export interface KubePersistentVolumeClaim extends KubeObject {
   };
 }
 
+export interface NetworkPolicyPeer {
+  podSelector?: Record<string, string>;
+  namespaceSelector?: Record<string, string>;
+  ipBlock?: { cidr: string; except?: string[] };
+}
+
+export interface NetworkPolicyPort {
+  protocol?: string;
+  port?: number | string;
+}
+
+export interface NetworkPolicyIngressRule {
+  from?: NetworkPolicyPeer[];
+  ports?: NetworkPolicyPort[];
+}
+
+export interface NetworkPolicyEgressRule {
+  to?: NetworkPolicyPeer[];
+  ports?: NetworkPolicyPort[];
+}
+
 export interface KubeNetworkPolicy extends KubeObject {
   kind: "NetworkPolicy";
   spec: {
     podSelector: Record<string, string>;
     policyTypes: string[];
-    ingress?: unknown[];
-    egress?: unknown[];
+    ingress?: NetworkPolicyIngressRule[];
+    egress?: NetworkPolicyEgressRule[];
   };
 }
 
@@ -270,6 +291,13 @@ export interface KubeDeployment extends KubeObject {
   spec: {
     replicas: number;
     template: PodTemplate;
+    strategy?: {
+      type?: "RollingUpdate" | "Recreate";
+      rollingUpdate?: {
+        maxSurge?: number | string;
+        maxUnavailable?: number | string;
+      };
+    };
   };
   status: {
     replicas: number;

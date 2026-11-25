@@ -28,13 +28,25 @@ const examRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/exam.$trackId"), "ExamPage"),
 });
 
+const labExamRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/lab-exam/$trackId",
+  component: lazyRouteComponent(() => import("./routes/lab-exam.$trackId"), "LabExamPage"),
+});
+
 const practiceRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/practice",
   component: lazyRouteComponent(() => import("./routes/practice"), "PracticePage"),
 });
 
-const routeTree = rootRoute.addChildren([indexRoute, lessonRoute, examRoute, practiceRoute]);
+const routeTree = rootRoute.addChildren([
+  indexRoute,
+  lessonRoute,
+  examRoute,
+  labExamRoute,
+  practiceRoute,
+]);
 
 export const router = createRouter({
   routeTree,

@@ -13,6 +13,26 @@ export interface ExamAttempt {
   weakUnits: string[];
 }
 
+export interface LabTaskResult {
+  taskId: string;
+  title: string;
+  unit: string;
+  passed: boolean;
+  passedChecks: number;
+  totalChecks: number;
+}
+
+export interface LabExamAttempt {
+  id?: number;
+  trackId: string;
+  score: number;
+  total: number;
+  percent: number;
+  passed: boolean;
+  completedAt: number;
+  taskResults: LabTaskResult[];
+}
+
 export interface ReviewCard {
   id: string;
   trackId: string;
@@ -106,6 +126,19 @@ export async function answerReviewCard(card: ReviewCard, correct: boolean): Prom
     intervalDays,
     lapses,
   });
+}
+
+export async function saveLabExamAttempt(
+  attempt: Omit<LabExamAttempt, "id" | "completedAt">,
+): Promise<number> {
+  return progressDb.labExamAttempts.add({
+    ...attempt,
+    completedAt: Date.now(),
+  });
+}
+
+export async function latestLabExamAttempts(): Promise<LabExamAttempt[]> {
+  return progressDb.labExamAttempts.orderBy("completedAt").reverse().limit(10).toArray();
 }
 
 export async function latestExamAttempts(): Promise<ExamAttempt[]> {

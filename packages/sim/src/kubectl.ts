@@ -87,6 +87,13 @@ export type ParsedCommand =
       namespace: string;
     }
   | {
+      verb: "top";
+      resource: "pods" | "nodes";
+      name?: string;
+      namespace: string;
+      allNamespaces: boolean;
+    }
+  | {
       verb: "exec";
       name: string;
       command: string;
@@ -531,6 +538,56 @@ function parseRun(tokens: string[]): ParsedCommand | ParseError {
   }
 
   return { verb: "run", name, image, labels, namespace };
+}
+
+function parseTop(tokens: string[]): ParsedCommand | ParseError {
+  let namespace = "default";
+  let allNamespaces = false;
+  const positional: string[] = [];
+
+  for (let index = 2; index < tokens.length; index += 1) {
+    const token = tokens[index];
+    if (token === undefined) {
+      continue;
+    }
+    if (token === "-A" || token === "--all-namespaces") {
+      allNamespaces = true;
+      continue;
+    }
+    if (token === "-n" || token === "--namespace") {
+      const value = flagArgument(tokens, index);
+      if (value === undefined) {
+        return { error: `flag needs an argument: ${token}` };
+      }
+      namespace = value;
+      index += 1;
+      continue;
+    }
+    if (token.startsWith("-n=") || token.startsWith("--namespace=")) {
+      namespace = token.slice(token.indexOf("=") + 1);
+      continue;
+    }
+    if (token.startsWith("-")) {
+      return unknownFlag(token);
+    }
+    positional.push(token);
+  }
+
+  const resource = normalizeResource(positional[0] ?? "");
+  if (resource !== "pods" && resource !== "nodes") {
+    return { error: "top supports pods and nodes" };
+  }
+  if (positional.length > 2) {
+    return { error: "accepts at most a resource and optional name" };
+  }
+
+  return {
+    verb: "top",
+    resource,
+    ...(positional[1] === undefined ? {} : { name: positional[1] }),
+    namespace,
+    allNamespaces,
+  };
 }
 
 function parseExec(tokens: string[]): ParsedCommand | ParseError {
@@ -1771,6 +1828,8 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
       }
       return parseCreate(tokens);
     }
+    case "top":
+      return parseTop(tokens);
     case "exec":
       return parseExec(tokens);
     case "logs":
