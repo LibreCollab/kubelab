@@ -3,7 +3,9 @@
     "collect": {
       "staticDistDir": "./apps/web/dist",
       "numberOfRuns": 1,
-      "chromeFlags": ["--no-sandbox", "--disable-dev-shm-usage"]
+      "settings": {
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage"
+      }
     },
     "assert": {
       "assertions": {
