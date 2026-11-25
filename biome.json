@@ -8,7 +8,8 @@
       "**/*.jsonc",
       "!**/dist",
       "!**/test-results",
-      "!**/playwright-report"
+      "!**/playwright-report",
+      "!**/.lighthouseci"
     ]
   },
   "formatter": {

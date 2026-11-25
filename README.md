@@ -114,6 +114,8 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
 - Real-format certification modes: KCNA/KCSA use 60-question, 90-minute knowledge
   exams; CKA/CKAD/CKS use 15-task, 120-minute hands-on exams with randomized
   selection, scoring, weak-domain review, history, and spaced repetition.
+- Per-certification roadmaps map official domains to lessons and labs, with
+  weighted readiness, weak areas, next actions, and local readiness trends.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →
   Pods, Service endpoint selection, Ingress → Service routing, and ConfigMap /
   Secret wiring.

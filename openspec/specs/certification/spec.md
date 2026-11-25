@@ -7,18 +7,18 @@ Give learners timed knowledge checks and practical simulator exams with scoring,
 ## Requirements
 
 ### Requirement: Certification tracks
-The platform SHALL offer KCNA, KCSA, CKA, CKAD, and CKS tracks, each with a knowledge exam and a hands-on lab exam.
+The platform SHALL offer KCNA, KCSA, CKA, CKAD, and CKS tracks, each with the exam modes supported by its real certification format.
 
 #### Scenario: All tracks are selectable
 - **WHEN** a learner views the certification area
-- **THEN** all five tracks expose their exam modes
+- **THEN** all five tracks expose their supported exam modes
 
 #### Scenario: Unknown track fails safely
 - **WHEN** a learner opens an exam route with an unknown track id
 - **THEN** the page reports that the track was not found and links back to the roadmap
 
 ### Requirement: Timed knowledge exams
-A knowledge exam SHALL present ten multiple-choice questions, count down from the authored duration, submit automatically at zero, and withhold answer feedback until submission.
+A knowledge exam SHALL present 60 multiple-choice questions in pages of 10, count down from 90 minutes, submit automatically at zero, and withhold answer feedback until submission.
 
 #### Scenario: Exam timer expires
 - **WHEN** the countdown reaches zero
@@ -40,7 +40,7 @@ The system SHALL score answers against the passing threshold, identify weak unit
 - **THEN** the review lists the corresponding units for focused study
 
 ### Requirement: Hands-on lab exams
-A lab exam SHALL run three simulator tasks, shuffle task order per run, keep checkpoints hidden until submission, and score every task check at the end.
+A lab exam SHALL select from its task pool, run 15 tasks in pages of five, keep checkpoints hidden until submission, and score every task check at the end.
 
 #### Scenario: Lab starts with hidden checks
 - **WHEN** a learner starts a lab exam
@@ -48,7 +48,7 @@ A lab exam SHALL run three simulator tasks, shuffle task order per run, keep che
 
 #### Scenario: Lab submission scores all tasks
 - **WHEN** the learner submits or the lab timer expires
-- **THEN** every task is evaluated against its checks and per-task results are shown
+- **THEN** every selected task is evaluated against its checks and per-task results are shown
 
 #### Scenario: Lab review identifies weak domains
 - **WHEN** a lab task fails one or more checks

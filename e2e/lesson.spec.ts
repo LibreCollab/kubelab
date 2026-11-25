@@ -529,6 +529,22 @@ test("hands-on certification lab starts and reviews tasks", async ({ page }) => 
   expect(pageErrors).toEqual([]);
 });
 
+test("certification roadmaps map domains and readiness", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/certification/kcna");
+
+  await expect(page.getByRole("heading", { name: "KCNA" })).toBeVisible();
+  await expect(page.getByText("Readiness", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Kubernetes fundamentals" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start knowledge exam →" })).toBeVisible();
+
+  await page.goto("/certification/cka");
+  await expect(page.getByRole("heading", { name: "CKA" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Workloads and scheduling" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Start hands-on exam →" })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
 test("hands-on-only exam routes to the lab runner", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
   await page.goto("/exam/cka");
@@ -954,7 +970,13 @@ test("API health check is reachable through the dev proxy", async ({ request }) 
 
 test("key pages have no serious accessibility violations", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
-  for (const route of ["/", "/lesson/containers-101", "/exam/kcna", "/lab-exam/cka"]) {
+  for (const route of [
+    "/",
+    "/lesson/containers-101",
+    "/exam/kcna",
+    "/lab-exam/cka",
+    "/certification/kcna",
+  ]) {
     await page.goto(route);
     await page.waitForTimeout(200);
     const results = await new AxeBuilder({ page }).analyze();

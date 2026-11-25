@@ -297,6 +297,13 @@ export function HomePage() {
                 <p>{track.description}</p>
                 <LessonRows items={track.lessons} access={access} />
                 <div className={styles.trackActions}>
+                  <Link
+                    className={styles.trackExam}
+                    to="/certification/$trackId"
+                    params={{ trackId: track.id }}
+                  >
+                    Certification roadmap →
+                  </Link>
                   {track.format === "knowledge" ? (
                     <Link
                       className={styles.trackExam}

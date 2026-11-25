@@ -150,17 +150,21 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   const reset = useCallback(async () => {
     await progressDb.transaction(
       "rw",
-      progressDb.lessons,
-      progressDb.meta,
-      progressDb.examAttempts,
-      progressDb.labExamAttempts,
-      progressDb.reviewCards,
+      [
+        progressDb.lessons,
+        progressDb.meta,
+        progressDb.examAttempts,
+        progressDb.labExamAttempts,
+        progressDb.reviewCards,
+        progressDb.readinessSnapshots,
+      ],
       async () => {
         await progressDb.lessons.clear();
         await progressDb.meta.clear();
         await progressDb.examAttempts.clear();
         await progressDb.labExamAttempts.clear();
         await progressDb.reviewCards.clear();
+        await progressDb.readinessSnapshots.clear();
       },
     );
     await refresh();

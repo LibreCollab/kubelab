@@ -1,6 +1,7 @@
 import Dexie, { type Table } from "dexie";
 
 import type { ExamAttempt, LabExamAttempt, ReviewCard } from "./certification";
+import type { ReadinessSnapshot } from "./certification-roadmap";
 import type { LessonProgress } from "./progress";
 
 interface MetaRow {
@@ -14,6 +15,7 @@ class ProgressDatabase extends Dexie {
   examAttempts!: Table<ExamAttempt, number>;
   labExamAttempts!: Table<LabExamAttempt, number>;
   reviewCards!: Table<ReviewCard, string>;
+  readinessSnapshots!: Table<ReadinessSnapshot, number>;
 
   constructor() {
     super("kubelab-progress");
@@ -33,6 +35,14 @@ class ProgressDatabase extends Dexie {
       examAttempts: "++id, trackId, completedAt",
       labExamAttempts: "++id, trackId, completedAt",
       reviewCards: "id, trackId, dueAt",
+    });
+    this.version(4).stores({
+      lessons: "lessonId, status",
+      meta: "key",
+      examAttempts: "++id, trackId, completedAt",
+      labExamAttempts: "++id, trackId, completedAt",
+      reviewCards: "id, trackId, dueAt",
+      readinessSnapshots: "++id, trackId, dateKey, [trackId+dateKey], createdAt",
     });
   }
 }

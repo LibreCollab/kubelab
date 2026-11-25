@@ -22,6 +22,15 @@ const lessonRoute = createRoute({
   component: lazyRouteComponent(() => import("./routes/lesson.$lessonId"), "LessonPage"),
 });
 
+const certificationRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/certification/$trackId",
+  component: lazyRouteComponent(
+    () => import("./routes/certification.$trackId"),
+    "CertificationRoadmapPage",
+  ),
+});
+
 const examRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/exam/$trackId",
@@ -43,6 +52,7 @@ const practiceRoute = createRoute({
 const routeTree = rootRoute.addChildren([
   indexRoute,
   lessonRoute,
+  certificationRoute,
   examRoute,
   labExamRoute,
   practiceRoute,

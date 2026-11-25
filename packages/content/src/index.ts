@@ -878,5 +878,7 @@ export function getCertificationExam(id: string): CertificationExam | undefined 
   return certificationExams.find((exam) => exam.id === id);
 }
 
+export type { CertificationDomain } from "./certification-roadmaps";
+export { certificationDomains } from "./certification-roadmaps";
 export type { Lesson, LessonCheck, LessonSpec } from "./schema";
 export { lessonSpecSchema } from "./schema";

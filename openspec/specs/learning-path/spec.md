@@ -44,11 +44,19 @@ The roadmap SHALL offer continuation into the current or most recently visited l
 - **THEN** lesson progress, XP, streaks, exam attempts, and review cards are cleared and the roadmap re-locks lessons
 
 ### Requirement: Certification entry points
-Each certification track SHALL expose separate knowledge-exam and hands-on-lab entry points.
+Each certification track SHALL expose a certification-roadmap entry point and the exam modes supported by that track.
+
+#### Scenario: Learner chooses a preparation path
+- **WHEN** a learner views a certification track on the core roadmap
+- **THEN** the track offers a link to its certification roadmap
 
 #### Scenario: Learner chooses an exam mode
-- **WHEN** a learner views a certification track
-- **THEN** the track offers links to its knowledge exam and hands-on lab
+- **WHEN** a learner views a certification roadmap or track
+- **THEN** the supported knowledge and/or hands-on exam entry points are available
+
+#### Scenario: Unsupported mode is hidden
+- **WHEN** a track is knowledge-only or hands-on-only
+- **THEN** the unsupported exam mode is not offered as an action
 
 ### Requirement: Expanded workload lessons
 The curriculum SHALL include terminal lessons for Jobs, StatefulSets, DaemonSets, and init containers.

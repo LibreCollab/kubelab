@@ -2,7 +2,14 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 import pods101Spec from "../lessons/pods-101.yaml?raw";
-import { certificationExams, certificationTracks, getLesson, lessons, units } from "./index";
+import {
+  certificationDomains,
+  certificationExams,
+  certificationTracks,
+  getLesson,
+  lessons,
+  units,
+} from "./index";
 import { lessonSpecSchema } from "./schema";
 
 describe("content", () => {
@@ -37,6 +44,27 @@ describe("content", () => {
       for (const prereq of lesson.prereqs) {
         expect(prereq).not.toBe(lesson.id);
         expect(lessons.some((candidate) => candidate.id === prereq)).toBe(true);
+      }
+    }
+    const lessonIds = new Set(lessons.map((lesson) => lesson.id));
+    const taskIds = new Set(
+      certificationExams.flatMap((exam) => exam.taskPool.map((task) => task.id)),
+    );
+    expect(new Set(certificationDomains.map((domain) => domain.id)).size).toBe(
+      certificationDomains.length,
+    );
+    for (const track of certificationTracks) {
+      const domains = certificationDomains.filter((domain) => domain.trackId === track.id);
+      expect(domains.length).toBeGreaterThan(0);
+      expect(domains.reduce((sum, domain) => sum + domain.weight, 0)).toBe(100);
+      for (const domain of domains) {
+        expect(domain.lessonIds.every((id) => lessonIds.has(id))).toBe(true);
+        const exam = certificationExams.find((item) => item.id === track.id);
+        const poolIds = new Set(exam?.taskPool.map((task) => task.id) ?? []);
+        expect(
+          domain.taskIds.every((id) => poolIds.has(id) || taskIds.has(id)),
+          `${domain.id}: ${domain.taskIds.filter((id) => !poolIds.has(id) && !taskIds.has(id)).join(", ")}`,
+        ).toBe(true);
       }
     }
     for (const track of certificationTracks) {
