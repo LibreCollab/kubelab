@@ -510,10 +510,15 @@ test("hands-on certification lab starts and reviews tasks", async ({ page }) => 
   await page.goto("/lab-exam/cka");
 
   await expect(page.getByRole("heading", { name: "CKA lab" })).toBeVisible();
-  await expect(page.getByText("15 tasks")).toBeVisible();
+  await expect(page.getByText("15 tasks", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start lab" }).click();
   await expect(page.getByRole("button", { name: /^Task 1 / })).toBeVisible();
+  await expect(page.getByText("Page 1 of 3")).toBeVisible();
   await expect(page.locator(".xterm-screen")).toBeVisible();
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page.getByText("Page 2 of 3")).toBeVisible();
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page.getByText("Page 3 of 3")).toBeVisible();
   await page.getByRole("button", { name: "Submit lab exam" }).click();
   await expect(page.getByText("Not passed")).toBeVisible();
   await expect(page.locator("[data-correct]").first()).toBeVisible();

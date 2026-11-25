@@ -140,11 +140,14 @@ function LabReview({ result }: { result: LabResult }) {
   );
 }
 
+const TASKS_PER_PAGE = 5;
+
 export function LabExamPage() {
   const { trackId } = useParams({ from: "/lab-exam/$trackId" });
   const exam = getCertificationExam(trackId);
   const [phase, setPhase] = useState<"intro" | "running" | "review">("intro");
   const [selected, setSelected] = useState(0);
+  const [page, setPage] = useState(0);
   const [remaining, setRemaining] = useState(45 * 60);
   const [result, setResult] = useState<LabResult | null>(null);
   const [runKey, setRunKey] = useState(0);
@@ -259,6 +262,12 @@ export function LabExamPage() {
   const completedTasks = taskResults.filter((item) =>
     item.checks.every((check) => check.pass),
   ).length;
+  const totalPages = Math.max(1, Math.ceil(taskResults.length / TASKS_PER_PAGE));
+  const pageTasks = taskResults.slice(page * TASKS_PER_PAGE, (page + 1) * TASKS_PER_PAGE);
+  const selectPage = (nextPage: number) => {
+    setPage(nextPage);
+    setSelected(nextPage * TASKS_PER_PAGE);
+  };
 
   const execute = (input: string): string => {
     if (runtime === undefined) {
@@ -277,6 +286,7 @@ export function LabExamPage() {
   const retake = () => {
     setRunKey((value) => value + 1);
     setSelected(0);
+    setPage(0);
     setResult(null);
     setPhase("intro");
   };
@@ -307,12 +317,9 @@ export function LabExamPage() {
             starts when you begin.
           </p>
           <Button onClick={start}>Start lab</Button>
-          <div className={styles.labs}>
-            <span className={styles.labLabel}>Tasks</span>
-            {exam.taskPool.map((task) => (
-              <span key={task.id}>{task.title}</span>
-            ))}
-          </div>
+          <p className={styles.labLabel}>
+            {exam.taskCount} tasks · {exam.durationMinutes} minutes
+          </p>
         </section>
       ) : null}
 
@@ -325,24 +332,48 @@ export function LabExamPage() {
                 {formatTime(remaining)}
               </span>
             </div>
-            {taskResults.map((item, index) => {
+            {pageTasks.map((item, index) => {
+              const taskIndex = page * TASKS_PER_PAGE + index;
               const complete = item.checks.every((check) => check.pass);
               return (
                 <button
                   key={item.runtime.task.id}
                   type="button"
-                  className={cx(styles.taskButton, index === selected && styles.taskSelected)}
+                  className={cx(styles.taskButton, taskIndex === selected && styles.taskSelected)}
                   data-complete={complete}
-                  aria-pressed={index === selected}
-                  onClick={() => setSelected(index)}
+                  aria-pressed={taskIndex === selected}
+                  onClick={() => setSelected(taskIndex)}
                 >
-                  <span>Task {index + 1}</span>
+                  <span>Task {taskIndex + 1}</span>
                   <strong>{item.runtime.task.title}</strong>
                   <span>{complete ? "complete" : "in progress"}</span>
                 </button>
               );
             })}
-            <Button onClick={submit}>Submit lab exam</Button>
+            <div className={styles.taskPager}>
+              <span>
+                Page {page + 1} of {totalPages}
+              </span>
+              <div className={styles.pager}>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  disabled={page === 0}
+                  onClick={() => selectPage(Math.max(0, page - 1))}
+                >
+                  Previous
+                </Button>
+                {page < totalPages - 1 ? (
+                  <Button size="sm" onClick={() => selectPage(Math.min(totalPages - 1, page + 1))}>
+                    Next page
+                  </Button>
+                ) : (
+                  <Button size="sm" onClick={submit}>
+                    Submit lab exam
+                  </Button>
+                )}
+              </div>
+            </div>
           </aside>
 
           <section className={styles.labTask}>
