@@ -22,10 +22,13 @@
     "api:dev": "go -C apps/api run ./cmd/api",
     "api:test": "go -C apps/api test ./...",
     "api:build": "go -C apps/api build ./cmd/api",
-    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm api:test"
+    "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm api:test && pnpm spec:validate",
+    "spec:list": "openspec list --all",
+    "spec:validate": "openspec validate --all"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.0.0",
+    "@fission-ai/openspec": "2.2.0",
     "@playwright/test": "^1.50.0",
     "@types/node": "^24.0.0",
     "stylelint": "^16.0.0",

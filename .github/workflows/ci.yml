@@ -21,6 +21,7 @@ jobs:
       - run: pnpm audit --prod --audit-level high
       - run: mise run lint
       - run: mise run typecheck
+      - run: mise run spec-validate
       - run: mise run test
       - run: mise run build
       - run: pnpm exec playwright install --with-deps chromium

@@ -8,12 +8,30 @@ contributions of code, lessons, and design.
 ```bash
 mise install
 mise run install
-mise run check    # lint + typecheck + tests + Go tests
+mise run check    # lint + typecheck + tests + Go tests + spec validation
 mise run dev      # web at http://localhost:5173
 ```
 
 mise installs Go 1.27, Node 24, and pnpm 11 from [`mise.toml`](mise.toml).
 Docker is optional.
+
+## Spec-driven changes
+
+Material behavior changes start in OpenSpec, not code:
+
+```bash
+pnpm spec:list
+# In an agent session: /openspec-propose "add ..."
+pnpm spec:validate
+```
+
+Write the proposal, delta specs, design (when needed), and tasks first. Review
+the plan before implementation, then archive the change after every task and
+test is complete. Read [`AGENTS.md`](AGENTS.md) and
+[`openspec/config.yaml`](openspec/config.yaml) for the repository rules.
+
+Typo, formatting, and one-line fixes with no behavior change do not need a
+change folder.
 
 ## Before opening a PR
 
@@ -22,6 +40,7 @@ Docker is optional.
 - UI changes should also pass `mise run e2e` (install browsers once with
   `mise run e2e-install`) and include a screenshot or short recording.
 - Keep PRs focused. One concern per PR.
+- Material changes must have an OpenSpec change folder; archive it when complete.
 - New lessons must validate and include a solution (see below).
 
 ## Writing lessons

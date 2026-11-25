@@ -73,6 +73,9 @@ deployed from `main`). Custom-domain and DNS steps are in
 [`docs/deployment.md`](docs/deployment.md). This preview has no backend; auth,
 progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 
+Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
+[`AGENTS.md`](AGENTS.md) for the propose → review → apply → archive workflow.
+
 ## Scripts
 
 | Command | Description |
@@ -85,7 +88,9 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 | `mise run e2e` | Playwright E2E (install browsers once with `mise run e2e-install`) |
 | `mise run api-dev` | Run the Go API |
 | `mise run api-test` | Go tests |
-| `mise run check` | lint + typecheck + tests + Go tests |
+| `mise run check` | lint + typecheck + tests + Go tests + spec validation |
+| `mise run spec-list` | list OpenSpec changes and specs |
+| `mise run spec-validate` | validate OpenSpec changes and specs |
 | `mise run up` | Full Compose stack |
 
 ## Current scaffold
@@ -95,11 +100,13 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
   ConfigMaps, Secrets, Storage, Scheduling, Networking, RBAC, Observability, Helm,
   Kustomize, GitOps, and operators.
 - Simulated `kubectl` across core, storage, networking, RBAC, events, and custom
-  resources, including `apply -f/-k`; `helm` release inspection; `argocd`
-  applications; Kustomize rendering; plus `exec`, `logs`, `auth can-i`, and
-  virtual-clock reconciliation.
-- Timed certification mock exams with scoring, weak-area review, and
-  spaced-repetition practice for missed questions.
+  resources, including `apply -f/-k`, comma-separated files, directory apply,
+  `get -o yaml`, `top`, NetworkPolicy peers/egress, configurable rollout
+  strategies, `helm` release inspection, `argocd` applications, Kustomize
+  rendering, `exec`, `logs`, `auth can-i`, and virtual-clock reconciliation.
+- Timed knowledge mock exams plus hands-on lab exams with randomized task order,
+  scoring, weak-domain review, combined exam history, and spaced-repetition
+  practice for missed questions.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →
   Pods, Service endpoint selection, Ingress → Service routing, and ConfigMap /
   Secret wiring.

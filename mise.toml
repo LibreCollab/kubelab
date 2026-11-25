@@ -51,6 +51,14 @@ run = "go -C apps/api build ./cmd/api"
 description = "Lint, typecheck, and test everything"
 run = "pnpm check"
 
+[tasks.spec-list]
+description = "List OpenSpec changes and specs"
+run = "pnpm spec:list"
+
+[tasks.spec-validate]
+description = "Validate OpenSpec changes and specs"
+run = "pnpm spec:validate"
+
 [tasks.up]
 description = "Run the Compose stack (Envoy + API + Postgres)"
 run = [

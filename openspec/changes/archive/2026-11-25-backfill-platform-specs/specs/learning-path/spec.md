@@ -1,0 +1,51 @@
+# Spec Delta
+
+## Purpose
+
+Give learners an ordered Kubernetes curriculum, visible completion state, and clear entry points into certification exams.
+
+## ADDED Requirements
+
+### Requirement: Roadmap catalog
+The roadmap SHALL present twelve core units and five certification tracks, with each lesson exposing its title, XP value, and current access state.
+
+#### Scenario: Learner opens the roadmap
+- **WHEN** a learner opens the home route
+- **THEN** the roadmap lists core units in curriculum order and shows certification tracks separately
+
+#### Scenario: Progress is visible per lesson
+- **WHEN** a learner has completed some lessons
+- **THEN** completed, current, available, and locked lessons are visually distinguishable
+
+### Requirement: Sequential lesson access
+A lesson SHALL be unlocked when it is first in the curriculum, follows a completed lesson, has all prerequisites completed, or is already completed.
+
+#### Scenario: First lesson is available
+- **WHEN** a learner has no completed lessons
+- **THEN** the first core lesson is available and marked current
+
+#### Scenario: Later lessons are locked
+- **WHEN** a prerequisite or the preceding lesson is incomplete
+- **THEN** the dependent lesson is locked and is not rendered as a navigation link
+
+#### Scenario: Completed lesson stays accessible
+- **WHEN** a learner revisits a completed lesson
+- **THEN** the lesson remains accessible even if later ordering changes
+
+### Requirement: Continue and reset controls
+The roadmap SHALL offer continuation into the current or most recently visited lesson and SHALL require confirmation before erasing local progress.
+
+#### Scenario: Continue after returning
+- **WHEN** a learner returns to the roadmap with saved progress
+- **THEN** the primary action continues the current lesson, or the last visited lesson when no current lesson exists
+
+#### Scenario: Reset is confirmed
+- **WHEN** a learner confirms the reset prompt
+- **THEN** lesson progress, XP, streaks, exam attempts, and review cards are cleared and the roadmap re-locks lessons
+
+### Requirement: Certification entry points
+Each certification track SHALL expose separate knowledge-exam and hands-on-lab entry points.
+
+#### Scenario: Learner chooses an exam mode
+- **WHEN** a learner views a certification track
+- **THEN** the track offers links to its knowledge exam and hands-on lab

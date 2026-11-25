@@ -1,0 +1,42 @@
+schema: spec-driven
+
+context: |
+  Kubelab is a static React SPA for learning Kubernetes through a deterministic
+  in-browser simulator, plus a thin Go API for health/embedding. The public
+  preview has no accounts, database, or progress sync; do not assume backend
+  capabilities.
+  The pnpm monorepo contains apps/web, apps/api, packages/content, packages/sim,
+  and packages/ui. Lesson content is typed YAML plus Markdown, discovered at
+  build time and validated with Zod.
+  Simulator behavior must stay deterministic and testable: use VirtualClock, no
+  Math.random or real timers in command/controller logic. Terminal output,
+  lesson checks, and visualizations must read the same cluster state.
+  Commands: pnpm dev, pnpm check, pnpm test:e2e, pnpm build. Material UI or
+  behavior changes require unit tests; browser flows require Playwright.
+  Keep the existing dark blueprint/arcade design language, CSS Modules/Sass,
+  strict TypeScript, and no Tailwind.
+
+rules:
+  proposal:
+    - State why the change is needed, the intended user-visible outcome, and explicit non-goals.
+    - Keep one capability per change; split simulator, content, and UI work when they can ship independently.
+  specs:
+    - Write requirements with observable WHEN/THEN scenarios, including failure and empty states.
+    - Call out intentional simplifications versus real Kubernetes behavior.
+  design:
+    - Record cross-package data flow, simulator semantics, and migration or compatibility risks.
+    - Do not add dependencies unless the design explains why an existing package is insufficient.
+  tasks:
+    - Include tests, documentation, and content-validation work in the checklist.
+    - Do not include commits unless the user explicitly asks for them.
+
+operations:
+  apply:
+    guidance:
+      - Run the narrowest relevant tests while working, then pnpm check before marking the change complete.
+      - Run pnpm test:e2e for routes, terminal, lesson, exam, or responsive UI changes.
+      - Update tasks.md checkboxes as work lands; do not commit unless the user explicitly asks.
+  archive:
+    guidance:
+      - Run pnpm spec:validate and confirm every task is checked before archiving.
+      - Summarize user-visible behavior, tests run, and any remaining limitations.

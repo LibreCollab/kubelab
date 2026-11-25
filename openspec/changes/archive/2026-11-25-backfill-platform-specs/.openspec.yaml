@@ -1,0 +1,4 @@
+schema: spec-driven
+created: 2026-11-25
+goal: Create source-of-truth specs for current shipped behavior before planning
+  further roadmap work
