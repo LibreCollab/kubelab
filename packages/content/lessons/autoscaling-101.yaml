@@ -24,6 +24,9 @@ scenario:
           containers:
             - name: nginx
               image: nginx
+              resources:
+                requests:
+                  cpu: 100m
       status:
         replicas: 3
         readyReplicas: 3
@@ -39,9 +42,17 @@ scenario:
         scaleTargetRef:
           kind: Deployment
           name: web
+        metrics:
+          - type: Resource
+            resource:
+              name: cpu
+              target:
+                type: Utilization
+                averageUtilization: 50
       status:
         currentReplicas: 3
         desiredReplicas: 5
+        currentCPUUtilization: 80
 objectives:
   - HPA
 checks:
@@ -67,5 +78,6 @@ checks:
 hints:
   - "List autoscalers: kubectl get hpa"
   - "Read the target and limits: kubectl describe hpa web"
-  - "Compare minReplicas, maxReplicas, and desiredReplicas."
-solution: The HPA scales the web Deployment between two and eight replicas from metrics.
+  - "Compare current utilization with the 50% CPU target."
+  - "Inspect Pod usage: kubectl top pods"
+solution: The HPA scales the web Deployment between two and eight replicas from 80% CPU utilization against a 50% target.

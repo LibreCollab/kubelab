@@ -64,6 +64,10 @@ export interface ContainerSpec {
   env?: EnvVar[];
   envFrom?: EnvFromSource[];
   securityContext?: ContainerSecurityContext;
+  resources?: {
+    requests?: { cpu?: string; memory?: string };
+    limits?: { cpu?: string; memory?: string };
+  };
 }
 
 export interface PodCondition {
@@ -98,6 +102,7 @@ export interface Pod extends KubeObject {
     message?: string;
     podIP?: string;
     conditions?: PodCondition[];
+    usage?: { cpuMillicores: number; memoryBytes: number };
   };
   logs?: string[];
 }
@@ -248,17 +253,30 @@ export interface KubeWidget extends KubeObject {
   };
 }
 
+export interface HpaResourceMetric {
+  type: "Resource";
+  resource: {
+    name: string;
+    target: {
+      type: "Utilization" | "AverageValue";
+      averageUtilization?: number;
+      averageValue?: string;
+    };
+  };
+}
+
 export interface KubeHorizontalPodAutoscaler extends KubeObject {
   kind: "HorizontalPodAutoscaler";
   spec: {
     minReplicas: number;
     maxReplicas: number;
     scaleTargetRef: { kind: string; name: string };
-    metrics?: unknown[];
+    metrics?: HpaResourceMetric[];
   };
   status: {
     currentReplicas: number;
     desiredReplicas: number;
+    currentCPUUtilization?: number;
   };
 }
 

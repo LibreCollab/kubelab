@@ -101,8 +101,9 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
   Kustomize, GitOps, and operators.
 - Simulated `kubectl` across core, storage, networking, RBAC, events, and custom
   resources, including `apply -f/-k`, comma-separated files, directory apply,
-  `get -o yaml`, `top`, NetworkPolicy peers/egress, configurable rollout
-  strategies, `helm` release inspection, `argocd` applications, Kustomize
+  `get -o yaml`, `top`, HPA CPU metrics from Pod usage, NetworkPolicy
+  peers/egress, configurable rollout strategies, `helm` release inspection,
+  `argocd` applications, Kustomize
   rendering, `exec`, `logs`, `auth can-i`, and virtual-clock reconciliation.
 - Timed knowledge mock exams plus hands-on lab exams with randomized task order,
   scoring, weak-domain review, combined exam history, and spaced-repetition

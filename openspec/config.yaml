@@ -18,14 +18,19 @@ context: |
 
 rules:
   proposal:
-    - State why the change is needed, the intended user-visible outcome, and explicit non-goals.
-    - Keep one capability per change; split simulator, content, and UI work when they can ship independently.
+    - State why the change is needed, the intended user-visible outcome, and
+      explicit non-goals.
+    - Keep one capability per change; split simulator, content, and UI work when
+      they can ship independently.
   specs:
-    - Write requirements with observable WHEN/THEN scenarios, including failure and empty states.
+    - Write requirements with observable WHEN/THEN scenarios, including failure
+      and empty states.
     - Call out intentional simplifications versus real Kubernetes behavior.
   design:
-    - Record cross-package data flow, simulator semantics, and migration or compatibility risks.
-    - Do not add dependencies unless the design explains why an existing package is insufficient.
+    - Record cross-package data flow, simulator semantics, and migration or
+      compatibility risks.
+    - Do not add dependencies unless the design explains why an existing package
+      is insufficient.
   tasks:
     - Include tests, documentation, and content-validation work in the checklist.
     - Do not include commits unless the user explicitly asks for them.
@@ -33,10 +38,16 @@ rules:
 operations:
   apply:
     guidance:
-      - Run the narrowest relevant tests while working, then pnpm check before marking the change complete.
-      - Run pnpm test:e2e for routes, terminal, lesson, exam, or responsive UI changes.
-      - Update tasks.md checkboxes as work lands; do not commit unless the user explicitly asks.
+      - Run the narrowest relevant tests while working, then pnpm check before
+        marking the change complete.
+      - Run pnpm test:e2e for routes, terminal, lesson, exam, or responsive UI
+        changes.
+      - Update tasks.md checkboxes as work lands; do not commit unless the user
+        explicitly asks.
   archive:
     guidance:
-      - Run pnpm spec:validate and confirm every task is checked before archiving.
-      - Summarize user-visible behavior, tests run, and any remaining limitations.
+      - Run pnpm spec:validate and confirm every task is checked before
+        archiving.
+      - Summarize user-visible behavior, tests run, and any remaining
+        limitations.
+skillsScope: project

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   type KubeDeployment,
+  type KubeHorizontalPodAutoscaler,
   type KubePersistentVolumeClaim,
   type Pod,
   parseKubectl,
@@ -965,6 +966,143 @@ describe("engine", () => {
     const nodes = engine.execute("kubectl top nodes");
     expect(nodes.output).toContain("node-1");
     expect(nodes.output).toContain("CPU%");
+  });
+
+  it("scales an HPA from Pod CPU usage and stabilizes demand", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [{ name: "node-1" }],
+      files: {
+        "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 2
+  template:
+    labels:
+      app: web
+    containers:
+      - name: web
+        image: nginx
+        resources:
+          requests:
+            cpu: 100m
+`,
+      },
+    });
+    engine.execute("kubectl apply -f deployment.yaml");
+    engine.step();
+    engine.step();
+
+    for (const pod of engine.store.list<Pod>("Pod", "default")) {
+      engine.store.upsert({
+        ...pod,
+        status: { ...pod.status, usage: { cpuMillicores: 80, memoryBytes: 64 * 1024 * 1024 } },
+      });
+    }
+
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "HorizontalPodAutoscaler",
+          metadata: { name: "web" },
+          spec: {
+            minReplicas: 1,
+            maxReplicas: 8,
+            scaleTargetRef: { kind: "Deployment", name: "web" },
+            metrics: [
+              {
+                type: "Resource",
+                resource: {
+                  name: "cpu",
+                  target: { type: "Utilization", averageUtilization: 50 },
+                },
+              },
+            ],
+          },
+          status: { currentReplicas: 2, desiredReplicas: 1 },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<KubeDeployment>("Deployment", "web")?.spec.replicas).toBe(4);
+    expect(
+      engine.store.get<KubeHorizontalPodAutoscaler>("HorizontalPodAutoscaler", "web")?.status,
+    ).toMatchObject({ currentReplicas: 2, desiredReplicas: 4, currentCPUUtilization: 80 });
+
+    engine.step();
+    expect(engine.store.get<KubeDeployment>("Deployment", "web")?.spec.replicas).toBe(4);
+    expect(
+      engine.store.get<KubeHorizontalPodAutoscaler>("HorizontalPodAutoscaler", "web")?.status,
+    ).toMatchObject({ currentReplicas: 4, desiredReplicas: 4, currentCPUUtilization: 40 });
+  });
+
+  it("clamps HPA metric scaling to configured bounds", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Deployment",
+          metadata: { name: "web" },
+          spec: {
+            replicas: 4,
+            template: { labels: { app: "web" }, containers: [{ name: "web", image: "nginx" }] },
+          },
+          status: { replicas: 4, readyReplicas: 4, updatedReplicas: 4, availableReplicas: 4 },
+        },
+        {
+          kind: "HorizontalPodAutoscaler",
+          metadata: { name: "web" },
+          spec: {
+            minReplicas: 2,
+            maxReplicas: 6,
+            scaleTargetRef: { kind: "Deployment", name: "web" },
+            metrics: [
+              {
+                type: "Resource",
+                resource: {
+                  name: "cpu",
+                  target: { type: "Utilization", averageUtilization: 50 },
+                },
+              },
+            ],
+          },
+          status: { currentReplicas: 4, desiredReplicas: 1, currentCPUUtilization: 500 },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<KubeDeployment>("Deployment", "web")?.spec.replicas).toBe(6);
+    expect(engine.execute("kubectl get hpa web").output).toContain("500%/50%");
+  });
+
+  it("uses authored Pod usage in top output", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.10",
+            conditions: [{ type: "Ready", status: "True" }],
+            usage: { cpuMillicores: 73, memoryBytes: 128 * 1024 * 1024 },
+          },
+        },
+      ],
+    });
+
+    const top = engine.execute("kubectl top pods");
+    expect(top.output).toContain("73m");
+    expect(top.output).toContain("128Mi");
   });
 
   it("applies comma-separated files and directory manifests", () => {

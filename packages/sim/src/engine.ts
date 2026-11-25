@@ -627,14 +627,16 @@ export class SimEngine {
       output: formatTable(
         ["NAME", "CPU(cores)", "MEMORY(bytes)"],
         pods.map((pod) => {
-          const cpu = 8 + (hashString(pod.metadata.name) % 92);
-          const memory = 32 + (hashString(`${pod.metadata.name}:memory`) % 224);
+          const cpu = pod.status.usage?.cpuMillicores ?? 8 + (hashString(pod.metadata.name) % 92);
+          const memoryBytes =
+            pod.status.usage?.memoryBytes ??
+            (32 + (hashString(`${pod.metadata.name}:memory`) % 224)) * 1024 * 1024;
           return [
             command.allNamespaces
               ? `${pod.metadata.namespace}/${pod.metadata.name}`
               : pod.metadata.name,
             `${cpu}m`,
-            `${memory}Mi`,
+            `${Math.round(memoryBytes / (1024 * 1024))}Mi`,
           ];
         }),
       ),
@@ -1964,17 +1966,24 @@ export class SimEngine {
 
     const rows = [...items]
       .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
-      .map((item) => [
-        command.allNamespaces
-          ? `${item.metadata.namespace}/${item.metadata.name}`
-          : item.metadata.name,
-        `${item.spec.scaleTargetRef.kind}/${item.spec.scaleTargetRef.name}`,
-        `${item.status.currentReplicas}/${item.spec.maxReplicas}`,
-        String(item.spec.minReplicas),
-        String(item.spec.maxReplicas),
-        String(item.status.currentReplicas),
-        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
-      ]);
+      .map((item) => {
+        const target = this.#cpuTarget(item);
+        const current =
+          item.status.currentCPUUtilization === undefined
+            ? "<unknown>"
+            : `${item.status.currentCPUUtilization}%`;
+        return [
+          command.allNamespaces
+            ? `${item.metadata.namespace}/${item.metadata.name}`
+            : item.metadata.name,
+          `${item.spec.scaleTargetRef.kind}/${item.spec.scaleTargetRef.name}`,
+          target === undefined ? "<none>" : `${current}/${target}%`,
+          String(item.spec.minReplicas),
+          String(item.spec.maxReplicas),
+          String(item.status.currentReplicas),
+          `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+        ];
+      });
 
     if (rows.length === 0) {
       return this.#noResources(command);
@@ -2819,10 +2828,47 @@ export class SimEngine {
       if (deployment === undefined) {
         continue;
       }
-      const desired = Math.min(
-        autoscaler.spec.maxReplicas,
-        Math.max(autoscaler.spec.minReplicas, autoscaler.status.desiredReplicas),
-      );
+
+      const actualReplicas = deployment.spec.replicas;
+      const target = this.#cpuTarget(autoscaler);
+      let utilization = autoscaler.status.currentCPUUtilization;
+
+      if (target !== undefined) {
+        if (utilization === undefined) {
+          utilization = this.#averageCpuUtilization(deployment);
+        } else if (
+          autoscaler.status.currentReplicas > 0 &&
+          autoscaler.status.currentReplicas !== actualReplicas
+        ) {
+          utilization = Math.round(
+            (utilization * autoscaler.status.currentReplicas) / actualReplicas,
+          );
+        }
+      }
+
+      const desired =
+        target === undefined || utilization === undefined
+          ? Math.min(
+              autoscaler.spec.maxReplicas,
+              Math.max(autoscaler.spec.minReplicas, autoscaler.status.desiredReplicas),
+            )
+          : Math.min(
+              autoscaler.spec.maxReplicas,
+              Math.max(
+                autoscaler.spec.minReplicas,
+                Math.ceil((actualReplicas * utilization) / target),
+              ),
+            );
+
+      this.store.upsert({
+        ...autoscaler,
+        status: {
+          currentReplicas: actualReplicas,
+          desiredReplicas: desired,
+          ...(utilization === undefined ? {} : { currentCPUUtilization: utilization }),
+        },
+      });
+
       if (deployment.spec.replicas === desired) {
         continue;
       }
@@ -2837,6 +2883,40 @@ export class SimEngine {
         },
       });
     }
+  }
+
+  #cpuTarget(autoscaler: KubeHorizontalPodAutoscaler): number | undefined {
+    for (const metric of autoscaler.spec.metrics ?? []) {
+      if (
+        metric.type === "Resource" &&
+        metric.resource.name === "cpu" &&
+        metric.resource.target.type === "Utilization" &&
+        (metric.resource.target.averageUtilization ?? 0) > 0
+      ) {
+        return metric.resource.target.averageUtilization;
+      }
+    }
+    return undefined;
+  }
+
+  #averageCpuUtilization(deployment: KubeDeployment): number | undefined {
+    let totalUsage = 0;
+    let totalRequest = 0;
+
+    for (const pod of this.#deploymentPods(deployment)) {
+      const usage = pod.status.usage?.cpuMillicores;
+      const request = pod.spec.containers.reduce((sum, container) => {
+        const cpu = container.resources?.requests?.cpu;
+        return sum + (cpu === undefined ? 0 : parseCpuMillis(cpu));
+      }, 0);
+      if (usage === undefined || request <= 0) {
+        continue;
+      }
+      totalUsage += usage;
+      totalRequest += request;
+    }
+
+    return totalRequest === 0 ? undefined : Math.round((totalUsage / totalRequest) * 100);
   }
 
   #reconcileStorage(): void {

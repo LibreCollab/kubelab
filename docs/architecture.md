@@ -166,7 +166,8 @@ matter for teaching.
 `scale`, `set image|env`, `rollout`, `exec` for DNS/HTTP/environment checks,
 `logs`, `auth can-i`, `apply -f/-k` with comma-separated files and directory
 manifests, NetworkPolicy peer/egress evaluation, configurable rolling-update
-strategies, seeded storage/RBAC/event inspection, `delete`, and `help`. Helm,
+strategies, HPA CPU utilization from Pod usage and requests, seeded
+storage/RBAC/event inspection, `delete`, and `help`. Helm,
 Argo CD, and Kustomize inspection are also simulated.
 
 ### Lesson validation
