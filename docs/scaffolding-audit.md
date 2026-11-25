@@ -83,6 +83,8 @@ fixed below.
 | 60 | Probes were static seeded conditions with no restart behavior | Added readiness/liveness evaluation, restarts, warning events, endpoint removal, and CrashLoopBackOff |
 | 61 | Networking, storage, and RBAC lacked relationship depth | Added NetworkPolicy ports, headless/NodePort Services, PVC reclaim and delayed binding, and cluster-scoped RBAC |
 | 62 | Only Deployments and ReplicaSets represented workload controllers | Added init containers, DaemonSets, StatefulSets, Jobs, CronJobs, scheduling, completion, and inspection |
+| 63 | Scheduling stopped at node selectors and taints | Added affinity, topology spread, LimitRange defaults, ResourceQuota, and PDB status |
+| 64 | `logs -f` was a one-shot snapshot | Added incremental log subscriptions and terminal follow mode with Ctrl+C cancellation |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

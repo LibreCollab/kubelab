@@ -169,8 +169,9 @@ manifests, NetworkPolicy peer/egress evaluation, configurable rolling-update
 strategies, HPA CPU utilization from Pod usage and requests, readiness/liveness
 probe evaluation with restarts and CrashLoopBackOff, NetworkPolicy ports,
 headless/NodePort Services, storage reclaim and delayed binding, cluster-scoped
-RBAC inspection, DaemonSets, StatefulSets, Jobs, CronJobs, init containers,
-`delete`, and `help`. Helm,
+RBAC inspection, affinity/topology scheduling, LimitRange defaults, namespace
+quotas, PDB status, DaemonSets, StatefulSets, Jobs, CronJobs, init containers,
+streaming log follow, `delete`, and `help`. Helm,
 Argo CD, and Kustomize inspection are also simulated.
 
 ### Lesson validation

@@ -354,7 +354,11 @@ export function LabExamPage() {
             </div>
             <p className={styles.labInstruction}>{runtime.task.instruction}</p>
             <div className={styles.labTerminal}>
-              <Terminal key={runtime.task.id} execute={execute} />
+              <Terminal
+                key={runtime.task.id}
+                execute={execute}
+                follow={(input, write) => runtime.engine.followLogs(input, write)}
+              />
             </div>
           </section>
         </div>

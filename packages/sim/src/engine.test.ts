@@ -9,6 +9,7 @@ import {
   type KubeNetworkPolicy,
   type KubePersistentVolume,
   type KubePersistentVolumeClaim,
+  type KubePodDisruptionBudget,
   type KubeStatefulSet,
   type Pod,
   parseKubectl,
@@ -1394,6 +1395,192 @@ spec:
     expect(engine.store.get<Pod>("Pod", "app")?.status.message).toContain("Init:0/1");
     engine.step();
     expect(engine.store.get<Pod>("Pod", "app")?.status.phase).toBe("Running");
+  });
+
+  it("honors required node affinity and Pod anti-affinity", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [{ name: "node-2", labels: { zone: "b" } }],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "zoned" },
+          spec: {
+            nodeName: undefined,
+            affinity: {
+              nodeAffinity: {
+                requiredDuringSchedulingIgnoredDuringExecution: {
+                  nodeSelectorTerms: [
+                    { matchExpressions: [{ key: "zone", operator: "In", values: ["b"] }] },
+                  ],
+                },
+              },
+            },
+            containers: [{ name: "zoned", image: "nginx" }],
+          },
+          status: { phase: "Pending" },
+        },
+        {
+          kind: "Deployment",
+          metadata: { name: "spread" },
+          spec: {
+            replicas: 2,
+            template: {
+              labels: { app: "spread" },
+              affinity: {
+                podAntiAffinity: {
+                  requiredDuringSchedulingIgnoredDuringExecution: [
+                    { labelSelector: { app: "spread" }, topologyKey: "kubernetes.io/hostname" },
+                  ],
+                },
+              },
+              containers: [{ name: "spread", image: "nginx" }],
+            },
+          },
+          status: { replicas: 0, readyReplicas: 0, updatedReplicas: 0, availableReplicas: 0 },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<Pod>("Pod", "zoned")?.spec.nodeName).toBe("node-2");
+    engine.step();
+    const nodes = engine.store
+      .list<Pod>("Pod", "default")
+      .filter((pod) => pod.metadata.labels.app === "spread")
+      .map((pod) => pod.spec.nodeName);
+    expect(new Set(nodes).size).toBe(2);
+  });
+
+  it("applies LimitRange defaults and enforces pod quotas", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "LimitRange",
+          metadata: { name: "defaults" },
+          spec: {
+            limits: [
+              {
+                type: "Container",
+                defaultRequest: { cpu: "100m", memory: "64Mi" },
+              },
+            ],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "existing", labels: { app: "existing" } },
+          spec: { nodeName: "node-1", containers: [{ name: "app", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.40",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "ResourceQuota",
+          metadata: { name: "small" },
+          spec: { hard: { pods: "1", "requests.cpu": "1" } },
+          status: {},
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "blocked" },
+          spec: { containers: [{ name: "app", image: "nginx" }] },
+          status: { phase: "Pending" },
+        },
+      ],
+    });
+
+    engine.step();
+    const blocked = engine.store.get<Pod>("Pod", "blocked");
+    expect(blocked?.status.message).toContain("exceeded quota");
+    const existing = engine.store.get<Pod>("Pod", "existing");
+    expect(existing?.spec.containers[0]?.resources?.requests).toBeUndefined();
+  });
+
+  it("reports PodDisruptionBudget allowed disruptions", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web-1", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.41",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "web-2", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.42",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "web-3", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: { phase: "Succeeded" },
+        },
+        {
+          kind: "PodDisruptionBudget",
+          metadata: { name: "web" },
+          spec: { minAvailable: 2, selector: { app: "web" } },
+          status: { currentHealthy: 0, desiredHealthy: 0, disruptionsAllowed: 0 },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<KubePodDisruptionBudget>("PodDisruptionBudget", "web")?.status).toEqual(
+      { currentHealthy: 2, desiredHealthy: 2, disruptionsAllowed: 0 },
+    );
+    expect(engine.execute("kubectl get pdb").output).toContain("web");
+  });
+
+  it("streams appended logs until follow is stopped", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web" },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: { phase: "Running", podIP: "10.244.0.50" },
+          logs: ["one"],
+        },
+      ],
+    });
+    const lines: string[] = [];
+    const stop = engine.followLogs("kubectl logs web -f", (line) => lines.push(line));
+    expect(stop).toBeDefined();
+    expect(lines).toEqual(["one"]);
+
+    const pod = engine.store.get<Pod>("Pod", "web");
+    expect(pod).toBeDefined();
+    if (pod === undefined) {
+      return;
+    }
+    engine.store.upsert({ ...pod, logs: ["one", "two"] });
+    engine.step();
+    expect(lines).toEqual(["one", "two"]);
+
+    stop?.();
+    engine.store.upsert({ ...pod, logs: ["one", "two", "three"] });
+    engine.step();
+    expect(lines).toEqual(["one", "two"]);
+    expect(engine.followLogs("kubectl logs missing -f", () => undefined)).toBeUndefined();
   });
 
   it("applies comma-separated files and directory manifests", () => {

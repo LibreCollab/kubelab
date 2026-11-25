@@ -270,6 +270,15 @@ function normalizeResource(resource: string): string {
     case "netpol":
     case "networkpolicy":
       return "networkpolicies";
+    case "resourcequota":
+    case "quota":
+      return "resourcequotas";
+    case "limitrange":
+    case "limits":
+      return "limitranges";
+    case "poddisruptionbudget":
+    case "pdb":
+      return "poddisruptionbudgets";
     case "sa":
     case "serviceaccount":
       return "serviceaccounts";

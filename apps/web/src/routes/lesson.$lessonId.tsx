@@ -222,6 +222,9 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
     setScene(null);
   };
 
+  const followLogs = (input: string, write: (line: string) => void) =>
+    engine.followLogs(input, write);
+
   const execute = (input: string): string => {
     if (lesson.strict) {
       const guard = guardLessonCommand(input, lesson.checks);
@@ -396,7 +399,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
                   }}
                 />
               </div>
-              <Terminal execute={execute} />
+              <Terminal execute={execute} follow={followLogs} />
               <p className={styles.hint}>
                 Simulated cluster · {lesson.scenario.nodes.length} node · commands never leave your
                 browser.

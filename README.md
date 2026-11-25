@@ -104,9 +104,10 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
   `get -o yaml`, `top`, HPA CPU metrics from Pod usage, readiness/liveness
   probes with restarts and CrashLoopBackOff, NetworkPolicy peers/ports/egress,
   headless and NodePort Services, storage reclaim/WaitForFirstConsumer,
-  cluster-scoped RBAC, DaemonSets, StatefulSets, Jobs, CronJobs, init
-  containers, configurable rollout strategies, `helm` release inspection,
-  `argocd` applications, Kustomize
+  cluster-scoped RBAC, affinity and topology spread, ResourceQuota,
+  LimitRange, PDB status, DaemonSets, StatefulSets, Jobs, CronJobs, init
+  containers, streaming `logs -f` with Ctrl+C, configurable rollout strategies,
+  `helm` release inspection, `argocd` applications, Kustomize
   rendering, `exec`, `logs`, `auth can-i`, and virtual-clock reconciliation.
 - Timed knowledge mock exams plus hands-on lab exams with randomized task order,
   scoring, weak-domain review, combined exam history, and spaced-repetition

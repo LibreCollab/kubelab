@@ -19,13 +19,16 @@ import type {
   KubeHorizontalPodAutoscaler,
   KubeIngress,
   KubeJob,
+  KubeLimitRange,
   KubeNamespace,
   KubeNetworkPolicy,
   KubeNode,
   KubeObject,
   KubePersistentVolume,
   KubePersistentVolumeClaim,
+  KubePodDisruptionBudget,
   KubeReplicaSet,
+  KubeResourceQuota,
   KubeRole,
   KubeRoleBinding,
   KubeSecret,
@@ -35,6 +38,7 @@ import type {
   KubeWidget,
   NetworkPolicyPeer,
   NetworkPolicyPort,
+  NodeSelectorRequirement,
   Pod,
   PodTemplate,
   ProbeState,
@@ -358,6 +362,10 @@ export class SimEngine {
       }
     } else if (kind === "CronJob") {
       manifest.status ??= {};
+    } else if (kind === "PodDisruptionBudget") {
+      manifest.status ??= { currentHealthy: 0, desiredHealthy: 0, disruptionsAllowed: 0 };
+    } else if (kind === "ResourceQuota") {
+      manifest.status ??= {};
     }
 
     const object = {
@@ -387,6 +395,38 @@ export class SimEngine {
 
   step(): void {
     this.clock.advance();
+  }
+
+  followLogs(input: string, onLine: (line: string) => void): (() => void) | undefined {
+    const parsed = parseCommand(input);
+    if ("error" in parsed || parsed.verb !== "logs" || !parsed.follow) {
+      return undefined;
+    }
+    const pod = this.store.get<Pod>("Pod", parsed.name, parsed.namespace);
+    if (pod === undefined) {
+      return undefined;
+    }
+    if (parsed.container !== undefined) {
+      if (!pod.spec.containers.some((container) => container.name === parsed.container)) {
+        return undefined;
+      }
+    } else if (pod.spec.containers.length > 1) {
+      return undefined;
+    }
+
+    let cursor = 0;
+    const emit = () => {
+      const current = this.store.get<Pod>("Pod", parsed.name, parsed.namespace);
+      const logs = current?.logs ?? [];
+      for (; cursor < logs.length; cursor += 1) {
+        const line = logs[cursor];
+        if (line !== undefined) {
+          onLine(line);
+        }
+      }
+    };
+    emit();
+    return this.clock.onTick(emit);
   }
 
   execute(input: string): CommandResult {
@@ -528,6 +568,18 @@ export class SimEngine {
       return this.#getNetworkPolicies(command);
     }
 
+    if (command.resource === "resourcequotas") {
+      return this.#getResourceQuotas(command);
+    }
+
+    if (command.resource === "limitranges") {
+      return this.#getLimitRanges(command);
+    }
+
+    if (command.resource === "poddisruptionbudgets") {
+      return this.#getPodDisruptionBudgets(command);
+    }
+
     if (command.resource === "serviceaccounts") {
       return this.#getSimple(command, "ServiceAccount", "serviceaccounts");
     }
@@ -589,6 +641,9 @@ export class SimEngine {
       persistentvolumes: { kind: "PersistentVolume", clusterScoped: true },
       persistentvolumeclaims: { kind: "PersistentVolumeClaim" },
       networkpolicies: { kind: "NetworkPolicy" },
+      resourcequotas: { kind: "ResourceQuota" },
+      limitranges: { kind: "LimitRange" },
+      poddisruptionbudgets: { kind: "PodDisruptionBudget" },
       serviceaccounts: { kind: "ServiceAccount" },
       roles: { kind: "Role" },
       rolebindings: { kind: "RoleBinding" },
@@ -1816,6 +1871,98 @@ export class SimEngine {
         };
   }
 
+  #getResourceQuotas(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [
+          this.store.get<KubeResourceQuota>("ResourceQuota", command.name, command.namespace),
+        ].filter((item): item is KubeResourceQuota => item !== undefined)
+      : this.store.list<KubeResourceQuota>(
+          "ResourceQuota",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("resourcequotas", command.name);
+    }
+    const rows = items
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        Object.entries(item.status.used ?? {})
+          .map(([key, value]) => `${key}=${value}`)
+          .join(",") || "<none>",
+        Object.entries(item.spec.hard)
+          .map(([key, value]) => `${key}=${value}`)
+          .join(",") || "<none>",
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+    return rows.length === 0
+      ? this.#noResources(command)
+      : { ok: true, output: formatTable(["NAME", "USED", "HARD", "AGE"], rows) };
+  }
+
+  #getLimitRanges(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeLimitRange>("LimitRange", command.name, command.namespace)].filter(
+          (item): item is KubeLimitRange => item !== undefined,
+        )
+      : this.store.list<KubeLimitRange>(
+          "LimitRange",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("limitranges", command.name);
+    }
+    const rows = items
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        String(item.spec.limits.length),
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+    return rows.length === 0
+      ? this.#noResources(command)
+      : { ok: true, output: formatTable(["NAME", "LIMITS", "AGE"], rows) };
+  }
+
+  #getPodDisruptionBudgets(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [
+          this.store.get<KubePodDisruptionBudget>(
+            "PodDisruptionBudget",
+            command.name,
+            command.namespace,
+          ),
+        ].filter((item): item is KubePodDisruptionBudget => item !== undefined)
+      : this.store.list<KubePodDisruptionBudget>(
+          "PodDisruptionBudget",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("poddisruptionbudgets", command.name);
+    }
+    const rows = items
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        String(item.spec.minAvailable ?? "<none>"),
+        String(item.spec.maxUnavailable ?? "<none>"),
+        String(item.status.disruptionsAllowed),
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+    return rows.length === 0
+      ? this.#noResources(command)
+      : {
+          ok: true,
+          output: formatTable(["NAME", "MIN AVAILABLE", "MAX UNAVAILABLE", "ALLOWED", "AGE"], rows),
+        };
+  }
+
   #getConfigMaps(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
     const configMaps = command.name
       ? [this.store.get<KubeConfigMap>("ConfigMap", command.name, command.namespace)].filter(
@@ -2800,6 +2947,9 @@ export class SimEngine {
       persistentvolumes: "PersistentVolume",
       persistentvolumeclaims: "PersistentVolumeClaim",
       networkpolicies: "NetworkPolicy",
+      resourcequotas: "ResourceQuota",
+      limitranges: "LimitRange",
+      poddisruptionbudgets: "PodDisruptionBudget",
       serviceaccounts: "ServiceAccount",
       roles: "Role",
       rolebindings: "RoleBinding",
@@ -3092,14 +3242,25 @@ export class SimEngine {
     this.#reconcileReplicaSets();
     this.#reconcileStorage();
 
-    for (const pod of this.store.list<Pod>("Pod")) {
+    for (const original of this.store.list<Pod>("Pod")) {
+      let pod = original;
       if (pod.status.phase !== "Pending") {
+        continue;
+      }
+
+      pod = this.#applyLimitRangeDefaults(pod);
+      const quotaError = this.#quotaError(pod);
+      if (quotaError !== undefined) {
+        this.store.upsert({
+          ...pod,
+          status: { ...pod.status, phase: "Pending", message: quotaError },
+        });
         continue;
       }
 
       if (pod.spec.nodeName === undefined) {
         const eligible = readyNodes
-          .filter((candidate) => nodeMatchesPod(candidate, pod))
+          .filter((candidate) => this.#podFitsNode(candidate, pod))
           .sort((left, right) => {
             const leftCount = this.store
               .list<Pod>("Pod")
@@ -3119,7 +3280,7 @@ export class SimEngine {
               message:
                 readyNodes.length === 0
                   ? "0 nodes are available"
-                  : `${readyNodes.length} nodes are available, but none match the Pod's selector or tolerations`,
+                  : `${readyNodes.length} nodes are available, but none match the Pod's selector, affinity, or tolerations`,
             },
           };
           this.store.upsert(unavailable);
@@ -3202,6 +3363,7 @@ export class SimEngine {
     }
 
     this.#updateDeploymentStatuses();
+    this.#reconcilePodDisruptionBudgets();
   }
 
   #reconcilePodHealth(pod: Pod): void {
@@ -3690,6 +3852,12 @@ export class SimEngine {
         ...(template.initContainers === undefined
           ? {}
           : { initContainers: template.initContainers.map((container) => ({ ...container })) }),
+        ...(template.affinity === undefined ? {} : { affinity: template.affinity }),
+        ...(template.topologySpreadConstraints === undefined
+          ? {}
+          : { topologySpreadConstraints: template.topologySpreadConstraints }),
+        ...(template.nodeSelector === undefined ? {} : { nodeSelector: template.nodeSelector }),
+        ...(template.tolerations === undefined ? {} : { tolerations: template.tolerations }),
       },
       status: { phase: "Pending" },
     };
@@ -4013,6 +4181,20 @@ export class SimEngine {
                       ...container,
                     })),
                   }),
+              ...(replicaSet.spec.template.affinity === undefined
+                ? {}
+                : { affinity: replicaSet.spec.template.affinity }),
+              ...(replicaSet.spec.template.topologySpreadConstraints === undefined
+                ? {}
+                : {
+                    topologySpreadConstraints: replicaSet.spec.template.topologySpreadConstraints,
+                  }),
+              ...(replicaSet.spec.template.nodeSelector === undefined
+                ? {}
+                : { nodeSelector: replicaSet.spec.template.nodeSelector }),
+              ...(replicaSet.spec.template.tolerations === undefined
+                ? {}
+                : { tolerations: replicaSet.spec.template.tolerations }),
             },
             status: { phase: "Pending" },
           };
@@ -4135,6 +4317,214 @@ export class SimEngine {
       return false;
     }
     return ports.some((entry) => entry.port === undefined || Number(entry.port) === port);
+  }
+
+  #applyLimitRangeDefaults(pod: Pod): Pod {
+    const limitRanges = this.store.list<KubeLimitRange>("LimitRange", pod.metadata.namespace);
+    if (limitRanges.length === 0) {
+      return pod;
+    }
+    const defaults = limitRanges.flatMap((range) =>
+      range.spec.limits
+        .filter((limit) => limit.type === "Container")
+        .map((limit) => limit.defaultRequest),
+    );
+    const cpu = defaults.find((request) => request?.cpu !== undefined)?.cpu;
+    const memory = defaults.find((request) => request?.memory !== undefined)?.memory;
+    let changed = false;
+    const containers = pod.spec.containers.map((container) => {
+      const requests = container.resources?.requests;
+      if (requests?.cpu !== undefined && requests.memory !== undefined) {
+        return container;
+      }
+      changed = true;
+      return {
+        ...container,
+        resources: {
+          ...container.resources,
+          requests: {
+            ...(requests?.cpu === undefined && cpu !== undefined ? { cpu } : {}),
+            ...(requests?.memory === undefined && memory !== undefined ? { memory } : {}),
+            ...requests,
+          },
+        },
+      };
+    });
+    if (!changed) {
+      return pod;
+    }
+    const updated = { ...pod, spec: { ...pod.spec, containers } };
+    this.store.upsert(updated);
+    return updated;
+  }
+
+  #quotaError(pod: Pod): string | undefined {
+    const pods = this.store
+      .list<Pod>("Pod", pod.metadata.namespace)
+      .filter((candidate) => candidate.status.phase !== "Succeeded");
+    for (const quota of this.store.list<KubeResourceQuota>(
+      "ResourceQuota",
+      pod.metadata.namespace,
+    )) {
+      const hardPods = Number(quota.spec.hard.pods);
+      if (!Number.isNaN(hardPods) && pods.length > hardPods) {
+        return `exceeded quota: ${quota.metadata.name}, requested: pods=${pods.length}, used: ${hardPods}`;
+      }
+      const hardCpu = quota.spec.hard["requests.cpu"];
+      if (hardCpu !== undefined) {
+        const usedCpu = pods.reduce(
+          (sum, candidate) =>
+            sum +
+            candidate.spec.containers.reduce((containerSum, container) => {
+              const cpu = container.resources?.requests?.cpu;
+              return containerSum + (cpu === undefined ? 0 : parseCpuMillis(cpu));
+            }, 0),
+          0,
+        );
+        if (usedCpu > parseCpuMillis(hardCpu)) {
+          return `exceeded quota: ${quota.metadata.name}, requested: requests.cpu=${usedCpu}m`;
+        }
+      }
+      const hardMemory = quota.spec.hard["requests.memory"];
+      if (hardMemory !== undefined) {
+        const usedMemory = pods.reduce(
+          (sum, candidate) =>
+            sum +
+            candidate.spec.containers.reduce((containerSum, container) => {
+              const memory = container.resources?.requests?.memory;
+              return containerSum + (memory === undefined ? 0 : parseMemoryBytes(memory));
+            }, 0),
+          0,
+        );
+        if (usedMemory > parseMemoryBytes(hardMemory)) {
+          return `exceeded quota: ${quota.metadata.name}, requested: requests.memory=${usedMemory}`;
+        }
+      }
+    }
+    return undefined;
+  }
+
+  #podFitsNode(node: KubeNode, pod: Pod): boolean {
+    if (!nodeMatchesPod(node, pod)) {
+      return false;
+    }
+
+    const nodeTerms =
+      pod.spec.affinity?.nodeAffinity?.requiredDuringSchedulingIgnoredDuringExecution
+        ?.nodeSelectorTerms;
+    if (nodeTerms !== undefined) {
+      const matches = nodeTerms.some((term) =>
+        (term.matchExpressions ?? []).every((expression) =>
+          this.#nodeExpressionMatches(node, expression),
+        ),
+      );
+      if (!matches) {
+        return false;
+      }
+    }
+
+    const placed = this.store
+      .list<Pod>("Pod")
+      .filter(
+        (candidate) =>
+          candidate.metadata.name !== pod.metadata.name &&
+          candidate.spec.nodeName !== undefined &&
+          candidate.metadata.namespace === pod.metadata.namespace,
+      );
+    const nodeByName = new Map(
+      this.store.list<KubeNode>("Node").map((candidate) => [candidate.metadata.name, candidate]),
+    );
+    const matchesTerm = (term: { labelSelector?: Record<string, string>; topologyKey: string }) =>
+      placed.some((candidate) => {
+        if (!matchesLabels(candidate.metadata.labels, term.labelSelector ?? {})) {
+          return false;
+        }
+        const candidateNode = nodeByName.get(candidate.spec.nodeName ?? "");
+        return (
+          candidateNode !== undefined &&
+          candidateNode.metadata.labels[term.topologyKey] === node.metadata.labels[term.topologyKey]
+        );
+      });
+
+    for (const term of pod.spec.affinity?.podAffinity
+      ?.requiredDuringSchedulingIgnoredDuringExecution ?? []) {
+      if (!matchesTerm(term)) {
+        return false;
+      }
+    }
+    for (const term of pod.spec.affinity?.podAntiAffinity
+      ?.requiredDuringSchedulingIgnoredDuringExecution ?? []) {
+      if (matchesTerm(term)) {
+        return false;
+      }
+    }
+
+    for (const constraint of pod.spec.topologySpreadConstraints ?? []) {
+      if (constraint.whenUnsatisfiable !== "DoNotSchedule") {
+        continue;
+      }
+      const counts = new Map<string, number>();
+      for (const candidate of placed) {
+        if (!matchesLabels(candidate.metadata.labels, constraint.labelSelector ?? {})) {
+          continue;
+        }
+        const candidateNode = nodeByName.get(candidate.spec.nodeName ?? "");
+        const value = candidateNode?.metadata.labels[constraint.topologyKey] ?? "";
+        counts.set(value, (counts.get(value) ?? 0) + 1);
+      }
+      const candidateValue = node.metadata.labels[constraint.topologyKey] ?? "";
+      const candidateCount = counts.get(candidateValue) ?? 0;
+      const allCounts = [...counts.values()];
+      const min = allCounts.length === 0 ? 0 : Math.min(...allCounts);
+      if (candidateCount >= min + constraint.maxSkew) {
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  #nodeExpressionMatches(node: KubeNode, expression: NodeSelectorRequirement): boolean {
+    const value = node.metadata.labels[expression.key];
+    if (expression.operator === "Exists") {
+      return value !== undefined;
+    }
+    if (expression.operator === "DoesNotExist") {
+      return value === undefined;
+    }
+    const values = expression.values ?? [];
+    return expression.operator === "In"
+      ? value !== undefined && values.includes(value)
+      : value !== undefined && !values.includes(value);
+  }
+
+  #reconcilePodDisruptionBudgets(): void {
+    for (const budget of this.store.list<KubePodDisruptionBudget>("PodDisruptionBudget")) {
+      const pods = this.store
+        .list<Pod>("Pod", budget.metadata.namespace)
+        .filter((pod) => matchesLabels(pod.metadata.labels, budget.spec.selector));
+      const currentHealthy = pods.filter(isPodReady).length;
+      const minAvailable =
+        typeof budget.spec.minAvailable === "string" && budget.spec.minAvailable.endsWith("%")
+          ? Math.ceil((pods.length * Number(budget.spec.minAvailable.slice(0, -1))) / 100)
+          : Number(budget.spec.minAvailable ?? 0);
+      const maxUnavailable =
+        typeof budget.spec.maxUnavailable === "string" && budget.spec.maxUnavailable.endsWith("%")
+          ? Math.floor((pods.length * Number(budget.spec.maxUnavailable.slice(0, -1))) / 100)
+          : Number(budget.spec.maxUnavailable ?? 0);
+      const desiredHealthy =
+        budget.spec.minAvailable !== undefined
+          ? minAvailable
+          : Math.max(0, pods.length - maxUnavailable);
+      this.store.upsert({
+        ...budget,
+        status: {
+          currentHealthy,
+          desiredHealthy,
+          disruptionsAllowed: Math.max(0, currentHealthy - desiredHealthy),
+        },
+      });
+    }
   }
 
   #policiesFor(pod: Pod): KubeNetworkPolicy[] {

@@ -731,6 +731,14 @@ test("observability lessons expose logs, events, and readiness", async ({ page }
   await page.keyboard.type("kubectl get events");
   await page.keyboard.press("Enter");
   await expect(page.locator(".xterm-rows")).toContainText("Started container web");
+  await page.keyboard.type("kubectl logs web -f");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("listening on :8080");
+  await expect(page.locator(".xterm-rows")).toContainText("following logs");
+  await page.keyboard.press("Control+c");
+  await page.keyboard.type("kubectl get pods");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("web");
 
   await page.goto("/lesson/probes-101");
   await page.locator(".xterm-screen").click();

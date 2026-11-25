@@ -110,12 +110,40 @@ export interface ProbeState {
   successes: number;
 }
 
+export interface NodeSelectorRequirement {
+  key: string;
+  operator: "In" | "NotIn" | "Exists" | "DoesNotExist";
+  values?: string[];
+}
+
+export interface PodAffinityTerm {
+  labelSelector?: Record<string, string>;
+  topologyKey: string;
+}
+
+export interface TopologySpreadConstraint {
+  maxSkew: number;
+  topologyKey: string;
+  whenUnsatisfiable: "DoNotSchedule" | "ScheduleAnyway";
+  labelSelector?: Record<string, string>;
+}
+
 export interface Pod extends KubeObject {
   kind: "Pod";
   spec: {
     nodeName?: string;
     nodeSelector?: Record<string, string>;
     securityContext?: PodSecurityContext;
+    affinity?: {
+      nodeAffinity?: {
+        requiredDuringSchedulingIgnoredDuringExecution?: {
+          nodeSelectorTerms: Array<{ matchExpressions?: NodeSelectorRequirement[] }>;
+        };
+      };
+      podAffinity?: { requiredDuringSchedulingIgnoredDuringExecution?: PodAffinityTerm[] };
+      podAntiAffinity?: { requiredDuringSchedulingIgnoredDuringExecution?: PodAffinityTerm[] };
+    };
+    topologySpreadConstraints?: TopologySpreadConstraint[];
     tolerations?: Array<{
       key?: string;
       operator?: string;
@@ -150,6 +178,10 @@ export interface PodTemplate {
   labels: Record<string, string>;
   containers: ContainerSpec[];
   initContainers?: ContainerSpec[];
+  affinity?: Pod["spec"]["affinity"];
+  topologySpreadConstraints?: TopologySpreadConstraint[];
+  nodeSelector?: Record<string, string>;
+  tolerations?: Pod["spec"]["tolerations"];
 }
 
 export interface KubeNamespace extends KubeObject {
@@ -243,6 +275,37 @@ export interface KubeRoleBinding extends KubeObject {
   kind: "RoleBinding";
   roleRef: { kind: string; name: string };
   subjects: Array<{ kind: string; name: string; namespace?: string }>;
+}
+
+export interface KubeResourceQuota extends KubeObject {
+  kind: "ResourceQuota";
+  spec: { hard: Record<string, string> };
+  status: { used?: Record<string, string> };
+}
+
+export interface KubeLimitRange extends KubeObject {
+  kind: "LimitRange";
+  spec: {
+    limits: Array<{
+      type: "Container";
+      default?: { cpu?: string; memory?: string };
+      defaultRequest?: { cpu?: string; memory?: string };
+    }>;
+  };
+}
+
+export interface KubePodDisruptionBudget extends KubeObject {
+  kind: "PodDisruptionBudget";
+  spec: {
+    minAvailable?: number | string;
+    maxUnavailable?: number | string;
+    selector: Record<string, string>;
+  };
+  status: {
+    currentHealthy: number;
+    desiredHealthy: number;
+    disruptionsAllowed: number;
+  };
 }
 
 export interface KubeEvent extends KubeObject {

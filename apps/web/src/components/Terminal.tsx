@@ -9,6 +9,7 @@ import styles from "./terminal.module.scss";
 
 export interface TerminalProps {
   execute: (input: string) => string;
+  follow?: (input: string, write: (line: string) => void) => (() => void) | undefined;
   prompt?: string;
 }
 
@@ -33,12 +34,14 @@ function plainOutput(text: string): string {
   return output;
 }
 
-export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalProps) {
+export function Terminal({ execute, follow, prompt = "kubelab@cluster:~$" }: TerminalProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const executeRef = useRef(execute);
+  const followRef = useRef(follow);
   const promptRef = useRef(prompt);
 
   executeRef.current = execute;
+  followRef.current = follow;
   promptRef.current = prompt;
 
   useEffect(() => {
@@ -95,7 +98,12 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
 
     const promptText = () => `\x1b[38;2;74;217;155m${promptRef.current}\x1b[0m `;
 
+    let stopFollow: (() => void) | undefined;
+
     const render = () => {
+      if (stopFollow !== undefined) {
+        return;
+      }
       const remaining = editor.value.length - editor.cursor;
       terminal.write(
         `\r${promptText()}${editor.value}\x1b[K${remaining > 0 ? `\x1b[${remaining}D` : ""}`,
@@ -138,6 +146,15 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
       editor.reset();
 
       if (input.length > 0) {
+        const followStop = followRef.current?.(input, (line) => {
+          terminal.writeln(plainOutput(line));
+        });
+        if (followStop !== undefined) {
+          stopFollow = followStop;
+          terminal.writeln(plainOutput("[following logs — Ctrl+C to stop]"));
+          return;
+        }
+
         let output: string;
         try {
           output = executeRef.current(input);
@@ -156,6 +173,16 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
     render();
 
     const dataSubscription = terminal.onData((data) => {
+      if (stopFollow !== undefined) {
+        if (data === "\u0003") {
+          stopFollow();
+          stopFollow = undefined;
+          terminal.write("^C\r\n");
+          render();
+        }
+        return;
+      }
+
       if (data === "\x1b[A" || data === "\x1bOA" || data === "\u0010") {
         recall(history.previous(editor.value));
         return;
@@ -271,6 +298,7 @@ export function Terminal({ execute, prompt = "kubelab@cluster:~$" }: TerminalPro
 
     return () => {
       disposed = true;
+      stopFollow?.();
       observer.disconnect();
       dataSubscription.dispose();
       terminal.dispose();
