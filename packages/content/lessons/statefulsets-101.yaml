@@ -35,7 +35,6 @@ checks:
     label: Listed the StatefulSet
     verb: get
     resource: statefulsets
-    name: db
   - type: pod
     label: First ordinal Pod is running
     name: db-0

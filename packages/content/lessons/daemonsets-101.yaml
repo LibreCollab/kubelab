@@ -34,7 +34,6 @@ checks:
     label: Listed the DaemonSet
     verb: get
     resource: daemonsets
-    name: agent
   - type: pod
     label: Agent runs on node-1
     name: agent-node-1

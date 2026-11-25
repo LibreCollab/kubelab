@@ -42,7 +42,6 @@ checks:
     label: Listed the ClusterRole
     verb: get
     resource: clusterroles
-    name: pod-reader
   - type: command
     label: Verified pod access
     verb: auth

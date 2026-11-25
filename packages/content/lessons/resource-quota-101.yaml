@@ -38,7 +38,6 @@ checks:
     label: Listed the quota
     verb: get
     resource: resourcequotas
-    name: team-quota
   - type: command
     label: Inspected the quota
     verb: describe
@@ -48,7 +47,6 @@ checks:
     label: Listed the LimitRange
     verb: get
     resource: limitranges
-    name: defaults
   - type: quiz
     id: q1
     label: Quota scope

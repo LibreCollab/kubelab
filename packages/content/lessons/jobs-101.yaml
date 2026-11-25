@@ -36,7 +36,6 @@ checks:
     label: Listed the Job
     verb: get
     resource: jobs
-    name: migrate
   - type: command
     label: Read the Job
     verb: describe

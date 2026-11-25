@@ -654,6 +654,7 @@ test("workload and governance lessons are interactive", async ({ page }) => {
   await page.keyboard.type("kubectl get jobs");
   await page.keyboard.press("Enter");
   await expect(page.locator(".xterm-rows")).toContainText("migrate");
+  await expect(page.locator('[data-check="Listed the Job"]')).toHaveAttribute("data-state", "pass");
   await page.keyboard.type("kubectl describe job migrate");
   await page.keyboard.press("Enter");
   await expect(page.locator(".xterm-rows")).toContainText("migrate");
@@ -663,6 +664,10 @@ test("workload and governance lessons are interactive", async ({ page }) => {
   await page.keyboard.type("kubectl get statefulsets");
   await page.keyboard.press("Enter");
   await expect(page.locator(".xterm-rows")).toContainText("db");
+  await expect(page.locator('[data-check="Listed the StatefulSet"]')).toHaveAttribute(
+    "data-state",
+    "pass",
+  );
   expect(pageErrors).toEqual([]);
 });
 

@@ -65,7 +65,6 @@ checks:
     label: Listed the PDB
     verb: get
     resource: poddisruptionbudgets
-    name: web
   - type: command
     label: Inspected allowed disruptions
     verb: describe
