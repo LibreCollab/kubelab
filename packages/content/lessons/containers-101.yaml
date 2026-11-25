@@ -14,7 +14,20 @@ scenario:
   objects: []
 objectives:
   - Image vs container
+  - Run a Pod from an image
 checks:
+  - type: pod
+    label: Running nginx Pod
+    name: web
+    image: nginx
+    labels:
+      app: web
+    phase: Running
+  - type: command
+    label: Verified the Pod
+    verb: get
+    resource: pods
+    name: web
   - type: quiz
     id: q1
     label: Image vs container
@@ -25,5 +38,6 @@ checks:
       - They are the same thing
     answer: 0
 hints:
-  - Re-read the theory card and eliminate one option at a time.
-solution: An image is the template; a container is a running instance.
+  - "Run it: kubectl run web --image=nginx --labels=app=web"
+  - "Check it: kubectl get pod web"
+solution: Run web from nginx with app=web, then verify it reaches Running.

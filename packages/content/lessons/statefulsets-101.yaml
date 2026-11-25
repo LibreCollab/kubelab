@@ -1,0 +1,56 @@
+id: statefulsets-101
+unit: workloads
+title: StatefulSets and ordinals
+xp: 10
+order: 6
+strict: true
+prereqs: [deployments-101]
+theory: ./statefulsets-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: apps/v1
+      kind: StatefulSet
+      metadata:
+        name: db
+      spec:
+        replicas: 2
+        serviceName: db
+        template:
+          labels:
+            app: db
+          containers:
+            - name: db
+              image: postgres
+      status:
+        replicas: 0
+        readyReplicas: 0
+objectives:
+  - Stable Pod identity
+checks:
+  - type: command
+    label: Listed the StatefulSet
+    verb: get
+    resource: statefulsets
+    name: db
+  - type: pod
+    label: First ordinal Pod is running
+    name: db-0
+    image: postgres
+    phase: Running
+  - type: quiz
+    id: q1
+    label: Pod identity
+    question: Which Pod name does a StatefulSet named db create first?
+    options:
+      - db-0
+      - db-a
+      - db-random
+    answer: 0
+hints:
+  - "List it: kubectl get statefulsets"
+  - "Pods are ordinal: kubectl get pods"
+solution: StatefulSets create stable ordinal Pod names such as db-0 and db-1.

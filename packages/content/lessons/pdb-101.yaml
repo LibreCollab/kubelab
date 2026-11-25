@@ -1,0 +1,86 @@
+id: pdb-101
+unit: scheduling
+title: PodDisruptionBudgets
+xp: 10
+order: 3
+strict: true
+prereqs: [deployments-101]
+theory: ./pdb-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web-1
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.0.101
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web-2
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.0.102
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: policy/v1
+      kind: PodDisruptionBudget
+      metadata:
+        name: web
+      spec:
+        minAvailable: 2
+        selector:
+          app: web
+      status:
+        currentHealthy: 0
+        desiredHealthy: 0
+        disruptionsAllowed: 0
+objectives:
+  - Disruption budget
+checks:
+  - type: command
+    label: Listed the PDB
+    verb: get
+    resource: poddisruptionbudgets
+    name: web
+  - type: command
+    label: Inspected allowed disruptions
+    verb: describe
+    resource: poddisruptionbudgets
+    name: web
+  - type: quiz
+    id: q1
+    label: PDB meaning
+    question: What does a PDB constrain?
+    options:
+      - Voluntary disruptions
+      - Image pulls
+      - DNS records
+    answer: 0
+hints:
+  - "List it: kubectl get pdb"
+  - "Inspect it: kubectl describe pdb web"
+solution: The PDB keeps at least two ready Pods before allowing voluntary disruption.

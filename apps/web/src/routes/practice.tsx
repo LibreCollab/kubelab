@@ -47,6 +47,14 @@ export function PracticePage() {
   }, []);
 
   const item = items[index];
+  const weakDomains = [
+    ...labAttempts
+      .flatMap((attempt) => attempt.taskResults.filter((task) => !task.passed))
+      .reduce((counts, task) => {
+        counts.set(task.unit, (counts.get(task.unit) ?? 0) + 1);
+        return counts;
+      }, new Map<string, number>()),
+  ].sort((left, right) => right[1] - left[1]);
 
   const submit = () => {
     if (item === undefined || selected === undefined) {
@@ -131,6 +139,19 @@ export function PracticePage() {
               <span>{new Date(attempt.completedAt).toLocaleDateString()}</span>
             </div>
           ))}
+        </section>
+      ) : null}
+
+      {weakDomains.length > 0 ? (
+        <section className={styles.history}>
+          <h2>Weak lab domains</h2>
+          <div className={styles.historyRow}>
+            {weakDomains.map(([unit, count]) => (
+              <span key={unit}>
+                #{unit} × {count}
+              </span>
+            ))}
+          </div>
         </section>
       ) : null}
 

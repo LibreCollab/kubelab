@@ -1,0 +1,98 @@
+id: tls-ingress-101
+unit: services
+title: TLS Ingress
+xp: 10
+order: 4
+strict: true
+prereqs: [ingress-101]
+theory: ./tls-ingress-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Running
+        podIP: 10.244.0.110
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: client
+      spec:
+        nodeName: node-1
+        containers:
+          - name: client
+            image: curlimages/curl
+      status:
+        phase: Running
+        podIP: 10.244.0.111
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        name: web
+      spec:
+        type: ClusterIP
+        selector:
+          app: web
+        ports:
+          - port: 80
+            targetPort: 80
+        clusterIP: 10.96.0.110
+    - apiVersion: networking.k8s.io/v1
+      kind: Ingress
+      metadata:
+        name: shop
+      spec:
+        rules:
+          - host: shop.example.com
+            path: /
+            serviceName: web
+            servicePort: 80
+        tls:
+          - hosts:
+              - shop.example.com
+            secretName: shop-tls
+objectives:
+  - TLS termination
+checks:
+  - type: command
+    label: Inspected the Ingress
+    verb: get
+    resource: ingresses
+    name: shop
+  - type: command
+    label: Tested HTTPS routing
+    verb: exec
+    name: client
+    command: curl
+  - type: quiz
+    id: q1
+    label: TLS Ingress
+    question: What does the Ingress TLS section bind to?
+    options:
+      - Host names and a TLS Secret
+      - Pod IPs only
+      - Node ports
+    answer: 0
+hints:
+  - "Inspect it: kubectl get ingress shop"
+  - "Test it: kubectl exec client -- curl https://shop.example.com"
+solution: The TLS host routes HTTPS to the web Service through the Ingress.

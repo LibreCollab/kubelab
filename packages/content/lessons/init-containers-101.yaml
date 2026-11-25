@@ -1,0 +1,60 @@
+id: init-containers-101
+unit: workloads
+title: Init containers
+xp: 10
+order: 8
+strict: true
+prereqs: [pods-101]
+theory: ./init-containers-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        initContainers:
+          - name: prepare
+            image: busybox
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Pending
+objectives:
+  - Init sequencing
+checks:
+  - type: command
+    label: Checked the Pod
+    verb: get
+    resource: pods
+    name: web
+  - type: command
+    label: Read init progress
+    verb: describe
+    resource: pods
+    name: web
+  - type: pod
+    label: App container is running
+    name: web
+    image: nginx
+    phase: Running
+  - type: quiz
+    id: q1
+    label: Init ordering
+    question: When do application containers start?
+    options:
+      - After all init containers succeed
+      - Before init containers
+      - At the same time as init containers
+    answer: 0
+hints:
+  - "Inspect it: kubectl get pod web"
+  - "Explain it: kubectl describe pod web"
+solution: Init containers run in order before the app container starts.

@@ -132,6 +132,8 @@ export interface CertificationExam {
   passingScore: number;
   questions: ExamQuestion[];
   labs: Array<{ lessonId: string; lessonTitle: string }>;
+  taskCount: number;
+  taskPool: ExamTask[];
   tasks: ExamTask[];
 }
 
@@ -416,15 +418,90 @@ const taskSpecs: Record<string, Array<{ lessonId: string; instruction: string }>
   ],
 };
 
+const additionalTaskSpecs: Record<
+  string,
+  Array<{ lessonId: string; instruction: string; checks?: LessonCheck[] }>
+> = {
+  kcna: [
+    {
+      lessonId: "logs-events-101",
+      instruction: "Inspect the web Pod logs and the recent cluster events.",
+    },
+    {
+      lessonId: "nodes-101",
+      instruction: "Inspect node readiness, labels, and the Pod placement on node-1.",
+    },
+  ],
+  kcsa: [
+    {
+      lessonId: "secrets-101",
+      instruction: "Inspect the db-secret keys and the Deployment that consumes it.",
+    },
+    {
+      lessonId: "ingress-101",
+      instruction: "Inspect the Ingress rule and the Service backend it targets.",
+    },
+  ],
+  cka: [
+    {
+      lessonId: "probes-101",
+      instruction:
+        "Diagnose the failing readiness probe, its endpoint state, and the warning event.",
+    },
+    {
+      lessonId: "network-policy-101",
+      instruction: "Inspect the default-deny NetworkPolicy and confirm which Pods it selects.",
+    },
+  ],
+  ckad: [
+    {
+      lessonId: "autoscaling-101",
+      instruction: "Inspect the HPA target, current utilization, and the Deployment it scales.",
+    },
+    {
+      lessonId: "secrets-101",
+      instruction: "Inspect the Secret and verify the Deployment receives the injected value.",
+    },
+  ],
+  cks: [
+    {
+      lessonId: "secrets-101",
+      instruction: "Inspect the Secret data keys and the consuming Deployment environment.",
+    },
+    {
+      lessonId: "ingress-101",
+      instruction: "Inspect the Ingress backend and verify routing from the client Pod.",
+    },
+  ],
+};
+
+const allTaskSpecs = Object.fromEntries(
+  Object.entries(taskSpecs).map(([track, specs]) => [
+    track,
+    [...specs, ...(additionalTaskSpecs[track] ?? [])],
+  ]),
+) as Record<string, Array<{ lessonId: string; instruction: string; checks?: LessonCheck[] }>>;
+
+const taskCounts: Record<string, number> = { kcna: 3, kcsa: 3, cka: 5, ckad: 5, cks: 5 };
+
+function questionSortKey(trackId: string, questionId: string): number {
+  let hash = 2166136261;
+  for (const value of `${trackId}:${questionId}`) {
+    hash ^= value.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return hash >>> 0;
+}
+
 function buildTask(
   trackId: string,
-  spec: { lessonId: string; instruction: string },
+  spec: { lessonId: string; instruction: string; checks?: LessonCheck[] },
 ): ExamTask | undefined {
   const lesson = lessonsById.get(spec.lessonId);
   if (lesson === undefined) {
     return undefined;
   }
-  const checks = lesson.checks.filter((check) => check.type !== "quiz");
+  const checks = (spec.checks ?? lesson.checks).filter((check) => check.type !== "quiz");
   if (checks.length === 0) {
     return undefined;
   }
@@ -444,8 +521,12 @@ export const certificationExams: CertificationExam[] = certificationTracks.map((
   const allowedUnits = new Set(examUnits[track.id] ?? []);
   const questions = [...extraExamQuestions, ...examPool]
     .filter((question) => allowedUnits.has(question.unit))
-    .sort((left, right) => left.id.localeCompare(right.id))
+    .sort((left, right) => questionSortKey(track.id, left.id) - questionSortKey(track.id, right.id))
     .slice(0, 10);
+  const taskPool = (allTaskSpecs[track.id] ?? [])
+    .map((spec) => buildTask(track.id, spec))
+    .filter((task): task is ExamTask => task !== undefined);
+  const taskCount = taskCounts[track.id] ?? 3;
 
   return {
     id: track.id,
@@ -460,9 +541,9 @@ export const certificationExams: CertificationExam[] = certificationTracks.map((
         lessonId: question.lessonId,
         lessonTitle: question.lessonTitle,
       })),
-    tasks: (taskSpecs[track.id] ?? [])
-      .map((spec) => buildTask(track.id, spec))
-      .filter((task): task is ExamTask => task !== undefined),
+    taskCount,
+    taskPool,
+    tasks: taskPool.slice(0, taskCount),
   };
 });
 

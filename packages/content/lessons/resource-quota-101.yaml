@@ -1,0 +1,64 @@
+id: resource-quota-101
+unit: scheduling
+title: ResourceQuota and LimitRange
+xp: 10
+order: 4
+strict: true
+prereqs: [pods-101]
+theory: ./resource-quota-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: LimitRange
+      metadata:
+        name: defaults
+      spec:
+        limits:
+          - type: Container
+            defaultRequest:
+              cpu: 100m
+              memory: 64Mi
+    - apiVersion: v1
+      kind: ResourceQuota
+      metadata:
+        name: team-quota
+      spec:
+        hard:
+          pods: "2"
+          requests.cpu: "1"
+      status: {}
+objectives:
+  - Namespace quotas
+checks:
+  - type: command
+    label: Listed the quota
+    verb: get
+    resource: resourcequotas
+    name: team-quota
+  - type: command
+    label: Inspected the quota
+    verb: describe
+    resource: resourcequotas
+    name: team-quota
+  - type: command
+    label: Listed the LimitRange
+    verb: get
+    resource: limitranges
+    name: defaults
+  - type: quiz
+    id: q1
+    label: Quota scope
+    question: What does a ResourceQuota limit?
+    options:
+      - Aggregate namespace consumption
+      - One container's image size
+      - Node count only
+    answer: 0
+hints:
+  - "Quota: kubectl get resourcequota"
+  - "Defaults: kubectl get limitrange"
+solution: The quota caps aggregate namespace Pods and CPU requests.

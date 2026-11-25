@@ -1,0 +1,72 @@
+id: affinity-101
+unit: scheduling
+title: Affinity and topology
+xp: 10
+order: 5
+strict: true
+prereqs: [scheduling-101]
+theory: ./affinity-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+      labels:
+        topology.kubernetes.io/zone: a
+    - name: node-2
+      cpu: "4"
+      memory: 8Gi
+      labels:
+        topology.kubernetes.io/zone: b
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        affinity:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                    - key: topology.kubernetes.io/zone
+                      operator: In
+                      values: [b]
+        containers:
+          - name: web
+            image: nginx
+      status:
+        phase: Pending
+objectives:
+  - Affinity placement
+checks:
+  - type: command
+    label: Checked the Pod
+    verb: get
+    resource: pods
+    name: web
+  - type: command
+    label: Read the placement
+    verb: describe
+    resource: pods
+    name: web
+  - type: pod
+    label: Pod scheduled successfully
+    name: web
+    image: nginx
+    phase: Running
+  - type: quiz
+    id: q1
+    label: Required affinity
+    question: What happens when no node matches required node affinity?
+    options:
+      - The Pod stays Pending
+      - The scheduler ignores it
+      - The Pod runs on the control plane
+    answer: 0
+hints:
+  - "Check it: kubectl get pod web"
+  - "Read Node: in describe output"
+solution: Required node affinity places the Pod in zone b, on node-2.

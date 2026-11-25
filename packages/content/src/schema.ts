@@ -152,6 +152,8 @@ const scenarioObjectSchema = z
     kind: z.enum([
       "Application",
       "ConfigMap",
+      "ClusterRole",
+      "ClusterRoleBinding",
       "CronJob",
       "DaemonSet",
       "Deployment",

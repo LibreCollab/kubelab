@@ -1,0 +1,55 @@
+id: daemonsets-101
+unit: workloads
+title: DaemonSets
+xp: 10
+order: 7
+strict: true
+prereqs: [pods-101]
+theory: ./daemonsets-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: apps/v1
+      kind: DaemonSet
+      metadata:
+        name: agent
+      spec:
+        template:
+          labels:
+            app: agent
+          containers:
+            - name: agent
+              image: busybox
+      status:
+        desiredNumberScheduled: 0
+        currentNumberScheduled: 0
+        numberReady: 0
+objectives:
+  - One Pod per node
+checks:
+  - type: command
+    label: Listed the DaemonSet
+    verb: get
+    resource: daemonsets
+    name: agent
+  - type: pod
+    label: Agent runs on node-1
+    name: agent-node-1
+    image: busybox
+    phase: Running
+  - type: quiz
+    id: q1
+    label: DaemonSet placement
+    question: Where does a DaemonSet run its Pods?
+    options:
+      - One Pod on every eligible node
+      - Exactly one Pod per cluster
+      - Only on the control plane
+    answer: 0
+hints:
+  - "List it: kubectl get daemonsets"
+  - "Inspect placement: kubectl get pods -o wide"
+solution: A DaemonSet maintains one Pod per eligible node.

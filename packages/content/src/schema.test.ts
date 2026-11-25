@@ -32,6 +32,11 @@ describe("content", () => {
     const coreUnits = units.filter((unit) => unit.number <= 12);
     expect(coreUnits.every((unit) => unit.lessons.length > 0)).toBe(true);
     expect(certificationTracks.every((track) => track.lessons.length > 0)).toBe(true);
-    expect(lessons.length).toBeGreaterThanOrEqual(30);
+    expect(lessons.length).toBeGreaterThanOrEqual(40);
+    expect(
+      lessons
+        .filter((lesson) => lesson.unit !== "certification")
+        .every((lesson) => lesson.checks.some((check) => check.type !== "quiz")),
+    ).toBe(true);
   });
 });

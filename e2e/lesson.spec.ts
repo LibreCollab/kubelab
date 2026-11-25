@@ -42,6 +42,11 @@ test("progress persists and unlocks the next lesson", async ({ page }) => {
   );
 
   await page.getByRole("link", { name: "Start the first lesson", exact: true }).click();
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl run web --image=nginx --labels=app=web");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("kubectl get pod web");
+  await page.keyboard.press("Enter");
   await page.getByLabel("An image is the template; a container is a running instance").check();
 
   await expect(page.getByText("Lesson complete")).toBeVisible();
@@ -99,22 +104,21 @@ test("roadmap exposes core units and certification tracks", async ({ page }) => 
 
 test("knowledge checks complete a theory lesson", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
-  await page.goto("/lesson/containers-101");
+  await page.goto("/lesson/kcna-readiness");
 
-  await expect(page.getByRole("heading", { name: "Containers, images, and Pods" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "KCNA readiness" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Pause clock" })).toHaveCount(0);
   await expect(page.getByTestId("terminal-panel")).toHaveCount(0);
-  await expect(page.locator('[data-check="Image vs container"]')).toHaveAttribute(
+  await expect(page.locator('[data-check="Pod definition"]')).toHaveAttribute(
     "data-state",
     "pending",
   );
 
-  await page.getByLabel("An image is the template; a container is a running instance").check();
+  await page.getByLabel("The smallest deployable unit").check();
+  await page.getByLabel("kube-scheduler").check();
+  await page.getByLabel("Kubernetes and cloud native fundamentals").check();
 
-  await expect(page.locator('[data-check="Image vs container"]')).toHaveAttribute(
-    "data-state",
-    "pass",
-  );
+  await expect(page.locator('[data-check="Pod definition"]')).toHaveAttribute("data-state", "pass");
   await expect(page.locator('[data-feedback="pass"]')).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
@@ -506,12 +510,12 @@ test("hands-on certification lab starts and reviews tasks", async ({ page }) => 
   await page.goto("/lab-exam/cka");
 
   await expect(page.getByRole("heading", { name: "CKA lab" })).toBeVisible();
-  await expect(page.getByText("3 tasks")).toBeVisible();
+  await expect(page.getByText("5 tasks")).toBeVisible();
   await page.getByRole("button", { name: "Start lab" }).click();
   await expect(page.getByRole("button", { name: /Task 1/ })).toBeVisible();
   await expect(page.locator(".xterm-screen")).toBeVisible();
   await page.getByRole("button", { name: "Submit lab exam" }).click();
-  await expect(page.getByText("Tasks incomplete")).toBeVisible();
+  await expect(page.getByText("Not passed")).toBeVisible();
   await expect(page.getByRole("heading", { name: "Deployments and rollouts" })).toBeVisible();
   await page.getByRole("link", { name: "Practice missed questions" }).click();
   await expect(page.getByText("CKA hands-on")).toBeVisible();
@@ -640,6 +644,25 @@ test("storage lessons expose PVC and StorageClass state", async ({ page }) => {
   await page.keyboard.type("kubectl describe pvc cache");
   await page.keyboard.press("Enter");
   await expect(page.locator(".xterm-rows")).toContainText("fast");
+  expect(pageErrors).toEqual([]);
+});
+
+test("workload and governance lessons are interactive", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/lesson/jobs-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get jobs");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("migrate");
+  await page.keyboard.type("kubectl describe job migrate");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("migrate");
+
+  await page.goto("/lesson/statefulsets-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl get statefulsets");
+  await page.keyboard.press("Enter");
+  await expect(page.locator(".xterm-rows")).toContainText("db");
   expect(pageErrors).toEqual([]);
 });
 

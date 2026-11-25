@@ -1,0 +1,57 @@
+id: jobs-101
+unit: workloads
+title: Jobs and batch work
+xp: 10
+order: 5
+strict: true
+prereqs: [pods-101]
+theory: ./jobs-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: batch/v1
+      kind: Job
+      metadata:
+        name: migrate
+      spec:
+        completions: 1
+        parallelism: 1
+        template:
+          labels:
+            app: migrate
+          containers:
+            - name: migrate
+              image: busybox
+      status:
+        active: 0
+        succeeded: 0
+        failed: 0
+objectives:
+  - Job completion
+checks:
+  - type: command
+    label: Listed the Job
+    verb: get
+    resource: jobs
+    name: migrate
+  - type: command
+    label: Read the Job
+    verb: describe
+    resource: jobs
+    name: migrate
+  - type: quiz
+    id: q1
+    label: Job vs Deployment
+    question: What does a Job guarantee?
+    options:
+      - A fixed number of successful completions
+      - Continuous replica availability
+      - A stable network identity
+    answer: 0
+hints:
+  - "List it: kubectl get jobs"
+  - "Inspect it: kubectl describe job migrate"
+solution: A Job runs Pods until the requested completions succeed.

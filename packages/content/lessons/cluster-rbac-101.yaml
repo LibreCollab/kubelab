@@ -1,0 +1,64 @@
+id: cluster-rbac-101
+unit: security
+title: Cluster-scoped RBAC
+xp: 10
+order: 3
+strict: true
+prereqs: [rbac-101]
+theory: ./cluster-rbac-101.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: deploy-bot
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: pod-reader
+      rules:
+        - apiGroups: [""]
+          resources: [pods]
+          verbs: [get, list]
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: read-pods
+      roleRef:
+        kind: ClusterRole
+        name: pod-reader
+      subjects:
+        - kind: ServiceAccount
+          name: deploy-bot
+          namespace: default
+objectives:
+  - Cluster RBAC
+checks:
+  - type: command
+    label: Listed the ClusterRole
+    verb: get
+    resource: clusterroles
+    name: pod-reader
+  - type: command
+    label: Verified pod access
+    verb: auth
+    subjectVerb: list
+    subjectResource: pods
+    as: system:serviceaccount:default:deploy-bot
+  - type: quiz
+    id: q1
+    label: ClusterRole scope
+    question: What can a ClusterRole grant?
+    options:
+      - Permissions across namespaces
+      - Only a single Pod
+      - Only node labels
+    answer: 0
+hints:
+  - "List roles: kubectl get clusterroles"
+  - "Test: kubectl auth can-i list pods --as=system:serviceaccount:default:deploy-bot"
+solution: The ClusterRoleBinding grants deploy-bot read access across namespaces.

@@ -95,7 +95,7 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
 
 ## Current scaffold
 
-- 34 lessons across 12 core units plus 5 certification readiness checks:
+- 43 lessons across 12 core units plus 5 certification readiness checks:
   interactive terminal lessons through Pods, Deployments, Services, DNS, Ingress,
   ConfigMaps, Secrets, Storage, Scheduling, Networking, RBAC, Observability, Helm,
   Kustomize, GitOps, and operators.

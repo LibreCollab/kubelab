@@ -58,7 +58,7 @@ function taskChecks(runtime: TaskRuntime): CheckResult[] {
   });
 }
 
-function scoreTasks(runtimes: TaskRuntime[]): LabResult {
+function scoreTasks(runtimes: TaskRuntime[], passingScore: number): LabResult {
   const taskResults = runtimes.map((runtime) => {
     const checks = taskChecks(runtime);
     const passedChecks = checks.filter((check) => check.pass).length;
@@ -78,7 +78,7 @@ function scoreTasks(runtimes: TaskRuntime[]): LabResult {
 
   return {
     percent,
-    passed: taskResults.every((task) => task.passed),
+    passed: percent >= passingScore,
     passedChecks,
     totalChecks,
     taskResults,
@@ -97,9 +97,7 @@ function LabReview({ result }: { result: LabResult }) {
         aria-live="polite"
       >
         <div>
-          <span className={styles.eyebrow}>
-            {result.passed ? "All tasks passed" : "Tasks incomplete"}
-          </span>
+          <span className={styles.eyebrow}>{result.passed ? "Passed" : "Not passed"}</span>
           <strong>{result.percent}%</strong>
           <p>
             {result.passedChecks}/{result.totalChecks} checkpoint checks passed
@@ -151,14 +149,14 @@ export function LabExamPage() {
   const [result, setResult] = useState<LabResult | null>(null);
   const [runKey, setRunKey] = useState(0);
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
-  const durationSeconds = (exam?.tasks.length ?? 0) * 15 * 60;
+  const durationSeconds = (exam?.taskCount ?? 0) * 15 * 60;
   const orderedTasks = useMemo(
     () =>
       exam === undefined
         ? []
-        : [...exam.tasks].sort(
-            (left, right) => taskSortKey(left.id, runKey) - taskSortKey(right.id, runKey),
-          ),
+        : [...exam.taskPool]
+            .sort((left, right) => taskSortKey(left.id, runKey) - taskSortKey(right.id, runKey))
+            .slice(0, exam.taskCount),
     [exam, runKey],
   );
 
@@ -195,7 +193,7 @@ export function LabExamPage() {
     if (phase !== "running") {
       return;
     }
-    const next = scoreTasks(runtimes);
+    const next = scoreTasks(runtimes, exam?.passingScore ?? 70);
     runtimes.forEach((runtime) => {
       runtime.engine.pause();
     });
@@ -209,7 +207,7 @@ export function LabExamPage() {
       passed: next.passed,
       taskResults: next.taskResults.map(({ checks: _checks, ...task }) => task),
     });
-  }, [exam?.id, phase, runtimes, trackId]);
+  }, [exam?.id, exam?.passingScore, phase, runtimes, trackId]);
 
   useEffect(() => {
     if (phase !== "running") {
@@ -295,7 +293,7 @@ export function LabExamPage() {
           <p>{exam.description}</p>
         </div>
         <div className={styles.examMeta}>
-          <span>{exam.tasks.length} tasks</span>
+          <span>{exam.taskCount} tasks</span>
           <span>{Math.round(durationSeconds / 60)} min</span>
           <span>{completedTasks} complete</span>
         </div>
@@ -311,7 +309,7 @@ export function LabExamPage() {
           <Button onClick={start}>Start lab</Button>
           <div className={styles.labs}>
             <span className={styles.labLabel}>Tasks</span>
-            {exam.tasks.map((task) => (
+            {exam.taskPool.map((task) => (
               <span key={task.id}>{task.title}</span>
             ))}
           </div>
