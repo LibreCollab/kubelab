@@ -63,7 +63,7 @@ function ExamRunner({
   onFinish,
 }: {
   exam: CertificationExam;
-  onFinish: (answers: Record<string, number>) => void;
+  onFinish: (answers: Record<string, number>) => void | Promise<void>;
 }) {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [page, setPage] = useState(0);
@@ -256,12 +256,12 @@ export function ExamPage() {
     );
   }
 
-  const finish = (nextAnswers: Record<string, number>) => {
+  const finish = async (nextAnswers: Record<string, number>) => {
     const graded = gradeExam(exam, nextAnswers);
+    await saveExamAttempt(exam, nextAnswers, graded).catch(() => undefined);
     setAnswers(nextAnswers);
     setResult(graded);
     setPhase("review");
-    void saveExamAttempt(exam, nextAnswers, graded);
   };
 
   const retake = () => {

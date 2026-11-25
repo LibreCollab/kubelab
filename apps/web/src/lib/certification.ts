@@ -85,20 +85,22 @@ export async function saveExamAttempt(
     answers,
     weakUnits: result.weakUnits,
   };
-  const id = await progressDb.examAttempts.add(attempt);
+  const existingCards = await progressDb.reviewCards.bulkGet(
+    exam.questions.map((question) => question.id),
+  );
+  const cards: ReviewCard[] = [];
+  const now = Date.now();
 
-  for (const question of exam.questions) {
+  exam.questions.forEach((question, index) => {
     const correct = answers[question.id] === question.answer;
-    const card = await progressDb.reviewCards.get(question.id);
+    const card = existingCards[index];
     if (correct && card === undefined) {
-      continue;
+      return;
     }
-
-    const now = Date.now();
     const intervalDays = correct
       ? (INTERVALS[Math.min((card?.lapses ?? 0) + 1, INTERVALS.length - 1)] ?? 1)
       : 0;
-    await progressDb.reviewCards.put({
+    cards.push({
       id: question.id,
       trackId: exam.id,
       questionId: question.id,
@@ -106,9 +108,15 @@ export async function saveExamAttempt(
       intervalDays,
       lapses: correct ? (card?.lapses ?? 0) : (card?.lapses ?? 0) + 1,
     });
-  }
+  });
 
-  return id;
+  return progressDb.transaction("rw", progressDb.examAttempts, progressDb.reviewCards, async () => {
+    const id = await progressDb.examAttempts.add(attempt);
+    if (cards.length > 0) {
+      await progressDb.reviewCards.bulkPut(cards);
+    }
+    return id;
+  });
 }
 
 export async function dueReviewCards(now = Date.now()): Promise<ReviewCard[]> {
