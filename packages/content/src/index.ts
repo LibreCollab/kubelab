@@ -1,5 +1,6 @@
 import { parse } from "yaml";
 
+import { certificationTaskSeeds } from "./certification-tasks";
 import {
   type CertificationTrackDefinition,
   certificationTrackDefinitions,
@@ -312,6 +313,187 @@ const extraExamQuestions: ExamQuestion[] = [
     unit: "workloads",
     label: "Rollout status",
   },
+  {
+    id: "cert:job-completions",
+    prompt: "Which Job field sets the target number of successful Pods?",
+    options: ["parallelism", "completions", "backoffLimit", "activeDeadlineSeconds"],
+    answer: 1,
+    lessonId: "jobs-101",
+    lessonTitle: "Jobs and batch work",
+    unit: "workloads",
+    label: "Job completions",
+  },
+  {
+    id: "cert:statefulset-ordinal",
+    prompt: "Which Pod does a StatefulSet named db create first?",
+    options: ["db-0", "db-1", "db-a", "db-random"],
+    answer: 0,
+    lessonId: "statefulsets-101",
+    lessonTitle: "StatefulSets and ordinals",
+    unit: "workloads",
+    label: "Ordinal Pod names",
+  },
+  {
+    id: "cert:daemonset-placement",
+    prompt: "Where does a DaemonSet place its Pods?",
+    options: [
+      "One per eligible node",
+      "One per cluster",
+      "Only on the control plane",
+      "Only where nodeName is set",
+    ],
+    answer: 0,
+    lessonId: "daemonsets-101",
+    lessonTitle: "DaemonSets",
+    unit: "workloads",
+    label: "DaemonSet placement",
+  },
+  {
+    id: "cert:init-ordering",
+    prompt: "When do application containers start relative to init containers?",
+    options: [
+      "Before init containers",
+      "After all init containers succeed",
+      "At the same time",
+      "Only after a liveness probe",
+    ],
+    answer: 1,
+    lessonId: "init-containers-101",
+    lessonTitle: "Init containers",
+    unit: "workloads",
+    label: "Init ordering",
+  },
+  {
+    id: "cert:pdb",
+    prompt: "What does a PodDisruptionBudget constrain?",
+    options: ["Voluntary disruptions", "Image pulls", "DNS records", "PersistentVolume size"],
+    answer: 0,
+    lessonId: "pdb-101",
+    lessonTitle: "PodDisruptionBudgets",
+    unit: "scheduling",
+    label: "Disruption budgets",
+  },
+  {
+    id: "cert:quota",
+    prompt: "What does a ResourceQuota limit?",
+    options: [
+      "Aggregate namespace consumption",
+      "Node count only",
+      "One image size",
+      "Ingress hosts",
+    ],
+    answer: 0,
+    lessonId: "resource-quota-101",
+    lessonTitle: "ResourceQuota and LimitRange",
+    unit: "scheduling",
+    label: "Resource quotas",
+  },
+  {
+    id: "cert:limitrange",
+    prompt: "What does a LimitRange defaultRequest do?",
+    options: [
+      "Sets a container request when omitted",
+      "Deletes the Pod",
+      "Sets the image tag",
+      "Creates a Service",
+    ],
+    answer: 0,
+    lessonId: "resource-quota-101",
+    lessonTitle: "ResourceQuota and LimitRange",
+    unit: "scheduling",
+    label: "LimitRange defaults",
+  },
+  {
+    id: "cert:required-affinity",
+    prompt: "What happens when no node matches required node affinity?",
+    options: [
+      "The Pod stays Pending",
+      "The scheduler ignores it",
+      "The Pod runs on any node",
+      "The Pod is deleted",
+    ],
+    answer: 0,
+    lessonId: "affinity-101",
+    lessonTitle: "Affinity and topology",
+    unit: "scheduling",
+    label: "Required affinity",
+  },
+  {
+    id: "cert:tls-ingress",
+    prompt: "What does an Ingress TLS section bind?",
+    options: ["Hosts to a TLS Secret", "Pod IPs to nodes", "PVCs to PVs", "Roles to users"],
+    answer: 0,
+    lessonId: "tls-ingress-101",
+    lessonTitle: "TLS Ingress",
+    unit: "services",
+    label: "TLS hosts",
+  },
+  {
+    id: "cert:clusterrole",
+    prompt: "What scope does a ClusterRole have?",
+    options: ["Cluster-wide", "One Pod only", "One container only", "One node only"],
+    answer: 0,
+    lessonId: "cluster-rbac-101",
+    lessonTitle: "Cluster-scoped RBAC",
+    unit: "security",
+    label: "ClusterRole scope",
+  },
+  {
+    id: "cert:startup-probe",
+    prompt: "What is the purpose of a startup probe?",
+    options: [
+      "Delay readiness/liveness until the app starts",
+      "Restart the node",
+      "Scale the Deployment",
+      "Create a Service",
+    ],
+    answer: 0,
+    lessonId: "probes-101",
+    lessonTitle: "Probes and health",
+    unit: "observability",
+    label: "Startup probes",
+  },
+  {
+    id: "cert:external-hpa",
+    prompt: "Which HPA metric type reads a value outside the cluster resource metrics?",
+    options: ["External", "Resource", "ContainerResource", "ObjectName"],
+    answer: 0,
+    lessonId: "autoscaling-101",
+    lessonTitle: "Horizontal autoscaling",
+    unit: "scheduling",
+    label: "External metrics",
+  },
+  {
+    id: "cert:kustomize-patch",
+    prompt: "Which Kustomize field applies a strategic merge patch file?",
+    options: ["patchesStrategicMerge", "resources", "namePrefix", "images"],
+    answer: 0,
+    lessonId: "kustomize-101",
+    lessonTitle: "Kustomize",
+    unit: "helm",
+    label: "Kustomize patches",
+  },
+  {
+    id: "cert:helm-rollback",
+    prompt: "Which command moves a Helm release back to an earlier revision?",
+    options: ["helm rollback web 1", "helm delete web", "helm list web", "helm template web"],
+    answer: 0,
+    lessonId: "helm-101",
+    lessonTitle: "Helm",
+    unit: "helm",
+    label: "Helm rollback",
+  },
+  {
+    id: "cert:argo-drift",
+    prompt:
+      "What does an Argo CD Application report when source content differs from what was applied?",
+    options: ["OutOfSync", "Pending", "CrashLoopBackOff", "Bound"],
+    answer: 0,
+    lessonId: "gitops-101",
+    lessonTitle: "GitOps",
+    unit: "gitops",
+    label: "Argo drift",
+  },
 ];
 
 const examPool = lessons
@@ -335,152 +517,31 @@ const examPool = lessons
     ),
   );
 
-const taskSpecs: Record<string, Array<{ lessonId: string; instruction: string }>> = {
-  kcna: [
-    {
-      lessonId: "pods-101",
-      instruction:
-        "Create a Pod named web using nginx, label it app=web, and verify that it reaches Running.",
-    },
-    {
-      lessonId: "services-101",
-      instruction:
-        "Create a two-replica nginx Deployment named web, expose it on port 80, and verify its endpoints.",
-    },
-    {
-      lessonId: "deployments-101",
-      instruction:
-        "Create Deployment web with three nginx replicas, scale it to five, update to nginx:1.27, and check the rollout.",
-    },
-  ],
-  kcsa: [
-    {
-      lessonId: "rbac-101",
-      instruction:
-        "Inspect the deploy-bot ServiceAccount, Role, and RoleBinding, then test whether it can get Pods.",
-    },
-    {
-      lessonId: "network-policy-101",
-      instruction: "Inspect the deny-all NetworkPolicy and the Pods it selects.",
-    },
-    {
-      lessonId: "pod-security-101",
-      instruction: "Inspect the restricted namespace labels and the hardened web Pod.",
-    },
-  ],
-  cka: [
-    {
-      lessonId: "deployments-101",
-      instruction:
-        "Create Deployment web with three nginx replicas, scale it to five, update to nginx:1.27, and verify the rollout.",
-    },
-    {
-      lessonId: "scheduling-101",
-      instruction:
-        "Inspect node labels and taints, read node-2, and verify where the db Pod landed.",
-    },
-    {
-      lessonId: "persistent-volumes-101",
-      instruction:
-        "Inspect PVC data, its binding to a PersistentVolume, and the Pod that mounts it.",
-    },
-  ],
-  ckad: [
-    {
-      lessonId: "configmaps-101",
-      instruction:
-        "Create ConfigMap app-config, create Deployment web, inject the ConfigMap into its environment, and verify readiness.",
-    },
-    {
-      lessonId: "secrets-101",
-      instruction:
-        "Create Secret db-secret, create Deployment api, inject the Secret, and verify the environment value.",
-    },
-    {
-      lessonId: "ingress-101",
-      instruction:
-        "Create the web Deployment and Service, create an Ingress for shop.example.com, and verify routing with curl.",
-    },
-  ],
-  cks: [
-    {
-      lessonId: "rbac-101",
-      instruction: "Inspect RBAC for deploy-bot and verify it can get Pods.",
-    },
-    {
-      lessonId: "network-policy-101",
-      instruction: "Inspect the deny-all NetworkPolicy and the selected Pods.",
-    },
-    {
-      lessonId: "pod-security-101",
-      instruction: "Inspect the restricted Pod Security namespace and hardened web Pod.",
-    },
-  ],
-};
-
-const additionalTaskSpecs: Record<
-  string,
-  Array<{ lessonId: string; instruction: string; checks?: LessonCheck[] }>
-> = {
-  kcna: [
-    {
-      lessonId: "logs-events-101",
-      instruction: "Inspect the web Pod logs and the recent cluster events.",
-    },
-    {
-      lessonId: "nodes-101",
-      instruction: "Inspect node readiness, labels, and the Pod placement on node-1.",
-    },
-  ],
-  kcsa: [
-    {
-      lessonId: "secrets-101",
-      instruction: "Inspect the db-secret keys and the Deployment that consumes it.",
-    },
-    {
-      lessonId: "ingress-101",
-      instruction: "Inspect the Ingress rule and the Service backend it targets.",
-    },
-  ],
-  cka: [
-    {
-      lessonId: "probes-101",
-      instruction:
-        "Diagnose the failing readiness probe, its endpoint state, and the warning event.",
-    },
-    {
-      lessonId: "network-policy-101",
-      instruction: "Inspect the default-deny NetworkPolicy and confirm which Pods it selects.",
-    },
-  ],
-  ckad: [
-    {
-      lessonId: "autoscaling-101",
-      instruction: "Inspect the HPA target, current utilization, and the Deployment it scales.",
-    },
-    {
-      lessonId: "secrets-101",
-      instruction: "Inspect the Secret and verify the Deployment receives the injected value.",
-    },
-  ],
-  cks: [
-    {
-      lessonId: "secrets-101",
-      instruction: "Inspect the Secret data keys and the consuming Deployment environment.",
-    },
-    {
-      lessonId: "ingress-101",
-      instruction: "Inspect the Ingress backend and verify routing from the client Pod.",
-    },
-  ],
-};
-
-const allTaskSpecs = Object.fromEntries(
-  Object.entries(taskSpecs).map(([track, specs]) => [
-    track,
-    [...specs, ...(additionalTaskSpecs[track] ?? [])],
-  ]),
-) as Record<string, Array<{ lessonId: string; instruction: string; checks?: LessonCheck[] }>>;
+function normalizeTaskCheck(raw: Record<string, unknown>): LessonCheck {
+  if (raw.type === "pod" || raw.type === "deployment") {
+    return {
+      ...raw,
+      namespace: raw.namespace ?? "default",
+      labels: raw.labels ?? {},
+    } as LessonCheck;
+  }
+  if (raw.type === "configmap") {
+    return { ...raw, namespace: raw.namespace ?? "default", data: raw.data ?? {} } as LessonCheck;
+  }
+  if (raw.type === "secret") {
+    return { ...raw, namespace: raw.namespace ?? "default", keys: raw.keys ?? [] } as LessonCheck;
+  }
+  if (
+    raw.type === "env" ||
+    raw.type === "service" ||
+    raw.type === "dns" ||
+    raw.type === "ingress" ||
+    raw.type === "command"
+  ) {
+    return { ...raw, namespace: raw.namespace ?? "default" } as LessonCheck;
+  }
+  return raw as LessonCheck;
+}
 
 const taskCounts: Record<string, number> = { kcna: 3, kcsa: 3, cka: 5, ckad: 5, cks: 5 };
 
@@ -493,39 +554,21 @@ function questionSortKey(trackId: string, questionId: string): number {
   return hash >>> 0;
 }
 
-function buildTask(
-  trackId: string,
-  spec: { lessonId: string; instruction: string; checks?: LessonCheck[] },
-): ExamTask | undefined {
-  const lesson = lessonsById.get(spec.lessonId);
-  if (lesson === undefined) {
-    return undefined;
-  }
-  const checks = (spec.checks ?? lesson.checks).filter((check) => check.type !== "quiz");
-  if (checks.length === 0) {
-    return undefined;
-  }
-
-  return {
-    id: `${trackId}-${lesson.id}`,
-    title: lesson.title,
-    instruction: spec.instruction,
-    lessonId: lesson.id,
-    unit: lesson.unit,
-    scenario: lesson.scenario,
-    checks,
-  };
-}
-
 export const certificationExams: CertificationExam[] = certificationTracks.map((track) => {
   const allowedUnits = new Set(examUnits[track.id] ?? []);
   const questions = [...extraExamQuestions, ...examPool]
     .filter((question) => allowedUnits.has(question.unit))
     .sort((left, right) => questionSortKey(track.id, left.id) - questionSortKey(track.id, right.id))
     .slice(0, 10);
-  const taskPool = (allTaskSpecs[track.id] ?? [])
-    .map((spec) => buildTask(track.id, spec))
-    .filter((task): task is ExamTask => task !== undefined);
+  const taskPool: ExamTask[] = (certificationTaskSeeds[track.id] ?? []).map((seed) => ({
+    id: seed.id,
+    title: seed.title,
+    instruction: seed.instruction,
+    lessonId: "certification",
+    unit: seed.unit,
+    scenario: seed.scenario,
+    checks: seed.checks.map(normalizeTaskCheck),
+  }));
   const taskCount = taskCounts[track.id] ?? 3;
 
   return {

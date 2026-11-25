@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { parse } from "yaml";
 
 import pods101Spec from "../lessons/pods-101.yaml?raw";
-import { certificationTracks, getLesson, lessons, units } from "./index";
+import { certificationExams, certificationTracks, getLesson, lessons, units } from "./index";
 import { lessonSpecSchema } from "./schema";
 
 describe("content", () => {
@@ -33,6 +33,22 @@ describe("content", () => {
     expect(coreUnits.every((unit) => unit.lessons.length > 0)).toBe(true);
     expect(certificationTracks.every((track) => track.lessons.length > 0)).toBe(true);
     expect(lessons.length).toBeGreaterThanOrEqual(40);
+    for (const lesson of lessons) {
+      for (const prereq of lesson.prereqs) {
+        expect(prereq).not.toBe(lesson.id);
+        expect(lessons.some((candidate) => candidate.id === prereq)).toBe(true);
+      }
+    }
+    for (const track of certificationTracks) {
+      const exam = certificationExams.find((candidate) => candidate.id === track.id);
+      expect(exam).toBeDefined();
+      if (exam === undefined) {
+        continue;
+      }
+      expect(exam.taskPool.length).toBeGreaterThan(exam.taskCount);
+      expect(new Set(exam.taskPool.map((task) => task.id)).size).toBe(exam.taskPool.length);
+      expect(exam.taskPool.every((task) => task.lessonId === "certification")).toBe(true);
+    }
     expect(
       lessons
         .filter((lesson) => lesson.unit !== "certification")
