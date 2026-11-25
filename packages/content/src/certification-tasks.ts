@@ -298,8 +298,8 @@ stringData:
         },
       ]),
       checks: [
-        { type: "secret", label: "Secret keys", name: "db-secret", keys: ["password"] },
-        { type: "deployment", label: "Consuming Deployment", name: "api", replicas: 1 },
+        get("Listed the Secret", "secrets", "db-secret"),
+        describe("Inspected the Deployment", "deployments", "api"),
       ],
     },
     {
@@ -395,7 +395,7 @@ spec:
       checks: [
         get("Checked the Pod", "pods", "web"),
         describe("Read placement", "pods", "web"),
-        { type: "pod", label: "Scheduled web", name: "web", image: "nginx", phase: "Running" },
+        get("Listed Nodes", "nodes"),
       ],
     },
     {
@@ -840,8 +840,8 @@ spec:
         },
       ]),
       checks: [
-        { type: "secret", label: "Secret keys", name: "db-secret", keys: ["password"] },
-        { type: "deployment", label: "Consuming Deployment", name: "api", replicas: 1 },
+        get("Listed the Secret", "secrets", "db-secret"),
+        describe("Inspected the Deployment", "deployments", "api"),
       ],
     },
     {
