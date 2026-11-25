@@ -24,6 +24,7 @@ jobs:
           install: true
           cache: true
       - run: pnpm install --frozen-lockfile
+      - run: pnpm check
       - run: pnpm build
       - run: cp apps/web/dist/index.html apps/web/dist/404.html
       - uses: actions/configure-pages@v5

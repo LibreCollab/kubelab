@@ -47,21 +47,24 @@ export function ProgressProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   const refresh = useCallback(async () => {
-    const [lessonRows, activityMeta, lastMeta] = await Promise.all([
-      progressDb.lessons.toArray(),
-      progressDb.meta.get("activityDates"),
-      progressDb.meta.get("lastLessonId"),
-    ]);
+    try {
+      const [lessonRows, activityMeta, lastMeta] = await Promise.all([
+        progressDb.lessons.toArray(),
+        progressDb.meta.get("activityDates"),
+        progressDb.meta.get("lastLessonId"),
+      ]);
 
-    const nextRows: ProgressMap = {};
-    for (const row of lessonRows) {
-      nextRows[row.lessonId] = row;
+      const nextRows: ProgressMap = {};
+      for (const row of lessonRows) {
+        nextRows[row.lessonId] = row;
+      }
+
+      setRows(nextRows);
+      setActivityDates(readActivityDates(activityMeta?.value));
+      setLastLessonId(typeof lastMeta?.value === "string" ? lastMeta.value : undefined);
+    } finally {
+      setLoading(false);
     }
-
-    setRows(nextRows);
-    setActivityDates(readActivityDates(activityMeta?.value));
-    setLastLessonId(typeof lastMeta?.value === "string" ? lastMeta.value : undefined);
-    setLoading(false);
   }, []);
 
   useEffect(() => {

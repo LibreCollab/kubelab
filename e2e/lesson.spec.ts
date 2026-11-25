@@ -558,6 +558,7 @@ test("certification mock exam starts, submits, and reviews", async ({ page }) =>
   await expect(page.getByText(/Page 6 of 6/)).toBeVisible();
   await page.getByRole("button", { name: "Submit exam" }).click();
   await expect(page.getByText("Not passed")).toBeVisible();
+  await expect(page.getByText(/Page 1 of 6/)).toBeVisible();
   await expect(page.getByText("0/60 correct")).toBeVisible();
   await expect(page.getByRole("link", { name: "Practice missed questions" })).toBeVisible();
   await page.getByRole("link", { name: "Practice missed questions" }).click();

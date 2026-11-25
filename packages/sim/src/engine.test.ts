@@ -11,6 +11,7 @@ import {
   type KubePersistentVolumeClaim,
   type KubePodDisruptionBudget,
   type KubeStatefulSet,
+  type KubeWidget,
   type Pod,
   parseKubectl,
   SimEngine,
@@ -1577,6 +1578,7 @@ spec:
     engine.step();
     const blocked = engine.store.get<Pod>("Pod", "blocked");
     expect(blocked?.status.message).toContain("exceeded quota");
+    expect(engine.execute("kubectl get resourcequota small").output).toContain("pods=2");
     const existing = engine.store.get<Pod>("Pod", "existing");
     expect(existing?.spec.containers[0]?.resources?.requests).toBeUndefined();
   });
@@ -1873,6 +1875,15 @@ spec:
     engine.step();
     expect(engine.execute("kubectl get deployment chart-web").output).toContain("1/1");
     expect(engine.execute("kubectl get configmap demo-config").ok).toBe(true);
+    const widget = engine.store.get<KubeWidget>("Widget", "demo");
+    expect(widget).toBeDefined();
+    if (widget !== undefined) {
+      engine.store.upsert({ ...widget, spec: { ...widget.spec, color: "blue" } });
+      engine.step();
+      expect(engine.execute("kubectl get configmap demo-config -o yaml").output).toContain(
+        "color: blue",
+      );
+    }
   });
 
   it("gates readiness on startup probes and delays scale-down", () => {
@@ -2314,6 +2325,37 @@ spec:
     expect(engine.execute("kubectl apply -k overlays/prod").ok).toBe(true);
     expect(engine.store.get<KubeDeployment>("Deployment", "prod-web")?.spec.replicas).toBe(1);
     expect(engine.execute("kubectl describe deployment prod-web").output).toContain("nginx:1.27");
+  });
+
+  it("normalizes standard Ingress manifests on apply", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      files: {
+        "ingress.yaml": `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shop
+spec:
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+`,
+      },
+    });
+
+    expect(engine.execute("kubectl apply -f ingress.yaml").ok).toBe(true);
+    const listed = engine.execute("kubectl get ingress shop");
+    expect(listed.output).toContain("shop.example.com");
+    expect(listed.output).toContain("80");
   });
 
   it("reports rollout status", () => {

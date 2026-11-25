@@ -41,6 +41,7 @@ export type {
   KubeServiceAccount,
   KubeStatefulSet,
   KubeStorageClass,
+  KubeWidget,
   NodeSelectorRequirement,
   NodeTaint,
   ObjectMeta,

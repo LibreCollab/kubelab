@@ -589,9 +589,7 @@ export const certificationExams: CertificationExam[] = certificationTracks.map((
 });
 
 export const examQuestionsById = new Map(
-  certificationExams.flatMap((exam) =>
-    exam.questions.map((question) => [question.id, question] as const),
-  ),
+  [...extraExamQuestions, ...examPool].map((question) => [question.id, question] as const),
 );
 
 export function getCertificationExam(id: string): CertificationExam | undefined {

@@ -151,6 +151,10 @@ function ExamReview({
   result: ExamResult;
   onRetake: () => void;
 }) {
+  const [page, setPage] = useState(0);
+  const totalPages = Math.max(1, Math.ceil(exam.questions.length / PAGE_SIZE));
+  const pageQuestions = exam.questions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
+
   return (
     <div className={styles.review}>
       <section
@@ -183,14 +187,15 @@ function ExamReview({
       )}
 
       <div className={styles.reviewList}>
-        {exam.questions.map((question, index) => {
+        {pageQuestions.map((question, index) => {
+          const questionIndex = page * PAGE_SIZE + index;
           const selected = answers[question.id];
           const correct = selected === question.answer;
           return (
             <article key={question.id} className={styles.reviewItem} data-correct={correct}>
               <div className={styles.reviewHead}>
                 <span>{correct ? "Correct" : "Review"}</span>
-                <span>{String(index + 1).padStart(2, "0")}</span>
+                <span>{String(questionIndex + 1).padStart(2, "0")}</span>
               </div>
               <h3>{question.prompt}</h3>
               <p>
@@ -209,6 +214,26 @@ function ExamReview({
             </article>
           );
         })}
+      </div>
+      <div className={styles.runnerFoot}>
+        <span>
+          Page {page + 1} of {totalPages}
+        </span>
+        <div className={styles.pager}>
+          <Button
+            variant="secondary"
+            disabled={page === 0}
+            onClick={() => setPage((value) => Math.max(0, value - 1))}
+          >
+            Previous
+          </Button>
+          <Button
+            disabled={page === totalPages - 1}
+            onClick={() => setPage((value) => Math.min(totalPages - 1, value + 1))}
+          >
+            Next page
+          </Button>
+        </div>
       </div>
     </div>
   );

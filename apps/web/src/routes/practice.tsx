@@ -31,8 +31,8 @@ export function PracticePage() {
   const [labAttempts, setLabAttempts] = useState<LabExamAttempt[]>([]);
 
   useEffect(() => {
-    void Promise.all([dueReviewCards(), latestExamAttempts(), latestLabExamAttempts()]).then(
-      ([cards, recent, labs]) => {
+    void Promise.all([dueReviewCards(), latestExamAttempts(), latestLabExamAttempts()])
+      .then(([cards, recent, labs]) => {
         setItems(
           cards.flatMap((card) => {
             const question = examQuestionsById.get(card.questionId);
@@ -41,9 +41,8 @@ export function PracticePage() {
         );
         setAttempts(recent);
         setLabAttempts(labs);
-        setLoading(false);
-      },
-    );
+      })
+      .finally(() => setLoading(false));
   }, []);
 
   const item = items[index];

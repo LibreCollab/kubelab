@@ -254,6 +254,18 @@ export function LabExamPage() {
     );
   }
 
+  if (exam.taskCount === 0) {
+    return (
+      <div className={styles.page}>
+        <h1>{exam.name} has no hands-on exam</h1>
+        <p>This track uses a timed knowledge exam.</p>
+        <Link className={styles.secondaryLink} to="/exam/$trackId" params={{ trackId: exam.id }}>
+          Start knowledge exam
+        </Link>
+      </div>
+    );
+  }
+
   const runtime = runtimes[selected];
   const taskResults = runtimes.map((item) => ({
     runtime: item,

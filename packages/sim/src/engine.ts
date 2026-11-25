@@ -2569,6 +2569,41 @@ export class SimEngine {
               }
             }
           }
+        } else if (kind === "Ingress") {
+          const spec = raw.spec as Record<string, unknown> | undefined;
+          if (spec !== undefined && Array.isArray(spec.rules)) {
+            spec.rules = spec.rules.flatMap((rule) => {
+              if (typeof rule !== "object" || rule === null) {
+                return [];
+              }
+              const value = rule as Record<string, unknown>;
+              const http = value.http as { paths?: Array<Record<string, unknown>> } | undefined;
+              if (!Array.isArray(http?.paths)) {
+                return [value];
+              }
+              return http.paths.flatMap((path) => {
+                const backend = path.backend as
+                  | { service?: { name?: string; port?: { number?: number } } }
+                  | undefined;
+                const service = backend?.service;
+                if (
+                  typeof path.path !== "string" ||
+                  service?.name === undefined ||
+                  service.port?.number === undefined
+                ) {
+                  return [];
+                }
+                return [
+                  {
+                    host: typeof value.host === "string" ? value.host : "",
+                    path: path.path,
+                    serviceName: service.name,
+                    servicePort: service.port.number,
+                  },
+                ];
+              });
+            });
+          }
         } else if (kind === "Secret") {
           const stringData = raw.stringData as Record<string, string> | undefined;
           if (stringData !== undefined) {
@@ -3592,6 +3627,7 @@ export class SimEngine {
 
     this.#updateDeploymentStatuses();
     this.#reconcilePodDisruptionBudgets();
+    this.#reconcileResourceQuotas();
   }
 
   #reconcilePodHealth(pod: Pod): void {
@@ -4146,10 +4182,13 @@ export class SimEngine {
   #reconcileWidgets(): void {
     for (const widget of this.store.list<KubeWidget>("Widget")) {
       const childName = `${widget.metadata.name}-config`;
-      if (
-        this.store.get<KubeConfigMap>("ConfigMap", childName, widget.metadata.namespace) ===
-        undefined
-      ) {
+      const child = this.store.get<KubeConfigMap>(
+        "ConfigMap",
+        childName,
+        widget.metadata.namespace,
+      );
+      const data = { size: String(widget.spec.size), color: widget.spec.color };
+      if (child === undefined) {
         this.store.upsert<KubeConfigMap>({
           apiVersion: "v1",
           kind: "ConfigMap",
@@ -4161,8 +4200,10 @@ export class SimEngine {
             resourceVersion: 0,
             creationTick: this.clock.tick,
           },
-          data: { size: String(widget.spec.size), color: widget.spec.color },
+          data,
         });
+      } else if (child.data.size !== data.size || child.data.color !== data.color) {
+        this.store.upsert({ ...child, data });
       }
       if (widget.status.phase !== "Ready") {
         this.store.upsert({ ...widget, status: { phase: "Ready" } });
@@ -4341,6 +4382,39 @@ export class SimEngine {
     }
 
     return totalRequest === 0 ? undefined : Math.round((totalUsage / totalRequest) * 100);
+  }
+
+  #reconcileResourceQuotas(): void {
+    for (const quota of this.store.list<KubeResourceQuota>("ResourceQuota")) {
+      const pods = this.store
+        .list<Pod>("Pod", quota.metadata.namespace)
+        .filter((pod) => pod.status.phase !== "Succeeded");
+      const used: Record<string, string> = {
+        pods: String(pods.length),
+        "requests.cpu": `${pods.reduce(
+          (sum, pod) =>
+            sum +
+            pod.spec.containers.reduce((containerSum, container) => {
+              const cpu = container.resources?.requests?.cpu;
+              return containerSum + (cpu === undefined ? 0 : parseCpuMillis(cpu));
+            }, 0),
+          0,
+        )}m`,
+        "requests.memory": `${pods.reduce(
+          (sum, pod) =>
+            sum +
+            pod.spec.containers.reduce((containerSum, container) => {
+              const memory = container.resources?.requests?.memory;
+              return containerSum + (memory === undefined ? 0 : parseMemoryBytes(memory));
+            }, 0),
+          0,
+        )}`,
+      };
+      this.store.upsert({
+        ...quota,
+        status: { ...quota.status, used },
+      });
+    }
   }
 
   #reconcileStorage(): void {
