@@ -90,6 +90,7 @@ export interface CertificationTrackDefinition {
   id: string;
   name: string;
   description: string;
+  format: "knowledge" | "hands-on";
   lessonIds: string[];
 }
 
@@ -98,30 +99,35 @@ export const certificationTrackDefinitions: CertificationTrackDefinition[] = [
     id: "kcna",
     name: "KCNA",
     description: "Kubernetes and Cloud Native Associate foundations.",
+    format: "knowledge",
     lessonIds: ["kcna-readiness"],
   },
   {
     id: "kcsa",
     name: "KCSA",
     description: "Kubernetes and Cloud Native Security Associate foundations.",
+    format: "knowledge",
     lessonIds: ["kcsa-readiness"],
   },
   {
     id: "cka",
     name: "CKA",
     description: "Administrator track: architecture and troubleshooting.",
+    format: "hands-on",
     lessonIds: ["cka-readiness"],
   },
   {
     id: "ckad",
     name: "CKAD",
     description: "Developer track: application design and delivery.",
+    format: "hands-on",
     lessonIds: ["ckad-readiness"],
   },
   {
     id: "cks",
     name: "CKS",
     description: "Security specialist track: hardening and runtime security.",
+    format: "hands-on",
     lessonIds: ["cks-readiness"],
   },
 ];

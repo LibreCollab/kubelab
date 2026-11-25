@@ -90,3 +90,10 @@ The terminal SHALL enter follow mode for `kubectl logs -f`, display incoming lin
 #### Scenario: Non-follow commands are unchanged
 - **WHEN** a learner submits a command other than log follow
 - **THEN** the terminal executes it through the normal command path
+
+### Requirement: Hands-on-only messaging
+The knowledge-exam route SHALL explain when a track is hands-on-only and SHALL link to its lab exam.
+
+#### Scenario: Hands-on exam link
+- **WHEN** a learner opens `/exam/cka`
+- **THEN** the page explains that CKA is hands-on-only and links to the lab runner

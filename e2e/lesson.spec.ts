@@ -510,9 +510,9 @@ test("hands-on certification lab starts and reviews tasks", async ({ page }) => 
   await page.goto("/lab-exam/cka");
 
   await expect(page.getByRole("heading", { name: "CKA lab" })).toBeVisible();
-  await expect(page.getByText("5 tasks")).toBeVisible();
+  await expect(page.getByText("15 tasks")).toBeVisible();
   await page.getByRole("button", { name: "Start lab" }).click();
-  await expect(page.getByRole("button", { name: /Task 1/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /^Task 1 / })).toBeVisible();
   await expect(page.locator(".xterm-screen")).toBeVisible();
   await page.getByRole("button", { name: "Submit lab exam" }).click();
   await expect(page.getByText("Not passed")).toBeVisible();
@@ -522,21 +522,32 @@ test("hands-on certification lab starts and reviews tasks", async ({ page }) => 
   expect(pageErrors).toEqual([]);
 });
 
-test("certification mock exam starts, submits, and reviews", async ({ page }) => {
+test("hands-on-only exam routes to the lab runner", async ({ page }) => {
   const pageErrors = trackPageErrors(page);
   await page.goto("/exam/cka");
 
   await expect(page.getByRole("heading", { name: "CKA" })).toBeVisible();
-  await expect(page.getByText("10 questions")).toBeVisible();
+  await expect(page.getByText("Hands-on only")).toBeVisible();
+  await page.getByRole("link", { name: "Start hands-on exam" }).click();
+  await expect(page.getByRole("heading", { name: "CKA lab" })).toBeVisible();
+  expect(pageErrors).toEqual([]);
+});
+
+test("certification mock exam starts, submits, and reviews", async ({ page }) => {
+  const pageErrors = trackPageErrors(page);
+  await page.goto("/exam/kcna");
+
+  await expect(page.getByRole("heading", { name: "KCNA" })).toBeVisible();
+  await expect(page.getByText("60 questions", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start exam" }).click();
-  await expect(page.getByText("Answered 0 / 10")).toBeVisible();
+  await expect(page.getByText("Answered 0 / 60")).toBeVisible();
   await page.getByRole("button", { name: "Submit exam" }).click();
   await expect(page.getByText("Not passed")).toBeVisible();
-  await expect(page.getByText("0/10 correct")).toBeVisible();
+  await expect(page.getByText("0/60 correct")).toBeVisible();
   await expect(page.getByRole("link", { name: "Practice missed questions" })).toBeVisible();
   await page.getByRole("link", { name: "Practice missed questions" }).click();
   await expect(page.getByRole("heading", { name: "Practice queue" })).toBeVisible();
-  await expect(page.getByText("10 due")).toBeVisible();
+  await expect(page.getByText("60 due")).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
 

@@ -88,6 +88,7 @@ fixed below.
 | 65 | HPA only handled CPU and scaled on tiny deviations | Added memory targets and a 10% tolerance band |
 | 66 | Remaining simulator fidelity gaps | Added TLS, ServiceAccount tokens, Pod Security, startup/gRPC probes, event expiry, external HPA, Kustomize patches, Helm lifecycle, Argo drift, and Widget children |
 | 67 | New simulator features had no lessons and containers-101 stayed quiz-only | Added nine terminal lessons and converted the last quiz-only core lesson |
+| 68 | Mock exams used a 10-question format for every track | Matched KCNA/KCSA 60-question knowledge and CKA/CKAD/CKS 15-task hands-on formats |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

@@ -129,6 +129,8 @@ export interface CertificationExam {
   id: string;
   name: string;
   description: string;
+  format: "knowledge" | "hands-on";
+  questionCount: number;
   durationMinutes: number;
   passingScore: number;
   questions: ExamQuestion[];
@@ -137,34 +139,6 @@ export interface CertificationExam {
   taskPool: ExamTask[];
   tasks: ExamTask[];
 }
-
-const examUnits: Record<string, string[]> = {
-  kcna: [
-    "containers",
-    "architecture",
-    "workloads",
-    "services",
-    "config",
-    "storage",
-    "scheduling",
-    "networking",
-    "security",
-    "observability",
-  ],
-  kcsa: ["architecture", "services", "config", "networking", "security", "observability"],
-  cka: [
-    "architecture",
-    "workloads",
-    "services",
-    "config",
-    "storage",
-    "scheduling",
-    "networking",
-    "observability",
-  ],
-  ckad: ["workloads", "services", "config", "storage", "scheduling", "observability"],
-  cks: ["config", "services", "networking", "security", "observability"],
-};
 
 const extraExamQuestions: ExamQuestion[] = [
   {
@@ -543,7 +517,22 @@ function normalizeTaskCheck(raw: Record<string, unknown>): LessonCheck {
   return raw as LessonCheck;
 }
 
-const taskCounts: Record<string, number> = { kcna: 3, kcsa: 3, cka: 5, ckad: 5, cks: 5 };
+const labTaskPools: Record<string, string[]> = {
+  cka: ["cka", "ckad", "cks"],
+  ckad: ["ckad", "cka", "cks"],
+  cks: ["cks", "cka", "kcsa"],
+};
+
+const taskCounts: Record<string, number> = { kcna: 0, kcsa: 0, cka: 15, ckad: 15, cks: 15 };
+const knowledgeQuestionCounts: Record<string, number> = { kcna: 60, kcsa: 60 };
+const passingScores: Record<string, number> = { kcna: 75, kcsa: 75, cka: 66, ckad: 66, cks: 67 };
+const durationMinutes: Record<string, number> = {
+  kcna: 90,
+  kcsa: 90,
+  cka: 120,
+  ckad: 120,
+  cks: 120,
+};
 
 function questionSortKey(trackId: string, questionId: string): number {
   let hash = 2166136261;
@@ -555,28 +544,37 @@ function questionSortKey(trackId: string, questionId: string): number {
 }
 
 export const certificationExams: CertificationExam[] = certificationTracks.map((track) => {
-  const allowedUnits = new Set(examUnits[track.id] ?? []);
-  const questions = [...extraExamQuestions, ...examPool]
-    .filter((question) => allowedUnits.has(question.unit))
-    .sort((left, right) => questionSortKey(track.id, left.id) - questionSortKey(track.id, right.id))
-    .slice(0, 10);
-  const taskPool: ExamTask[] = (certificationTaskSeeds[track.id] ?? []).map((seed) => ({
-    id: seed.id,
-    title: seed.title,
-    instruction: seed.instruction,
-    lessonId: "certification",
-    unit: seed.unit,
-    scenario: seed.scenario,
-    checks: seed.checks.map(normalizeTaskCheck),
-  }));
-  const taskCount = taskCounts[track.id] ?? 3;
+  const questionCount = knowledgeQuestionCounts[track.id] ?? 0;
+  const questions =
+    questionCount === 0
+      ? []
+      : [...extraExamQuestions, ...examPool]
+          .sort(
+            (left, right) =>
+              questionSortKey(track.id, left.id) - questionSortKey(track.id, right.id),
+          )
+          .slice(0, questionCount);
+  const taskPool: ExamTask[] = (labTaskPools[track.id] ?? [])
+    .flatMap((poolTrack) => certificationTaskSeeds[poolTrack] ?? [])
+    .map((seed) => ({
+      id: seed.id,
+      title: seed.title,
+      instruction: seed.instruction,
+      lessonId: "certification",
+      unit: seed.unit,
+      scenario: seed.scenario,
+      checks: seed.checks.map(normalizeTaskCheck),
+    }));
+  const taskCount = taskCounts[track.id] ?? 0;
 
   return {
     id: track.id,
     name: track.name,
     description: track.description,
-    durationMinutes: 15,
-    passingScore: 70,
+    format: track.format,
+    questionCount,
+    durationMinutes: durationMinutes[track.id] ?? 15,
+    passingScore: passingScores[track.id] ?? 70,
     questions,
     labs: [...new Map(questions.map((question) => [question.lessonId, question])).values()]
       .slice(0, 4)

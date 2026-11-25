@@ -110,9 +110,9 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
   Security, startup/gRPC probes, external HPA metrics, Kustomize patches, Helm
   install/rollback, Argo drift/sync, and operator child reconciliation
   rendering, `exec`, `logs`, `auth can-i`, and virtual-clock reconciliation.
-- Timed knowledge mock exams plus hands-on lab exams with randomized task order,
-  scoring, weak-domain review, combined exam history, and spaced-repetition
-  practice for missed questions.
+- Real-format certification modes: KCNA/KCSA use 60-question, 90-minute knowledge
+  exams; CKA/CKAD/CKS use 15-task, 120-minute hands-on exams with randomized
+  selection, scoring, weak-domain review, history, and spaced repetition.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →
   Pods, Service endpoint selection, Ingress → Service routing, and ConfigMap /
   Secret wiring.

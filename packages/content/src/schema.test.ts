@@ -45,7 +45,9 @@ describe("content", () => {
       if (exam === undefined) {
         continue;
       }
-      expect(exam.taskPool.length).toBeGreaterThan(exam.taskCount);
+      if (exam.taskCount > 0) {
+        expect(exam.taskPool.length).toBeGreaterThan(exam.taskCount);
+      }
       expect(new Set(exam.taskPool.map((task) => task.id)).size).toBe(exam.taskPool.length);
       expect(exam.taskPool.every((task) => task.lessonId === "certification")).toBe(true);
     }

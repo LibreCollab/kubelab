@@ -3,14 +3,14 @@ import { describe, expect, it } from "vitest";
 
 import { gradeExam } from "./certification";
 
-const cka = certificationExams.find((exam) => exam.id === "cka");
+const kcna = certificationExams.find((exam) => exam.id === "kcna");
 
 describe("certification exams", () => {
-  it("builds a ten-question exam for every track", () => {
+  it("matches real exam formats for every track", () => {
     expect(certificationExams).toHaveLength(5);
     for (const exam of certificationExams) {
-      expect(exam.questions).toHaveLength(10);
-      expect(new Set(exam.questions.map((question) => question.id)).size).toBe(10);
+      expect(exam.questions).toHaveLength(exam.questionCount);
+      expect(new Set(exam.questions.map((question) => question.id)).size).toBe(exam.questionCount);
       expect(exam.questions.every((question) => question.answer < question.options.length)).toBe(
         true,
       );
@@ -19,27 +19,36 @@ describe("certification exams", () => {
       expect(exam.tasks.every((task) => task.checks.every((check) => check.type !== "quiz"))).toBe(
         true,
       );
+      if (exam.format === "knowledge") {
+        expect(exam.questionCount).toBe(60);
+        expect(exam.durationMinutes).toBe(90);
+        expect(exam.taskCount).toBe(0);
+      } else {
+        expect(exam.questionCount).toBe(0);
+        expect(exam.durationMinutes).toBe(120);
+        expect(exam.taskCount).toBe(15);
+      }
     }
   });
 
   it("grades passing and weak-unit results", () => {
-    expect(cka).toBeDefined();
-    if (cka === undefined) {
+    expect(kcna).toBeDefined();
+    if (kcna === undefined) {
       return;
     }
 
     const correct = Object.fromEntries(
-      cka.questions.map((question) => [question.id, question.answer]),
+      kcna.questions.map((question) => [question.id, question.answer]),
     );
-    const passed = gradeExam(cka, correct);
+    const passed = gradeExam(kcna, correct);
     expect(passed.percent).toBe(100);
     expect(passed.passed).toBe(true);
     expect(passed.weakUnits).toEqual([]);
 
-    const failed = gradeExam(cka, {});
+    const failed = gradeExam(kcna, {});
     expect(failed.score).toBe(0);
     expect(failed.passed).toBe(false);
-    expect(failed.incorrect).toHaveLength(10);
+    expect(failed.incorrect).toHaveLength(60);
     expect(failed.weakUnits.length).toBeGreaterThan(0);
   });
 });

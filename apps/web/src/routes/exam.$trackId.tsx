@@ -236,7 +236,9 @@ export function ExamPage() {
           <p>{exam.description}</p>
         </div>
         <div className={styles.examMeta}>
-          <span>{exam.questions.length} questions</span>
+          <span>
+            {exam.format === "hands-on" ? "Hands-on only" : `${exam.questionCount} questions`}
+          </span>
           <span>{exam.durationMinutes} min</span>
           <span>{exam.passingScore}% to pass</span>
         </div>
@@ -244,12 +246,31 @@ export function ExamPage() {
 
       {phase === "intro" ? (
         <section className={styles.introCard}>
-          <h2>Timed mock exam</h2>
-          <p>
-            No feedback until you submit. Missed questions are scheduled for spaced-repetition
-            practice. The timer starts when you begin.
-          </p>
-          <Button onClick={() => setPhase("running")}>Start exam</Button>
+          {exam.format === "hands-on" ? (
+            <>
+              <h2>Hands-on certification exam</h2>
+              <p>
+                {exam.name} has no multiple-choice section. Start the timed lab exam with{" "}
+                {exam.taskCount} tasks and {exam.durationMinutes} minutes.
+              </p>
+              <Link
+                className={styles.secondaryLink}
+                to="/lab-exam/$trackId"
+                params={{ trackId: exam.id }}
+              >
+                Start hands-on exam
+              </Link>
+            </>
+          ) : (
+            <>
+              <h2>Timed knowledge exam</h2>
+              <p>
+                {exam.questionCount} questions · {exam.durationMinutes} minutes ·{" "}
+                {exam.passingScore}% to pass. No feedback until you submit.
+              </p>
+              <Button onClick={() => setPhase("running")}>Start exam</Button>
+            </>
+          )}
           {exam.labs.length > 0 ? (
             <div className={styles.labs}>
               <span className={styles.labLabel}>Hands-on labs</span>
@@ -263,7 +284,9 @@ export function ExamPage() {
         </section>
       ) : null}
 
-      {phase === "running" ? <ExamRunner key={runKey} exam={exam} onFinish={finish} /> : null}
+      {phase === "running" && exam.format === "knowledge" ? (
+        <ExamRunner key={runKey} exam={exam} onFinish={finish} />
+      ) : null}
 
       {phase === "review" && result !== null ? (
         <ExamReview exam={exam} answers={answers} result={result} onRetake={retake} />

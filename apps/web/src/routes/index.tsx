@@ -297,20 +297,23 @@ export function HomePage() {
                 <p>{track.description}</p>
                 <LessonRows items={track.lessons} access={access} />
                 <div className={styles.trackActions}>
-                  <Link
-                    className={styles.trackExam}
-                    to="/exam/$trackId"
-                    params={{ trackId: track.id }}
-                  >
-                    Knowledge exam →
-                  </Link>
-                  <Link
-                    className={styles.trackExam}
-                    to="/lab-exam/$trackId"
-                    params={{ trackId: track.id }}
-                  >
-                    Hands-on exam →
-                  </Link>
+                  {track.format === "knowledge" ? (
+                    <Link
+                      className={styles.trackExam}
+                      to="/exam/$trackId"
+                      params={{ trackId: track.id }}
+                    >
+                      Knowledge exam →
+                    </Link>
+                  ) : (
+                    <Link
+                      className={styles.trackExam}
+                      to="/lab-exam/$trackId"
+                      params={{ trackId: track.id }}
+                    >
+                      Hands-on exam →
+                    </Link>
+                  )}
                 </div>
               </article>
             );

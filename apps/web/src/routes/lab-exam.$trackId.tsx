@@ -149,7 +149,7 @@ export function LabExamPage() {
   const [result, setResult] = useState<LabResult | null>(null);
   const [runKey, setRunKey] = useState(0);
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
-  const durationSeconds = (exam?.taskCount ?? 0) * 15 * 60;
+  const durationSeconds = (exam?.durationMinutes ?? 0) * 60;
   const orderedTasks = useMemo(
     () =>
       exam === undefined
