@@ -2,7 +2,8 @@
   "ci": {
     "collect": {
       "staticDistDir": "./apps/web/dist",
-      "numberOfRuns": 1
+      "numberOfRuns": 1,
+      "chromeFlags": ["--no-sandbox", "--disable-dev-shm-usage"]
     },
     "assert": {
       "assertions": {
