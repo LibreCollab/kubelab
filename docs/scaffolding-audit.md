@@ -81,6 +81,8 @@ fixed below.
 | 58 | Units 6–10 were quiz-only despite covering core CKA/security/ops skills | Added seeded storage, scheduling, network policy, RBAC, event/log, and probe inspection scenarios with terminal checkpoints |
 | 59 | Units 11–12 and certification tracks were quiz-only | Added Helm/Kustomize/GitOps/CRD terminal scenarios, timed knowledge and hands-on lab exams, scoring/review, history, and spaced repetition |
 | 60 | Probes were static seeded conditions with no restart behavior | Added readiness/liveness evaluation, restarts, warning events, endpoint removal, and CrashLoopBackOff |
+| 61 | Networking, storage, and RBAC lacked relationship depth | Added NetworkPolicy ports, headless/NodePort Services, PVC reclaim and delayed binding, and cluster-scoped RBAC |
+| 62 | Only Deployments and ReplicaSets represented workload controllers | Added init containers, DaemonSets, StatefulSets, Jobs, CronJobs, scheduling, completion, and inspection |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

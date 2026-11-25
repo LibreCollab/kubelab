@@ -1,9 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  type KubeCronJob,
+  type KubeDaemonSet,
   type KubeDeployment,
   type KubeHorizontalPodAutoscaler,
+  type KubeJob,
+  type KubeNetworkPolicy,
+  type KubePersistentVolume,
   type KubePersistentVolumeClaim,
+  type KubeStatefulSet,
   type Pod,
   parseKubectl,
   SimEngine,
@@ -1233,6 +1239,163 @@ spec:
     expect(top.output).toContain("128Mi");
   });
 
+  it("reconciles one DaemonSet Pod per ready node", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [{ name: "node-2" }],
+      objects: [
+        {
+          kind: "DaemonSet",
+          metadata: { name: "agent" },
+          spec: {
+            template: {
+              labels: { app: "agent" },
+              containers: [{ name: "agent", image: "busybox" }],
+            },
+          },
+          status: { desiredNumberScheduled: 0, currentNumberScheduled: 0, numberReady: 0 },
+        },
+      ],
+    });
+
+    engine.step();
+    engine.step();
+    expect(
+      engine.store
+        .list<Pod>("Pod", "default")
+        .map((pod) => pod.metadata.name)
+        .sort(),
+    ).toEqual(["agent-node-1", "agent-node-2"]);
+    expect(engine.store.get<KubeDaemonSet>("DaemonSet", "agent")?.status).toEqual({
+      desiredNumberScheduled: 2,
+      currentNumberScheduled: 2,
+      numberReady: 2,
+    });
+    expect(engine.execute("kubectl get daemonsets").output).toContain("agent");
+  });
+
+  it("reconciles stable StatefulSet ordinals and scale down", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "StatefulSet",
+          metadata: { name: "db" },
+          spec: {
+            replicas: 3,
+            serviceName: "db",
+            template: {
+              labels: { app: "db" },
+              containers: [{ name: "db", image: "postgres" }],
+            },
+          },
+          status: { replicas: 0, readyReplicas: 0 },
+        },
+      ],
+    });
+
+    engine.step();
+    engine.step();
+    expect(
+      engine.store
+        .list<Pod>("Pod", "default")
+        .map((pod) => pod.metadata.name)
+        .sort(),
+    ).toEqual(["db-0", "db-1", "db-2"]);
+    expect(engine.store.get<KubeStatefulSet>("StatefulSet", "db")?.status.replicas).toBe(3);
+
+    const statefulSet = engine.store.get<KubeStatefulSet>("StatefulSet", "db");
+    expect(statefulSet).toBeDefined();
+    if (statefulSet === undefined) {
+      return;
+    }
+    engine.store.upsert({ ...statefulSet, spec: { ...statefulSet.spec, replicas: 1 } });
+    engine.step();
+    expect(engine.store.list<Pod>("Pod", "default").map((pod) => pod.metadata.name)).toEqual([
+      "db-0",
+    ]);
+  });
+
+  it("completes Jobs and schedules CronJobs", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Job",
+          metadata: { name: "migrate" },
+          spec: {
+            completions: 2,
+            parallelism: 2,
+            template: {
+              labels: { app: "migrate" },
+              containers: [{ name: "migrate", image: "busybox" }],
+            },
+          },
+          status: { active: 0, succeeded: 0, failed: 0 },
+        },
+        {
+          kind: "CronJob",
+          metadata: { name: "backup" },
+          spec: {
+            schedule: "@every 2s",
+            jobTemplate: {
+              spec: {
+                completions: 1,
+                parallelism: 1,
+                template: {
+                  labels: { app: "backup" },
+                  containers: [{ name: "backup", image: "busybox" }],
+                },
+              },
+            },
+          },
+          status: {},
+        },
+      ],
+    });
+
+    engine.step();
+    engine.step();
+    engine.step();
+    expect(engine.store.get<KubeJob>("Job", "migrate")?.status.succeeded).toBe(2);
+    expect(engine.execute("kubectl get jobs").output).toContain("2/2");
+    expect(engine.execute("kubectl get jobs").output).toContain("Complete");
+
+    const cronJobs = engine.store
+      .list<KubeJob>("Job", "default")
+      .filter((job) => job.metadata.labels.cronjob === "backup");
+    expect(cronJobs).toHaveLength(1);
+    expect(engine.store.get<KubeCronJob>("CronJob", "backup")?.status.lastScheduleTick).toBe(2);
+    expect(engine.execute("kubectl get cronjobs").output).toContain("@every 2s");
+  });
+
+  it("waits for init containers before running a Pod", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "app" },
+          spec: {
+            nodeName: "node-1",
+            initContainers: [{ name: "init", image: "busybox" }],
+            containers: [{ name: "app", image: "nginx" }],
+          },
+          status: { phase: "Pending" },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<Pod>("Pod", "app")?.status.phase).toBe("Pending");
+    expect(engine.store.get<Pod>("Pod", "app")?.status.message).toContain("Init:0/1");
+    engine.step();
+    expect(engine.store.get<Pod>("Pod", "app")?.status.phase).toBe("Running");
+  });
+
   it("applies comma-separated files and directory manifests", () => {
     const engine = createEngine();
     engine.seed({
@@ -1346,6 +1509,205 @@ spec:
 
     expect(engine.execute("kubectl exec client -- curl http://web").output).toContain("200");
     expect(engine.execute("kubectl exec intruder -- curl http://web").output).toContain("403");
+  });
+
+  it("enforces NetworkPolicy port rules", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.20",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "client", labels: { app: "client" } },
+          spec: { nodeName: "node-1", containers: [{ name: "client", image: "busybox" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.21",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Service",
+          metadata: { name: "web" },
+          spec: {
+            type: "ClusterIP",
+            selector: { app: "web" },
+            ports: [{ port: 80, targetPort: 8080 }],
+            clusterIP: "10.96.0.20",
+          },
+        },
+        {
+          kind: "NetworkPolicy",
+          metadata: { name: "allow-web" },
+          spec: {
+            podSelector: { app: "web" },
+            policyTypes: ["Ingress"],
+            ingress: [{ from: [{ podSelector: { app: "client" } }], ports: [{ port: 8080 }] }],
+          },
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl exec client -- curl http://web").output).toContain("403");
+
+    const policy = engine.store.get<KubeNetworkPolicy>("NetworkPolicy", "allow-web");
+    expect(policy).toBeDefined();
+    if (policy !== undefined) {
+      engine.store.upsert({
+        ...policy,
+        spec: {
+          ...policy.spec,
+          ingress: [{ from: [{ podSelector: { app: "client" } }], ports: [{ port: 80 }] }],
+        },
+      });
+    }
+
+    expect(engine.execute("kubectl exec client -- curl http://web").output).toContain("200");
+  });
+
+  it("resolves headless Services to Pod IPs and renders NodePorts", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.30",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "client", labels: { app: "client" } },
+          spec: { nodeName: "node-1", containers: [{ name: "client", image: "busybox" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.31",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Service",
+          metadata: { name: "headless" },
+          spec: {
+            type: "ClusterIP",
+            selector: { app: "web" },
+            ports: [{ port: 80, targetPort: 8080 }],
+            clusterIP: "None",
+          },
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl exec client -- getent hosts headless").output).toContain(
+      "10.244.0.30",
+    );
+    expect(engine.execute("kubectl get service headless").output).toContain("<none>");
+
+    engine.execute("kubectl create deployment api --image=nginx");
+    expect(engine.execute("kubectl expose deployment api --port=80 --type=NodePort").ok).toBe(true);
+    expect(engine.execute("kubectl get services api").output).toMatch(/80:3000\d/);
+  });
+
+  it("handles PVC reclaim policies and delayed binding", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "StorageClass",
+          metadata: { name: "wait" },
+          provisioner: "ebs.csi.aws.com",
+          reclaimPolicy: "Retain",
+          volumeBindingMode: "WaitForFirstConsumer",
+        },
+        {
+          kind: "PersistentVolumeClaim",
+          metadata: { name: "data" },
+          spec: {
+            accessModes: ["ReadWriteOnce"],
+            resources: { requests: { storage: "2Gi" } },
+            storageClassName: "wait",
+          },
+          status: { phase: "Pending" },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(
+      engine.store.get<KubePersistentVolumeClaim>("PersistentVolumeClaim", "data")?.status.phase,
+    ).toBe("Pending");
+
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "consumer" },
+          spec: {
+            nodeName: "node-1",
+            containers: [{ name: "app", image: "busybox" }],
+            volumes: [{ name: "data", persistentVolumeClaim: { claimName: "data" } }],
+          },
+          status: { phase: "Pending" },
+        },
+      ],
+    });
+    engine.step();
+    expect(
+      engine.store.get<KubePersistentVolumeClaim>("PersistentVolumeClaim", "data")?.status.phase,
+    ).toBe("Bound");
+
+    expect(engine.execute("kubectl delete pvc data").ok).toBe(true);
+    const volumes = engine.store.list<KubePersistentVolume>("PersistentVolume");
+    expect(volumes).toHaveLength(1);
+    expect(volumes[0]?.status.phase).toBe("Released");
+  });
+
+  it("supports cluster-scoped RBAC", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "ClusterRole",
+          metadata: { name: "pod-reader" },
+          rules: [{ apiGroups: [""], resources: ["pods"], verbs: ["get", "list"] }],
+        },
+        {
+          kind: "ClusterRoleBinding",
+          metadata: { name: "read-pods" },
+          roleRef: { kind: "ClusterRole", name: "pod-reader" },
+          subjects: [{ kind: "ServiceAccount", name: "deploy-bot", namespace: "default" }],
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl get clusterroles").output).toContain("pod-reader");
+    expect(engine.execute("kubectl get clusterrolebindings").output).toContain("read-pods");
+    expect(
+      engine.execute("kubectl auth can-i list pods --as=system:serviceaccount:default:deploy-bot")
+        .output,
+    ).toBe("yes");
+    expect(
+      engine.execute("kubectl auth can-i delete pods --as=system:serviceaccount:default:deploy-bot")
+        .output,
+    ).toBe("no");
   });
 
   it("applies manifests from seeded files and Kustomize paths", () => {

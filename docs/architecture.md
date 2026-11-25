@@ -167,8 +167,10 @@ matter for teaching.
 `logs`, `auth can-i`, `apply -f/-k` with comma-separated files and directory
 manifests, NetworkPolicy peer/egress evaluation, configurable rolling-update
 strategies, HPA CPU utilization from Pod usage and requests, readiness/liveness
-probe evaluation with restarts and CrashLoopBackOff, seeded storage/RBAC/event
-inspection, `delete`, and `help`. Helm,
+probe evaluation with restarts and CrashLoopBackOff, NetworkPolicy ports,
+headless/NodePort Services, storage reclaim and delayed binding, cluster-scoped
+RBAC inspection, DaemonSets, StatefulSets, Jobs, CronJobs, init containers,
+`delete`, and `help`. Helm,
 Argo CD, and Kustomize inspection are also simulated.
 
 ### Lesson validation

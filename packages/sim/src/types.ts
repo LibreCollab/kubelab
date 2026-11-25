@@ -123,6 +123,7 @@ export interface Pod extends KubeObject {
       effect?: string;
     }>;
     containers: ContainerSpec[];
+    initContainers?: ContainerSpec[];
     volumes?: Array<{
       name: string;
       persistentVolumeClaim?: { claimName: string };
@@ -138,6 +139,7 @@ export interface Pod extends KubeObject {
     usage?: { cpuMillicores: number; memoryBytes: number };
     containerStatuses?: ContainerStatus[];
     probeState?: Record<string, ProbeState>;
+    initialized?: boolean;
     reason?: string;
     backoffUntil?: number;
   };
@@ -147,6 +149,7 @@ export interface Pod extends KubeObject {
 export interface PodTemplate {
   labels: Record<string, string>;
   containers: ContainerSpec[];
+  initContainers?: ContainerSpec[];
 }
 
 export interface KubeNamespace extends KubeObject {
@@ -341,6 +344,64 @@ export interface KubeReplicaSet extends KubeObject {
   };
 }
 
+export interface KubeDaemonSet extends KubeObject {
+  kind: "DaemonSet";
+  spec: {
+    template: PodTemplate;
+  };
+  status: {
+    desiredNumberScheduled: number;
+    currentNumberScheduled: number;
+    numberReady: number;
+  };
+}
+
+export interface KubeStatefulSet extends KubeObject {
+  kind: "StatefulSet";
+  spec: {
+    replicas: number;
+    serviceName?: string;
+    template: PodTemplate;
+  };
+  status: {
+    replicas: number;
+    readyReplicas: number;
+  };
+}
+
+export interface KubeJob extends KubeObject {
+  kind: "Job";
+  spec: {
+    completions: number;
+    parallelism: number;
+    template: PodTemplate;
+  };
+  status: {
+    active: number;
+    succeeded: number;
+    failed: number;
+    startTick?: number;
+    completionTick?: number;
+  };
+}
+
+export interface KubeCronJob extends KubeObject {
+  kind: "CronJob";
+  spec: {
+    schedule: string;
+    jobTemplate: {
+      spec: {
+        completions: number;
+        parallelism: number;
+        template: PodTemplate;
+      };
+    };
+  };
+  status: {
+    lastScheduleTick?: number;
+  };
+}
+
 export interface KubeDeployment extends KubeObject {
   kind: "Deployment";
   spec: {
@@ -387,6 +448,7 @@ export interface KubeService extends KubeObject {
     ports: Array<{
       port: number;
       targetPort: number;
+      nodePort?: number;
     }>;
     clusterIP: string;
   };

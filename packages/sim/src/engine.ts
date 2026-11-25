@@ -11,11 +11,14 @@ import type {
   ContainerStatus,
   KubeApplication,
   KubeConfigMap,
+  KubeCronJob,
+  KubeDaemonSet,
   KubeDeployment,
   KubeEvent,
   KubeHelmRelease,
   KubeHorizontalPodAutoscaler,
   KubeIngress,
+  KubeJob,
   KubeNamespace,
   KubeNetworkPolicy,
   KubeNode,
@@ -27,9 +30,11 @@ import type {
   KubeRoleBinding,
   KubeSecret,
   KubeService,
+  KubeStatefulSet,
   KubeStorageClass,
   KubeWidget,
   NetworkPolicyPeer,
+  NetworkPolicyPort,
   Pod,
   PodTemplate,
   ProbeState,
@@ -258,6 +263,7 @@ export class SimEngine {
   #uid = 0;
   #ipCounter = 0;
   #serviceCounter = 0;
+  #nodePortCounter = 30000;
   #files: Record<string, string> = {};
 
   constructor(options: SimEngineOptions = {}) {
@@ -325,13 +331,34 @@ export class SimEngine {
       kind === "Namespace" ||
       kind === "Node" ||
       kind === "PersistentVolume" ||
-      kind === "StorageClass";
+      kind === "StorageClass" ||
+      kind === "ClusterRole" ||
+      kind === "ClusterRoleBinding";
     const namespace =
       typeof meta.namespace === "string" ? meta.namespace : clusterScoped ? "" : "default";
     const labels =
       typeof meta.labels === "object" && meta.labels !== null
         ? (meta.labels as Record<string, string>)
         : {};
+
+    if (kind === "DaemonSet") {
+      manifest.status ??= { desiredNumberScheduled: 0, currentNumberScheduled: 0, numberReady: 0 };
+    } else if (kind === "StatefulSet") {
+      manifest.status ??= { replicas: 0, readyReplicas: 0 };
+      const spec = manifest.spec as Record<string, unknown> | undefined;
+      if (spec !== undefined) {
+        spec.replicas ??= 1;
+      }
+    } else if (kind === "Job") {
+      manifest.status ??= { active: 0, succeeded: 0, failed: 0 };
+      const spec = manifest.spec as Record<string, unknown> | undefined;
+      if (spec !== undefined) {
+        spec.completions ??= 1;
+        spec.parallelism ??= 1;
+      }
+    } else if (kind === "CronJob") {
+      manifest.status ??= {};
+    }
 
     const object = {
       apiVersion: "v1",
@@ -449,6 +476,22 @@ export class SimEngine {
       return this.#getReplicaSets(command);
     }
 
+    if (command.resource === "daemonsets") {
+      return this.#getDaemonSets(command);
+    }
+
+    if (command.resource === "statefulsets") {
+      return this.#getStatefulSets(command);
+    }
+
+    if (command.resource === "jobs") {
+      return this.#getJobs(command);
+    }
+
+    if (command.resource === "cronjobs") {
+      return this.#getCronJobs(command);
+    }
+
     if (command.resource === "services") {
       return this.#getServices(command);
     }
@@ -497,6 +540,14 @@ export class SimEngine {
       return this.#getRoleBindings(command);
     }
 
+    if (command.resource === "clusterroles") {
+      return this.#getSimple(command, "ClusterRole", "clusterroles", true);
+    }
+
+    if (command.resource === "clusterrolebindings") {
+      return this.#getSimple(command, "ClusterRoleBinding", "clusterrolebindings", true);
+    }
+
     if (command.resource === "namespaces") {
       return this.#getNamespaces(command);
     }
@@ -526,6 +577,10 @@ export class SimEngine {
       nodes: { kind: "Node", clusterScoped: true },
       deployments: { kind: "Deployment" },
       replicasets: { kind: "ReplicaSet" },
+      daemonsets: { kind: "DaemonSet" },
+      statefulsets: { kind: "StatefulSet" },
+      jobs: { kind: "Job" },
+      cronjobs: { kind: "CronJob" },
       services: { kind: "Service" },
       ingresses: { kind: "Ingress" },
       configmaps: { kind: "ConfigMap" },
@@ -537,6 +592,8 @@ export class SimEngine {
       serviceaccounts: { kind: "ServiceAccount" },
       roles: { kind: "Role" },
       rolebindings: { kind: "RoleBinding" },
+      clusterroles: { kind: "ClusterRole", clusterScoped: true },
+      clusterrolebindings: { kind: "ClusterRoleBinding", clusterScoped: true },
       namespaces: { kind: "Namespace", clusterScoped: true },
       horizontalpodautoscalers: { kind: "HorizontalPodAutoscaler" },
       events: { kind: "Event" },
@@ -955,8 +1012,24 @@ export class SimEngine {
         };
       }
 
+      const addresses =
+        service.spec.clusterIP === "None"
+          ? this.#servicePods(service).flatMap((pod) =>
+              pod.status.podIP === undefined ? [] : [pod.status.podIP],
+            )
+          : [service.spec.clusterIP];
+      if (addresses.length === 0) {
+        return {
+          ok: false,
+          output: `** server can't find ${query}: NXDOMAIN`,
+        };
+      }
+
       if (command.command === "getent") {
-        return { ok: true, output: `${service.spec.clusterIP} ${target.canonical}` };
+        return {
+          ok: true,
+          output: addresses.map((address) => `${address} ${target.canonical}`).join("\n"),
+        };
       }
 
       return {
@@ -966,7 +1039,7 @@ export class SimEngine {
           "Address:        10.96.0.10:53",
           "",
           `Name:           ${target.canonical}`,
-          `Address:        ${service.spec.clusterIP}`,
+          ...addresses.map((address) => `Address:        ${address}`),
         ].join("\n"),
       };
     }
@@ -1049,7 +1122,7 @@ export class SimEngine {
               output: `HTTP/1.1 503 Service Unavailable\nContent-Type: text/plain\n\nno ready endpoints for ${directService.metadata.name}`,
             };
           }
-          if (!this.#ingressAllowed(backend, pod)) {
+          if (!this.#ingressAllowed(backend, pod, directService.spec.ports[0]?.port ?? 80)) {
             return {
               ok: true,
               output: `HTTP/1.1 403 Forbidden\nContent-Type: text/plain\n\nNetworkPolicy denied access to ${directService.metadata.name}`,
@@ -1090,7 +1163,7 @@ export class SimEngine {
         };
       }
 
-      if (!this.#ingressAllowed(backend, pod)) {
+      if (!this.#ingressAllowed(backend, pod, route.rule.servicePort)) {
         return {
           ok: true,
           output: `HTTP/1.1 403 Forbidden\nContent-Type: text/plain\n\nNetworkPolicy denied access to ${service.metadata.name}`,
@@ -1159,7 +1232,13 @@ export class SimEngine {
       spec: {
         type: command.serviceType,
         selector,
-        ports: [{ port: command.port, targetPort: command.targetPort }],
+        ports: [
+          {
+            port: command.port,
+            targetPort: command.targetPort,
+            ...(command.serviceType === "NodePort" ? { nodePort: this.#nextNodePort() } : {}),
+          },
+        ],
         clusterIP: `10.96.${Math.floor((this.#serviceCounter - 1) / 254)}.${((this.#serviceCounter - 1) % 254) + 1}`,
       },
     };
@@ -1538,11 +1617,16 @@ export class SimEngine {
       const name = command.allNamespaces
         ? `${service.metadata.namespace}/${service.metadata.name}`
         : service.metadata.name;
-      const ports = service.spec.ports.map((port) => `${port.port}/${port.targetPort}`).join(",");
+      const ports = service.spec.ports
+        .map(
+          (port) =>
+            `${port.port}${port.nodePort === undefined ? "" : `:${port.nodePort}`}/${port.targetPort}`,
+        )
+        .join(",");
       const row = [
         name,
         service.spec.type,
-        service.spec.clusterIP,
+        service.spec.clusterIP === "None" ? "<none>" : service.spec.clusterIP,
         service.spec.type === "LoadBalancer" ? "<pending>" : "<none>",
         ports,
         `${Math.max(0, this.clock.tick - service.metadata.creationTick)}s`,
@@ -1597,6 +1681,139 @@ export class SimEngine {
     });
 
     return { ok: true, output: formatTable(["NAME", "ENDPOINTS", "AGE"], rows) };
+  }
+
+  #getDaemonSets(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeDaemonSet>("DaemonSet", command.name, command.namespace)].filter(
+          (item): item is KubeDaemonSet => item !== undefined,
+        )
+      : this.store.list<KubeDaemonSet>(
+          "DaemonSet",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("daemonsets.apps", command.name);
+    }
+    const rows = items
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        String(item.status.desiredNumberScheduled),
+        String(item.status.currentNumberScheduled),
+        String(item.status.numberReady),
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+    return rows.length === 0
+      ? this.#noResources(command)
+      : {
+          ok: true,
+          output: formatTable(["NAME", "DESIRED", "CURRENT", "READY", "AGE"], rows),
+        };
+  }
+
+  #getStatefulSets(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeStatefulSet>("StatefulSet", command.name, command.namespace)].filter(
+          (item): item is KubeStatefulSet => item !== undefined,
+        )
+      : this.store.list<KubeStatefulSet>(
+          "StatefulSet",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("statefulsets.apps", command.name);
+    }
+    const rows = items
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => [
+        command.allNamespaces
+          ? `${item.metadata.namespace}/${item.metadata.name}`
+          : item.metadata.name,
+        `${item.status.readyReplicas}/${item.spec.replicas}`,
+        `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+      ]);
+    return rows.length === 0
+      ? this.#noResources(command)
+      : { ok: true, output: formatTable(["NAME", "READY", "AGE"], rows) };
+  }
+
+  #getJobs(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeJob>("Job", command.name, command.namespace)].filter(
+          (item): item is KubeJob => item !== undefined,
+        )
+      : this.store.list<KubeJob>("Job", command.allNamespaces ? undefined : command.namespace);
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("jobs.batch", command.name);
+    }
+    const rows = items
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => {
+        const status =
+          item.status.succeeded >= item.spec.completions
+            ? "Complete"
+            : item.status.failed > 0
+              ? "Failed"
+              : item.status.active > 0
+                ? "Running"
+                : "Pending";
+        return [
+          command.allNamespaces
+            ? `${item.metadata.namespace}/${item.metadata.name}`
+            : item.metadata.name,
+          status,
+          `${item.status.succeeded}/${item.spec.completions}`,
+          `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+        ];
+      });
+    return rows.length === 0
+      ? this.#noResources(command)
+      : { ok: true, output: formatTable(["NAME", "STATUS", "COMPLETIONS", "AGE"], rows) };
+  }
+
+  #getCronJobs(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
+    const items = command.name
+      ? [this.store.get<KubeCronJob>("CronJob", command.name, command.namespace)].filter(
+          (item): item is KubeCronJob => item !== undefined,
+        )
+      : this.store.list<KubeCronJob>(
+          "CronJob",
+          command.allNamespaces ? undefined : command.namespace,
+        );
+    if (command.name !== undefined && items.length === 0) {
+      return notFound("cronjobs.batch", command.name);
+    }
+    const rows = items
+      .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
+      .map((item) => {
+        const active = this.store
+          .list<KubeJob>("Job", item.metadata.namespace)
+          .filter((job) => job.metadata.labels.cronjob === item.metadata.name).length;
+        return [
+          command.allNamespaces
+            ? `${item.metadata.namespace}/${item.metadata.name}`
+            : item.metadata.name,
+          item.spec.schedule,
+          "False",
+          String(active),
+          item.status.lastScheduleTick === undefined
+            ? "<none>"
+            : `${Math.max(0, this.clock.tick - item.status.lastScheduleTick)}s ago`,
+          `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
+        ];
+      });
+    return rows.length === 0
+      ? this.#noResources(command)
+      : {
+          ok: true,
+          output: formatTable(
+            ["NAME", "SCHEDULE", "SUSPEND", "ACTIVE", "LAST SCHEDULE", "AGE"],
+            rows,
+          ),
+        };
   }
 
   #getConfigMaps(command: Extract<ParsedCommand, { verb: "get" }>): CommandResult {
@@ -1711,12 +1928,16 @@ export class SimEngine {
     command: Extract<ParsedCommand, { verb: "get" }>,
     kind: string,
     resource: string,
+    clusterScoped = false,
   ): CommandResult {
     const objects = command.name
-      ? [this.store.get<KubeObject>(kind, command.name, command.namespace)].filter(
-          (object): object is KubeObject => object !== undefined,
-        )
-      : this.store.list<KubeObject>(kind, command.allNamespaces ? undefined : command.namespace);
+      ? [
+          this.store.get<KubeObject>(kind, command.name, clusterScoped ? "" : command.namespace),
+        ].filter((object): object is KubeObject => object !== undefined)
+      : this.store.list<KubeObject>(
+          kind,
+          clusterScoped || command.allNamespaces ? undefined : command.namespace,
+        );
 
     if (command.name !== undefined && objects.length === 0) {
       return notFound(resource, command.name);
@@ -2121,6 +2342,14 @@ export class SimEngine {
               this.#serviceCounter += 1;
               spec.clusterIP = `10.96.${Math.floor((this.#serviceCounter - 1) / 254)}.${((this.#serviceCounter - 1) % 254) + 1}`;
             }
+            if (spec.type === "NodePort" && Array.isArray(spec.ports)) {
+              for (const port of spec.ports) {
+                if (typeof port === "object" && port !== null) {
+                  const servicePort = port as Record<string, unknown>;
+                  servicePort.nodePort ??= this.#nextNodePort();
+                }
+              }
+            }
           }
         } else if (kind === "Secret") {
           const stringData = raw.stringData as Record<string, string> | undefined;
@@ -2460,6 +2689,92 @@ export class SimEngine {
       return { ok: true, output: `secret "${command.name}" deleted` };
     }
 
+    if (command.resource === "persistentvolumeclaims") {
+      const claim = this.store.get<KubePersistentVolumeClaim>(
+        "PersistentVolumeClaim",
+        command.name,
+        command.namespace,
+      );
+      if (claim === undefined) {
+        return notFound("persistentvolumeclaims", command.name);
+      }
+      const volume =
+        claim.spec.volumeName === undefined
+          ? this.store
+              .list<KubePersistentVolume>("PersistentVolume")
+              .find(
+                (candidate) =>
+                  candidate.spec.claimRef?.namespace === claim.metadata.namespace &&
+                  candidate.spec.claimRef.name === claim.metadata.name,
+              )
+          : this.store.get<KubePersistentVolume>("PersistentVolume", claim.spec.volumeName, "");
+      this.store.delete("PersistentVolumeClaim", claim.metadata.name, claim.metadata.namespace);
+      if (volume !== undefined) {
+        const storageClass =
+          volume.spec.storageClassName === undefined
+            ? undefined
+            : this.store.get<KubeStorageClass>("StorageClass", volume.spec.storageClassName, "");
+        const reclaimPolicy = volume.spec.reclaimPolicy ?? storageClass?.reclaimPolicy ?? "Retain";
+        if (reclaimPolicy === "Delete") {
+          this.store.delete("PersistentVolume", volume.metadata.name, "");
+        } else {
+          this.store.upsert({ ...volume, status: { phase: "Released" } });
+        }
+      }
+      return { ok: true, output: `persistentvolumeclaim "${command.name}" deleted` };
+    }
+
+    if (command.resource === "persistentvolumes") {
+      const volume = this.store.get<KubePersistentVolume>("PersistentVolume", command.name, "");
+      if (volume === undefined) {
+        return notFound("persistentvolumes", command.name);
+      }
+      this.store.delete("PersistentVolume", volume.metadata.name, "");
+      return { ok: true, output: `persistentvolume "${command.name}" deleted` };
+    }
+
+    const workloadKinds: Record<string, { kind: string; label: string; suffix: string }> = {
+      daemonsets: { kind: "DaemonSet", label: "daemonset", suffix: "apps" },
+      statefulsets: { kind: "StatefulSet", label: "statefulset", suffix: "apps" },
+      jobs: { kind: "Job", label: "job-name", suffix: "batch" },
+    };
+    const workload = workloadKinds[command.resource];
+    if (workload !== undefined) {
+      const object = this.store.get<KubeObject>(workload.kind, command.name, command.namespace);
+      if (object === undefined) {
+        return notFound(`${command.resource}.${workload.suffix}`, command.name);
+      }
+      for (const pod of this.store
+        .list<Pod>("Pod", command.namespace)
+        .filter((candidate) => candidate.metadata.labels[workload.label] === command.name)) {
+        this.store.delete("Pod", pod.metadata.name, pod.metadata.namespace);
+      }
+      this.store.delete(workload.kind, command.name, command.namespace);
+      return {
+        ok: true,
+        output: `${command.resource}.${workload.suffix} "${command.name}" deleted`,
+      };
+    }
+
+    if (command.resource === "cronjobs") {
+      const cronJob = this.store.get<KubeCronJob>("CronJob", command.name, command.namespace);
+      if (cronJob === undefined) {
+        return notFound("cronjobs.batch", command.name);
+      }
+      for (const job of this.store
+        .list<KubeJob>("Job", command.namespace)
+        .filter((candidate) => candidate.metadata.labels.cronjob === command.name)) {
+        for (const pod of this.store
+          .list<Pod>("Pod", command.namespace)
+          .filter((candidate) => candidate.metadata.labels["job-name"] === job.metadata.name)) {
+          this.store.delete("Pod", pod.metadata.name, pod.metadata.namespace);
+        }
+        this.store.delete("Job", job.metadata.name, job.metadata.namespace);
+      }
+      this.store.delete("CronJob", command.name, command.namespace);
+      return { ok: true, output: `cronjobs.batch "${command.name}" deleted` };
+    }
+
     if (command.resource !== "pods") {
       return notSimulated("deleting", command.resource);
     }
@@ -2488,6 +2803,8 @@ export class SimEngine {
       serviceaccounts: "ServiceAccount",
       roles: "Role",
       rolebindings: "RoleBinding",
+      clusterroles: "ClusterRole",
+      clusterrolebindings: "ClusterRoleBinding",
       namespaces: "Namespace",
       horizontalpodautoscalers: "HorizontalPodAutoscaler",
       events: "Event",
@@ -2648,7 +2965,11 @@ export class SimEngine {
     kind: string,
   ): CommandResult {
     const clusterScoped =
-      kind === "Namespace" || kind === "PersistentVolume" || kind === "StorageClass";
+      kind === "Namespace" ||
+      kind === "PersistentVolume" ||
+      kind === "StorageClass" ||
+      kind === "ClusterRole" ||
+      kind === "ClusterRoleBinding";
     const object = this.store.get<KubeObject>(
       kind,
       command.name,
@@ -2763,6 +3084,10 @@ export class SimEngine {
 
     this.#reconcileWidgets();
     this.#reconcileAutoscalers();
+    this.#reconcileCronJobs();
+    this.#reconcileJobs();
+    this.#reconcileDaemonSets();
+    this.#reconcileStatefulSets();
     this.#reconcileDeployments();
     this.#reconcileReplicaSets();
     this.#reconcileStorage();
@@ -2815,6 +3140,23 @@ export class SimEngine {
         const stored = this.store.upsert(scheduled);
 
         this.events.emit({ type: "pod.scheduled", tick, pod: stored });
+        continue;
+      }
+
+      if (
+        pod.spec.initContainers !== undefined &&
+        pod.spec.initContainers.length > 0 &&
+        pod.status.initialized !== true
+      ) {
+        this.store.upsert({
+          ...pod,
+          status: {
+            ...pod.status,
+            phase: "Pending",
+            message: `Init:0/${pod.spec.initContainers.length}`,
+            initialized: true,
+          },
+        });
         continue;
       }
 
@@ -3123,6 +3465,238 @@ export class SimEngine {
     });
   }
 
+  #reconcileCronJobs(): void {
+    const tick = this.clock.tick;
+    for (const cronJob of this.store.list<KubeCronJob>("CronJob")) {
+      const lastSchedule = cronJob.status.lastScheduleTick ?? cronJob.metadata.creationTick;
+      if (tick - lastSchedule < this.#cronIntervalTicks(cronJob.spec.schedule)) {
+        continue;
+      }
+      const jobName = `${cronJob.metadata.name}-${tick}`;
+      if (this.store.get<KubeJob>("Job", jobName, cronJob.metadata.namespace) === undefined) {
+        this.store.upsert<KubeJob>({
+          apiVersion: "batch/v1",
+          kind: "Job",
+          metadata: {
+            name: jobName,
+            namespace: cronJob.metadata.namespace,
+            labels: { ...cronJob.metadata.labels, cronjob: cronJob.metadata.name },
+            uid: this.#nextUid("job"),
+            resourceVersion: 0,
+            creationTick: tick,
+          },
+          spec: {
+            ...cronJob.spec.jobTemplate.spec,
+            template: {
+              ...cronJob.spec.jobTemplate.spec.template,
+              containers: cronJob.spec.jobTemplate.spec.template.containers.map((container) => ({
+                ...container,
+              })),
+              ...(cronJob.spec.jobTemplate.spec.template.initContainers === undefined
+                ? {}
+                : {
+                    initContainers: cronJob.spec.jobTemplate.spec.template.initContainers.map(
+                      (container) => ({
+                        ...container,
+                      }),
+                    ),
+                  }),
+            },
+          },
+          status: { active: 0, succeeded: 0, failed: 0, startTick: tick },
+        });
+      }
+      this.store.upsert({
+        ...cronJob,
+        status: { ...cronJob.status, lastScheduleTick: tick },
+      });
+    }
+  }
+
+  #cronIntervalTicks(schedule: string): number {
+    const every = /^@every\s+(\d+)s$/.exec(schedule);
+    if (every !== null) {
+      return Math.max(1, Number(every[1]));
+    }
+    if (schedule === "@hourly") {
+      return 3600;
+    }
+    const stepped = /^\*\/(\d+)\s+\*\s+\*\s+\*\s+\*$/.exec(schedule);
+    if (stepped !== null) {
+      return Math.max(1, Number(stepped[1])) * 60;
+    }
+    return 60;
+  }
+
+  #reconcileJobs(): void {
+    const tick = this.clock.tick;
+    for (const job of this.store.list<KubeJob>("Job")) {
+      const pods = this.store
+        .list<Pod>("Pod", job.metadata.namespace)
+        .filter((pod) => pod.metadata.labels["job-name"] === job.metadata.name);
+
+      for (const pod of pods) {
+        if (pod.status.phase === "Running" && tick - pod.metadata.creationTick >= 2) {
+          this.store.upsert({
+            ...pod,
+            status: { ...pod.status, phase: "Succeeded" },
+          });
+        }
+      }
+
+      const currentPods = this.store
+        .list<Pod>("Pod", job.metadata.namespace)
+        .filter((pod) => pod.metadata.labels["job-name"] === job.metadata.name);
+      const succeeded = currentPods.filter((pod) => pod.status.phase === "Succeeded").length;
+      const active = currentPods.filter(
+        (pod) => pod.status.phase === "Pending" || pod.status.phase === "Running",
+      ).length;
+
+      if (succeeded < job.spec.completions && active < job.spec.parallelism) {
+        const createCount = Math.min(
+          job.spec.parallelism - active,
+          job.spec.completions - succeeded - active,
+        );
+        for (let index = 0; index < createCount; index += 1) {
+          this.#createWorkloadPod(
+            `${job.metadata.name}-${this.#nextUid("pod")}`,
+            job.metadata.namespace,
+            job.spec.template,
+            { ...job.metadata.labels, "job-name": job.metadata.name, job: job.metadata.name },
+          );
+        }
+      }
+
+      this.store.upsert({
+        ...job,
+        status: {
+          ...job.status,
+          active,
+          succeeded,
+          startTick: job.status.startTick ?? tick,
+          ...(succeeded >= job.spec.completions
+            ? { completionTick: job.status.completionTick ?? tick }
+            : {}),
+        },
+      });
+    }
+  }
+
+  #reconcileDaemonSets(): void {
+    const readyNodes = this.store.list<KubeNode>("Node").filter((node) => node.status.ready);
+    for (const daemonSet of this.store.list<KubeDaemonSet>("DaemonSet")) {
+      const pods = this.store
+        .list<Pod>("Pod", daemonSet.metadata.namespace)
+        .filter((pod) => pod.metadata.labels.daemonset === daemonSet.metadata.name);
+      const nodeNames = new Set(readyNodes.map((node) => node.metadata.name));
+
+      for (const node of readyNodes) {
+        const podName = `${daemonSet.metadata.name}-${node.metadata.name}`;
+        if (!pods.some((pod) => pod.metadata.name === podName)) {
+          this.#createWorkloadPod(
+            podName,
+            daemonSet.metadata.namespace,
+            daemonSet.spec.template,
+            {
+              ...daemonSet.metadata.labels,
+              daemonset: daemonSet.metadata.name,
+            },
+            node.metadata.name,
+          );
+        }
+      }
+      for (const pod of pods) {
+        if (pod.spec.nodeName === undefined || !nodeNames.has(pod.spec.nodeName)) {
+          this.store.delete("Pod", pod.metadata.name, pod.metadata.namespace);
+        }
+      }
+
+      const current = this.store
+        .list<Pod>("Pod", daemonSet.metadata.namespace)
+        .filter((pod) => pod.metadata.labels.daemonset === daemonSet.metadata.name);
+      this.store.upsert({
+        ...daemonSet,
+        status: {
+          desiredNumberScheduled: readyNodes.length,
+          currentNumberScheduled: current.length,
+          numberReady: current.filter(isPodReady).length,
+        },
+      });
+    }
+  }
+
+  #reconcileStatefulSets(): void {
+    for (const statefulSet of this.store.list<KubeStatefulSet>("StatefulSet")) {
+      const pods = this.store
+        .list<Pod>("Pod", statefulSet.metadata.namespace)
+        .filter((pod) => pod.metadata.labels.statefulset === statefulSet.metadata.name);
+
+      for (let index = 0; index < statefulSet.spec.replicas; index += 1) {
+        const podName = `${statefulSet.metadata.name}-${index}`;
+        if (!pods.some((pod) => pod.metadata.name === podName)) {
+          this.#createWorkloadPod(
+            podName,
+            statefulSet.metadata.namespace,
+            statefulSet.spec.template,
+            {
+              ...statefulSet.metadata.labels,
+              statefulset: statefulSet.metadata.name,
+              "apps.kubernetes.io/pod-index": String(index),
+            },
+          );
+        }
+      }
+      for (const pod of pods) {
+        const index = Number(pod.metadata.labels["apps.kubernetes.io/pod-index"]);
+        if (Number.isNaN(index) || index >= statefulSet.spec.replicas) {
+          this.store.delete("Pod", pod.metadata.name, pod.metadata.namespace);
+        }
+      }
+
+      const current = this.store
+        .list<Pod>("Pod", statefulSet.metadata.namespace)
+        .filter((pod) => pod.metadata.labels.statefulset === statefulSet.metadata.name);
+      this.store.upsert({
+        ...statefulSet,
+        status: {
+          replicas: current.length,
+          readyReplicas: current.filter(isPodReady).length,
+        },
+      });
+    }
+  }
+
+  #createWorkloadPod(
+    name: string,
+    namespace: string,
+    template: PodTemplate,
+    labels: Record<string, string>,
+    nodeName?: string,
+  ): void {
+    const pod: Pod = {
+      apiVersion: "v1",
+      kind: "Pod",
+      metadata: {
+        name,
+        namespace,
+        labels: { ...template.labels, ...labels },
+        uid: this.#nextUid("pod"),
+        resourceVersion: 0,
+        creationTick: this.clock.tick,
+      },
+      spec: {
+        ...(nodeName === undefined ? {} : { nodeName }),
+        containers: template.containers.map((container) => ({ ...container })),
+        ...(template.initContainers === undefined
+          ? {}
+          : { initContainers: template.initContainers.map((container) => ({ ...container })) }),
+      },
+      status: { phase: "Pending" },
+    };
+    const stored = this.store.upsert(pod);
+    this.events.emit({ type: "pod.created", tick: this.clock.tick, pod: stored });
+  }
+
   #reconcileWidgets(): void {
     for (const widget of this.store.list<KubeWidget>("Widget")) {
       if (widget.status.phase !== "Ready") {
@@ -3279,6 +3853,9 @@ export class SimEngine {
       ) {
         continue;
       }
+      if (storageClass.volumeBindingMode === "WaitForFirstConsumer" && !this.#claimInUse(claim)) {
+        continue;
+      }
 
       const volumeName = `pvc-${claim.metadata.uid.toLowerCase()}`;
       this.store.upsert<KubePersistentVolume>({
@@ -3429,6 +4006,13 @@ export class SimEngine {
               containers: replicaSet.spec.template.containers.map((container) => ({
                 ...container,
               })),
+              ...(replicaSet.spec.template.initContainers === undefined
+                ? {}
+                : {
+                    initContainers: replicaSet.spec.template.initContainers.map((container) => ({
+                      ...container,
+                    })),
+                  }),
             },
             status: { phase: "Pending" },
           };
@@ -3503,18 +4087,22 @@ export class SimEngine {
       );
   }
 
-  #ingressAllowed(target: Pod, source: Pod): boolean {
+  #ingressAllowed(target: Pod, source: Pod, port: number): boolean {
     const ingressPolicies = this.#policiesFor(target).filter((policy) =>
       this.#policyType(policy, "Ingress"),
     );
     const ingressAllowed =
       ingressPolicies.length === 0 ||
       ingressPolicies.some((policy) =>
-        (policy.spec.ingress ?? []).some((rule) =>
-          rule.from === undefined
-            ? true
-            : rule.from.some((peer) => this.#peerMatches(peer, source, target.metadata.namespace)),
-        ),
+        (policy.spec.ingress ?? []).some((rule) => {
+          if (!this.#policyPortMatches(rule.ports, port)) {
+            return false;
+          }
+          return (
+            rule.from === undefined ||
+            rule.from.some((peer) => this.#peerMatches(peer, source, target.metadata.namespace))
+          );
+        }),
       );
     if (!ingressAllowed) {
       return false;
@@ -3526,13 +4114,27 @@ export class SimEngine {
     return (
       egressPolicies.length === 0 ||
       egressPolicies.some((policy) =>
-        (policy.spec.egress ?? []).some((rule) =>
-          rule.to === undefined
-            ? true
-            : rule.to.some((peer) => this.#peerMatches(peer, target, source.metadata.namespace)),
-        ),
+        (policy.spec.egress ?? []).some((rule) => {
+          if (!this.#policyPortMatches(rule.ports, port)) {
+            return false;
+          }
+          return (
+            rule.to === undefined ||
+            rule.to.some((peer) => this.#peerMatches(peer, target, source.metadata.namespace))
+          );
+        }),
       )
     );
+  }
+
+  #policyPortMatches(ports: NetworkPolicyPort[] | undefined, port: number): boolean {
+    if (ports === undefined) {
+      return true;
+    }
+    if (ports.length === 0) {
+      return false;
+    }
+    return ports.some((entry) => entry.port === undefined || Number(entry.port) === port);
   }
 
   #policiesFor(pod: Pod): KubeNetworkPolicy[] {
@@ -3584,6 +4186,16 @@ export class SimEngine {
     return true;
   }
 
+  #claimInUse(claim: KubePersistentVolumeClaim): boolean {
+    return this.store
+      .list<Pod>("Pod", claim.metadata.namespace)
+      .some((pod) =>
+        (pod.spec.volumes ?? []).some(
+          (volume) => volume.persistentVolumeClaim?.claimName === claim.metadata.name,
+        ),
+      );
+  }
+
   #servicePods(service: KubeService): Pod[] {
     if (Object.keys(service.spec.selector).length === 0) {
       return [];
@@ -3600,6 +4212,11 @@ export class SimEngine {
     const base = resource.split(".")[0] ?? resource;
     const singular = base.endsWith("s") ? base.slice(0, -1) : base;
     return `${singular.charAt(0).toUpperCase()}${singular.slice(1)}`;
+  }
+
+  #nextNodePort(): number {
+    this.#nodePortCounter += 1;
+    return this.#nodePortCounter;
   }
 
   #nextUid(prefix: string): string {

@@ -236,6 +236,17 @@ function normalizeResource(resource: string): string {
     case "rs":
     case "replicaset":
       return "replicasets";
+    case "ds":
+    case "daemonset":
+      return "daemonsets";
+    case "sts":
+    case "statefulset":
+      return "statefulsets";
+    case "job":
+      return "jobs";
+    case "cronjob":
+    case "cj":
+      return "cronjobs";
     case "ep":
     case "endpoint":
       return "endpoints";
@@ -266,6 +277,10 @@ function normalizeResource(resource: string): string {
       return "roles";
     case "rolebinding":
       return "rolebindings";
+    case "clusterrole":
+      return "clusterroles";
+    case "clusterrolebinding":
+      return "clusterrolebindings";
     case "ns":
     case "namespace":
       return "namespaces";
