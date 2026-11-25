@@ -701,7 +701,7 @@ test("workload and governance lessons are interactive", async ({ page }) => {
   await expect(page.locator('[data-check="Listed the Job"]')).toHaveAttribute("data-state", "pass");
   await page.keyboard.type("kubectl describe job migrate");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".xterm-rows")).toContainText("migrate");
+  await expect(page.locator('[data-check="Read the Job"]')).toHaveAttribute("data-state", "pass");
 
   await page.goto("/lesson/statefulsets-101");
   await page.locator(".xterm-screen").click();

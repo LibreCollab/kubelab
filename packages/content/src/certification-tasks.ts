@@ -530,6 +530,83 @@ spec:
         describe("Read the HPA", "horizontalpodautoscalers", "web"),
       ],
     },
+    {
+      id: "cka-incident-service",
+      title: "Service incident",
+      unit: "networking",
+      instruction:
+        "The web Service has no endpoints. Apply the corrected Deployment and Service, then verify routing from the client.",
+      scenario: scenario(
+        {
+          "fix.yaml": `${deploymentManifest("web", 3, "nginx:1.27")}---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 80
+`,
+        },
+        [
+          {
+            kind: "Deployment",
+            metadata: { name: "web" },
+            spec: {
+              replicas: 2,
+              template: {
+                labels: { app: "web" },
+                containers: [{ name: "web", image: "nginx:1.25" }],
+              },
+            },
+            status: { replicas: 2, readyReplicas: 2, updatedReplicas: 2, availableReplicas: 2 },
+          },
+          {
+            kind: "Service",
+            metadata: { name: "web" },
+            spec: {
+              type: "ClusterIP",
+              selector: { app: "old" },
+              ports: [{ port: 80, targetPort: 80 }],
+              clusterIP: "10.96.0.200",
+            },
+          },
+          {
+            kind: "Pod",
+            metadata: { name: "client" },
+            spec: {
+              nodeName: "node-1",
+              containers: [{ name: "client", image: "curlimages/curl" }],
+            },
+            status: {
+              phase: "Running",
+              podIP: "10.244.0.200",
+              conditions: [{ type: "Ready", status: "True" }],
+            },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Deployment repaired",
+          name: "web",
+          replicas: 3,
+          image: "nginx:1.27",
+        },
+        get("Verified endpoints", "endpoints", "web"),
+        {
+          type: "command",
+          label: "Tested the Service",
+          verb: "exec",
+          name: "client",
+          command: "curl",
+        },
+      ],
+    },
   ],
   ckad: [
     {
@@ -737,6 +814,86 @@ spec:
           name: "agent-node-1",
           image: "busybox",
           phase: "Running",
+        },
+      ],
+    },
+    {
+      id: "ckad-incident-config",
+      title: "Configuration incident",
+      unit: "config",
+      instruction:
+        "The API is reading the wrong mode. Apply the corrected ConfigMap and Deployment, then verify the injected value.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  MODE: prod
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx
+        env:
+          - name: APP_MODE
+            value: prod
+        envFrom:
+          - configMapRef:
+              name: app-config
+`,
+        },
+        [
+          {
+            kind: "ConfigMap",
+            metadata: { name: "app-config" },
+            data: { MODE: "dev" },
+          },
+          {
+            kind: "Deployment",
+            metadata: { name: "api" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "api" },
+                containers: [
+                  {
+                    name: "api",
+                    image: "nginx",
+                    env: [{ name: "APP_MODE", value: "dev" }],
+                    envFrom: [{ kind: "ConfigMap", name: "app-config" }],
+                  },
+                ],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "configmap",
+          label: "ConfigMap repaired",
+          name: "app-config",
+          data: { MODE: "prod" },
+        },
+        {
+          type: "env",
+          label: "API uses production mode",
+          deployment: "api",
+          name: "APP_MODE",
+          value: "prod",
+          sourceKind: "ConfigMap",
+          sourceName: "app-config",
         },
       ],
     },

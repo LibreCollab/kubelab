@@ -60,3 +60,10 @@ The preview SHALL NOT require or imply accounts, cross-device sync, cloud progre
 #### Scenario: Preview uses local progress
 - **WHEN** a learner uses the public preview
 - **THEN** progress remains in that browser and is not presented as synced
+
+### Requirement: Real-cluster bridge
+The repository SHALL document how learners move from the simulator to kind or k3d for real kubectl practice.
+
+#### Scenario: Learner leaves the simulator
+- **WHEN** a learner needs real-cluster practice
+- **THEN** documented setup, drills, verification, and cleanup steps are available

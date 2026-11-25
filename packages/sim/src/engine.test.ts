@@ -2358,6 +2358,36 @@ spec:
     expect(listed.output).toContain("80");
   });
 
+  it("normalizes standard envFrom references on apply", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      files: {
+        "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx
+        envFrom:
+          - configMapRef:
+              name: app-config
+`,
+      },
+    });
+
+    expect(engine.execute("kubectl apply -f deployment.yaml").ok).toBe(true);
+    expect(
+      engine.store.get<KubeDeployment>("Deployment", "api")?.spec.template.containers[0]?.envFrom,
+    ).toEqual([{ kind: "ConfigMap", name: "app-config" }]);
+  });
+
   it("reports rollout status", () => {
     const engine = createEngine();
     engine.execute("kubectl create deployment web --image=nginx");

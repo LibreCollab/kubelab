@@ -184,7 +184,7 @@ export const certificationDomains: CertificationDomain[] = [
       "network-policy-101",
       "tls-ingress-101",
     ],
-    taskIds: ["cka-netpol", "ckad-ingress", "cks-netpol", "cks-tls"],
+    taskIds: ["cka-netpol", "cka-incident-service", "ckad-ingress", "cks-netpol", "cks-tls"],
     questionUnits: [],
   },
   {
@@ -202,7 +202,7 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Troubleshooting",
     weight: 30,
     lessonIds: ["logs-events-101", "probes-101", "pod-security-101", "cluster-rbac-101"],
-    taskIds: ["cka-probes", "cks-cni", "cks-psa", "cks-secret"],
+    taskIds: ["cka-probes", "cka-incident-service", "cks-cni", "cks-psa", "cks-secret"],
     questionUnits: [],
   },
   {
@@ -211,7 +211,7 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Application design and build",
     weight: 20,
     lessonIds: ["containers-101", "images-101", "configmaps-101", "secrets-101"],
-    taskIds: ["ckad-config", "ckad-secret", "ckad-job", "cka-rollout"],
+    taskIds: ["ckad-config", "ckad-secret", "ckad-incident-config", "ckad-job", "cka-rollout"],
     questionUnits: [],
   },
   {
@@ -238,7 +238,14 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Application environment, configuration and security",
     weight: 25,
     lessonIds: ["configmaps-101", "secrets-101", "pod-security-101", "cluster-rbac-101"],
-    taskIds: ["ckad-config", "ckad-secret", "cks-secret", "cks-psa", "cks-cluster-rbac"],
+    taskIds: [
+      "ckad-config",
+      "ckad-secret",
+      "ckad-incident-config",
+      "cks-secret",
+      "cks-psa",
+      "cks-cluster-rbac",
+    ],
     questionUnits: [],
   },
   {

@@ -113,6 +113,7 @@ export interface ExamQuestion {
   lessonTitle: string;
   unit: string;
   label: string;
+  explanation?: string;
 }
 
 export interface ExamTask {
@@ -150,6 +151,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Containers",
     unit: "containers",
     label: "Container image",
+    explanation:
+      "Pods run the image named in spec.containers[].image; there is no top-level spec.image field.",
   },
   {
     id: "cert:kubelet",
@@ -160,6 +163,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "The control plane",
     unit: "architecture",
     label: "Node components",
+    explanation:
+      "Kubelet watches the API for Pods assigned to its node and asks the runtime to run them.",
   },
   {
     id: "cert:deployment-revision",
@@ -175,6 +180,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Deployments and rollouts",
     unit: "workloads",
     label: "Rollbacks",
+    explanation: "Rollback switches the Deployment to a previous ReplicaSet template.",
   },
   {
     id: "cert:service-dns",
@@ -185,6 +191,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Service discovery and DNS",
     unit: "services",
     label: "DNS search paths",
+    explanation:
+      "A short name searches the Pod namespace first, so api resolves inside that namespace.",
   },
   {
     id: "cert:configmap-envfrom",
@@ -195,6 +203,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "ConfigMaps",
     unit: "config",
     label: "Environment injection",
+    explanation: "envFrom imports all keys from a ConfigMap or Secret; valueFrom selects one key.",
   },
   {
     id: "cert:secret-encoding",
@@ -205,6 +214,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Secrets",
     unit: "config",
     label: "Secret encoding",
+    explanation: "Secret data values are base64 encoded; stringData accepts plain text.",
   },
   {
     id: "cert:pvc-binding",
@@ -220,6 +230,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "PersistentVolumes",
     unit: "storage",
     label: "Volume binding",
+    explanation:
+      "A claim stays Pending when its size, class, access mode, or selector cannot match a volume.",
   },
   {
     id: "cert:taint-toleration",
@@ -230,6 +242,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Scheduling and placement",
     unit: "scheduling",
     label: "Taints and tolerations",
+    explanation:
+      "NoSchedule taints require a matching toleration; labels alone do not bypass taints.",
   },
   {
     id: "cert:networkpolicy-deny",
@@ -246,6 +260,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "NetworkPolicy",
     unit: "networking",
     label: "Default deny",
+    explanation: "Selecting a Pod with no ingress rules denies all ingress to it.",
   },
   {
     id: "cert:rolebinding",
@@ -256,6 +271,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "RBAC",
     unit: "security",
     label: "Role bindings",
+    explanation: "A RoleBinding binds a Role or ClusterRole to subjects in a namespace.",
   },
   {
     id: "cert:readiness",
@@ -271,6 +287,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Logs, events, and readiness",
     unit: "observability",
     label: "Readiness probes",
+    explanation: "Readiness controls Service endpoints; liveness controls restarts.",
   },
   {
     id: "cert:rollout-status",
@@ -286,6 +303,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Deployments and rollouts",
     unit: "workloads",
     label: "Rollout status",
+    explanation: "rollout status watches the Deployment until the new ReplicaSet is complete.",
   },
   {
     id: "cert:job-completions",
@@ -296,6 +314,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Jobs and batch work",
     unit: "workloads",
     label: "Job completions",
+    explanation: "completions is the target success count; parallelism controls concurrent Pods.",
   },
   {
     id: "cert:statefulset-ordinal",
@@ -306,6 +325,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "StatefulSets and ordinals",
     unit: "workloads",
     label: "Ordinal Pod names",
+    explanation: "StatefulSet replicas get stable ordinals starting at zero.",
   },
   {
     id: "cert:daemonset-placement",
@@ -321,6 +341,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "DaemonSets",
     unit: "workloads",
     label: "DaemonSet placement",
+    explanation: "DaemonSets schedule one Pod per eligible node.",
   },
   {
     id: "cert:init-ordering",
@@ -336,6 +357,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Init containers",
     unit: "workloads",
     label: "Init ordering",
+    explanation: "Init containers run in order and must all succeed before app containers start.",
   },
   {
     id: "cert:pdb",
@@ -346,6 +368,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "PodDisruptionBudgets",
     unit: "scheduling",
     label: "Disruption budgets",
+    explanation: "PDBs constrain voluntary disruptions, not failures or normal rollouts.",
   },
   {
     id: "cert:quota",
@@ -361,6 +384,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "ResourceQuota and LimitRange",
     unit: "scheduling",
     label: "Resource quotas",
+    explanation: "ResourceQuota caps aggregate namespace usage.",
   },
   {
     id: "cert:limitrange",
@@ -376,6 +400,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "ResourceQuota and LimitRange",
     unit: "scheduling",
     label: "LimitRange defaults",
+    explanation:
+      "defaultRequest fills a missing container request before scheduling and quota checks.",
   },
   {
     id: "cert:required-affinity",
@@ -391,6 +417,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Affinity and topology",
     unit: "scheduling",
     label: "Required affinity",
+    explanation: "Required affinity is a hard constraint; no match leaves the Pod Pending.",
   },
   {
     id: "cert:tls-ingress",
@@ -401,6 +428,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "TLS Ingress",
     unit: "services",
     label: "TLS hosts",
+    explanation: "The TLS section associates hosts with a certificate Secret.",
   },
   {
     id: "cert:clusterrole",
@@ -411,6 +439,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Cluster-scoped RBAC",
     unit: "security",
     label: "ClusterRole scope",
+    explanation: "ClusterRoles are cluster-scoped and can be bound across namespaces.",
   },
   {
     id: "cert:startup-probe",
@@ -426,6 +455,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Probes and health",
     unit: "observability",
     label: "Startup probes",
+    explanation: "Startup probes protect slow-starting apps by delaying readiness and liveness.",
   },
   {
     id: "cert:external-hpa",
@@ -436,6 +466,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Horizontal autoscaling",
     unit: "scheduling",
     label: "External metrics",
+    explanation:
+      "External metrics come from outside Kubernetes, unlike Resource metrics such as CPU.",
   },
   {
     id: "cert:kustomize-patch",
@@ -446,6 +478,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Kustomize",
     unit: "helm",
     label: "Kustomize patches",
+    explanation: "patchesStrategicMerge lists patch files that merge into rendered resources.",
   },
   {
     id: "cert:helm-rollback",
@@ -456,6 +489,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Helm",
     unit: "helm",
     label: "Helm rollback",
+    explanation: "helm rollback <release> <revision> restores an earlier release revision.",
   },
   {
     id: "cert:argo-drift",
@@ -467,6 +501,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "GitOps",
     unit: "gitops",
     label: "Argo drift",
+    explanation: "Argo reports OutOfSync when live state no longer matches the desired source.",
   },
   {
     id: "cert:netpol-selector",
@@ -477,6 +512,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "NetworkPolicy",
     unit: "networking",
     label: "Policy selector",
+    explanation: "podSelector chooses the Pods a NetworkPolicy applies to.",
   },
   {
     id: "cert:netpol-egress",
@@ -487,6 +523,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "NetworkPolicy",
     unit: "networking",
     label: "Egress policy",
+    explanation: "Egress policy types control outbound connections from selected Pods.",
   },
   {
     id: "cert:secret-tls",
@@ -502,6 +539,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "TLS Ingress",
     unit: "config",
     label: "TLS Secrets",
+    explanation: "kubernetes.io/tls expects tls.crt and tls.key.",
   },
   {
     id: "cert:sa-automount",
@@ -517,6 +555,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "RBAC",
     unit: "security",
     label: "SA token mounting",
+    explanation: "false prevents the token volume from being mounted automatically.",
   },
   {
     id: "cert:clusterrolebinding",
@@ -527,6 +566,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Cluster-scoped RBAC",
     unit: "security",
     label: "ClusterRoleBinding",
+    explanation: "A ClusterRoleBinding grants a ClusterRole across the cluster.",
   },
   {
     id: "cert:psa-privilege",
@@ -542,6 +582,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Pod hardening",
     unit: "security",
     label: "Restricted Pod Security",
+    explanation: "Restricted Pod Security requires privilege escalation to be disabled.",
   },
   {
     id: "cert:ingress-tls-secret",
@@ -552,6 +593,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "TLS Ingress",
     unit: "services",
     label: "Ingress TLS",
+    explanation: "Ingress TLS references a Secret containing certificate data.",
   },
   {
     id: "cert:readiness-endpoints",
@@ -567,6 +609,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Probes and health",
     unit: "observability",
     label: "Readiness effects",
+    explanation: "Readiness failure removes the Pod from endpoints but does not restart it.",
   },
   {
     id: "cert:secret-consume",
@@ -582,6 +625,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Secrets",
     unit: "config",
     label: "Secret consumption",
+    explanation: "Use envFrom or a Secret volume so values are not hard-coded in the Pod spec.",
   },
   {
     id: "cert:netpol-ports",
@@ -592,6 +636,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "NetworkPolicy",
     unit: "networking",
     label: "Policy ports",
+    explanation: "ports limits allowed destination ports inside a policy rule.",
   },
   {
     id: "cert:cni",
@@ -602,6 +647,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "CNI and Pod networking",
     unit: "networking",
     label: "CNI",
+    explanation: "The CNI plugin configures Pod network interfaces and routes.",
   },
   {
     id: "cert:serviceaccount",
@@ -617,6 +663,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "RBAC",
     unit: "security",
     label: "ServiceAccount identity",
+    explanation: "ServiceAccounts provide workload identity for API authentication.",
   },
   {
     id: "cert:security-context",
@@ -632,6 +679,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Pod hardening",
     unit: "security",
     label: "Security context",
+    explanation: "securityContext controls user, group, capabilities, and privilege behavior.",
   },
   {
     id: "cert:quota-aggregate",
@@ -642,6 +690,8 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "ResourceQuota and LimitRange",
     unit: "scheduling",
     label: "Namespace quotas",
+    explanation:
+      "ResourceQuota limits aggregate namespace usage; LimitRange defaults individual containers.",
   },
   {
     id: "cert:statefulset-identity",
@@ -652,6 +702,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "StatefulSets and ordinals",
     unit: "workloads",
     label: "Stable identity",
+    explanation: "StatefulSets provide stable ordinal Pod names.",
   },
   {
     id: "cert:daemonset-node",
@@ -662,6 +713,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "DaemonSets",
     unit: "workloads",
     label: "Per-node workloads",
+    explanation: "DaemonSets place one Pod on every eligible node.",
   },
   {
     id: "cert:job-batch",
@@ -672,6 +724,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Jobs and batch work",
     unit: "workloads",
     label: "Batch completion",
+    explanation: "Jobs run Pods until the completion target is reached.",
   },
   {
     id: "cert:init-purpose",
@@ -687,6 +740,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Init containers",
     unit: "workloads",
     label: "Init containers",
+    explanation: "Init containers run setup before app containers.",
   },
   {
     id: "cert:pvc-request",
@@ -697,6 +751,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "PersistentVolumes",
     unit: "storage",
     label: "PVC requests",
+    explanation: "A PVC requests capacity and access modes, not a specific node or DNS name.",
   },
   {
     id: "cert:node-selector",
@@ -712,6 +767,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Scheduling and placement",
     unit: "scheduling",
     label: "Node selectors",
+    explanation: "nodeSelector is a hard label match for scheduling.",
   },
   {
     id: "cert:hpa-metrics",
@@ -722,6 +778,7 @@ const extraExamQuestions: ExamQuestion[] = [
     lessonTitle: "Horizontal autoscaling",
     unit: "scheduling",
     label: "HPA metrics",
+    explanation: "HPA changes replicas from metrics compared with targets.",
   },
 ];
 
@@ -740,6 +797,7 @@ const examPool = lessons
               lessonTitle: lesson.title,
               unit: lesson.unit,
               label: check.label,
+              ...(check.explanation === undefined ? {} : { explanation: check.explanation }),
             } satisfies ExamQuestion,
           ]
         : [],

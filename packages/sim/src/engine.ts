@@ -259,6 +259,63 @@ function notSimulated(action: string, resource: string): CommandResult {
   return { ok: false, output: `error: ${action} ${resource} is not simulated yet` };
 }
 
+function normalizeEnvFrom(containers: unknown): void {
+  if (!Array.isArray(containers)) {
+    return;
+  }
+  for (const container of containers) {
+    if (typeof container !== "object" || container === null) {
+      continue;
+    }
+    const value = container as Record<string, unknown>;
+    if (!Array.isArray(value.envFrom)) {
+      continue;
+    }
+    value.envFrom = value.envFrom.flatMap((source) => {
+      if (typeof source !== "object" || source === null) {
+        return [];
+      }
+      const entry = source as Record<string, unknown>;
+      const configMapRef = entry.configMapRef as Record<string, unknown> | undefined;
+      const secretRef = entry.secretRef as Record<string, unknown> | undefined;
+      if (typeof configMapRef?.name === "string") {
+        return [{ kind: "ConfigMap", name: configMapRef.name }];
+      }
+      if (typeof secretRef?.name === "string") {
+        return [{ kind: "Secret", name: secretRef.name }];
+      }
+      return [entry];
+    });
+  }
+}
+
+function normalizeManifestEnvFrom(manifest: Record<string, unknown>): void {
+  const kind = manifest.kind;
+  const spec = manifest.spec as Record<string, unknown> | undefined;
+  if (kind === "Pod") {
+    normalizeEnvFrom(spec?.containers);
+    return;
+  }
+  if (
+    kind === "Deployment" ||
+    kind === "ReplicaSet" ||
+    kind === "StatefulSet" ||
+    kind === "DaemonSet" ||
+    kind === "Job"
+  ) {
+    const template = spec?.template as Record<string, unknown> | undefined;
+    normalizeEnvFrom(template?.containers);
+    return;
+  }
+  if (kind === "CronJob") {
+    const jobSpec = (spec?.jobTemplate as Record<string, unknown> | undefined)?.spec as
+      | Record<string, unknown>
+      | undefined;
+    const template = jobSpec?.template as Record<string, unknown> | undefined;
+    normalizeEnvFrom(template?.containers);
+  }
+}
+
 function mergeManifest(
   base: Record<string, unknown>,
   patch: Record<string, unknown>,
@@ -2536,6 +2593,8 @@ export class SimEngine {
         if (typeof name !== "string" || name.length === 0) {
           continue;
         }
+
+        normalizeManifestEnvFrom(raw);
 
         if (kind === "Deployment") {
           raw.status ??= {

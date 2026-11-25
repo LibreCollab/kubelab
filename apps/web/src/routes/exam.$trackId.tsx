@@ -208,6 +208,9 @@ function ExamReview({
                   </>
                 ) : null}
               </p>
+              {question.explanation === undefined ? null : (
+                <p className={styles.explanation}>{question.explanation}</p>
+              )}
               <Link to="/lesson/$lessonId" params={{ lessonId: question.lessonId }}>
                 Review lesson: {question.lessonTitle}
               </Link>

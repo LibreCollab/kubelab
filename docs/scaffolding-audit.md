@@ -93,6 +93,7 @@ fixed below.
 | 70 | Hands-on labs listed all 15 tasks in one sidebar | Added five-task pages with Previous/Next and final-page Submit |
 | 71 | Residual XSS, CSP, question relevance, and audit gaps | Sanitized Markdown, added production CSP, tightened knowledge pools, and added axe/Lighthouse CI gates |
 | 72 | Certification cards did not map curriculum to official exam domains | Added per-certification roadmaps with weighted readiness, weak areas, next actions, and local trends |
+| 73 | Course feedback lacked rationales and practical incidents | Added authored answer explanations, multi-step CKA/CKAD incidents, objective audit, and real-cluster bridge |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

@@ -123,6 +123,7 @@ export const quizCheckSchema = z
     question: z.string().min(1),
     options: z.array(z.string().min(1)).min(2),
     answer: z.number().int().nonnegative(),
+    explanation: z.string().min(1).optional(),
   })
   .refine((check) => check.answer < check.options.length, {
     message: "answer index is out of range",

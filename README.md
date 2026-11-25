@@ -75,6 +75,10 @@ progress sync, and Postgres arrive with the self-hosted Hetzner stack.
 
 Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
 [`AGENTS.md`](AGENTS.md) for the propose → review → apply → archive workflow.
+Certification coverage is tracked in
+[`docs/certification-objectives.md`](docs/certification-objectives.md), and the
+[`real-cluster bridge`](docs/real-cluster-practice.md) covers moving from the
+simulator to kind or k3d.
 
 ## Scripts
 
