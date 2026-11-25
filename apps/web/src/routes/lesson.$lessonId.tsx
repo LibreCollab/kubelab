@@ -34,7 +34,7 @@ function checkpointStatus(checks: CheckResult[]): string {
 
   return pending.length === 0
     ? `[checkpoint] complete (${passed}/${checks.length})`
-    : `[checkpoint] ${passed}/${checks.length} — next: ${pending[0] ?? ""}`;
+    : `[checkpoint] ${passed}/${checks.length} - next: ${pending[0] ?? ""}`;
 }
 
 interface CheckpointFeedbackProps {

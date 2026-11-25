@@ -1,4 +1,4 @@
-# Kubelab — Architecture & Tech Stack Plan
+# Kubelab - Architecture & Tech Stack Plan
 
 > Status: decisions locked; Phase 0 scaffold in progress (2026-11-23). Product: a
 > gamified Kubernetes learning platform (Duolingo-style roadmap, longer lessons,
@@ -33,7 +33,7 @@ build three separate systems.
         ┌──────────── simulation engine (pure TS) ────────────┐
         │  API server emulation → object store (resourceVersion)│
         │  MVP: Pod/Deployment/RS/Service/Endpoints, Scheduler, │
-        │  Kubelet, DNS — driven by a virtual clock             │
+        │  Kubelet, DNS - driven by a virtual clock             │
         │  event bus (watch stream) + deterministic snapshot    │
         │  cert tracks add PV/PVC, Jobs, RBAC, NetworkPolicy    │
         └───────────────┬──────────────────────┬───────────────┘
@@ -47,12 +47,12 @@ build three separate systems.
 ### Why simulated instead of real clusters
 
 - **Zero infra cost**, instant start, unlimited concurrent users.
-- **Deterministic and replayable** — required for teaching and for scrubbable
+- **Deterministic and replayable** - required for teaching and for scrubbable
   animations.
 - **Fault injection is trivial** (image pull failure, OOMKill, cordon,
-  crashloop) — ideal for CKA-style troubleshooting lessons.
-- Real clusters can be added later as an opt-in "Sandbox" — start with
-  BYO-cluster (kind/k3d), then vcluster only if demand is proven — without
+  crashloop) - ideal for CKA-style troubleshooting lessons.
+- Real clusters can be added later as an opt-in "Sandbox" - start with
+  BYO-cluster (kind/k3d), then vcluster only if demand is proven - without
   touching the lesson engine.
 
 Tradeoff: the sim mirrors real Kubernetes *behaviourally*, not fully. Target the
@@ -132,8 +132,8 @@ cluster state.
 
 - **Object store**: Map keyed by `kind/namespace/name` with `resourceVersion`,
   `generation`, `uid`.
-- **Virtual clock + tick loop** (~100 ms ticks, speed 0.5×–10×, pause/step).
-  Everything — image pull delays, backoff, probe failures — is scheduled on
+- **Virtual clock + tick loop** (~100 ms ticks, speed 0.5×-10×, pause/step).
+  Everything - image pull delays, backoff, probe failures - is scheduled on
   virtual time, so lessons are fast but realistic.
 - **Controllers** (simplified but faithful):
   - **MVP**: Deployment → ReplicaSet → Pods with incremental rolling updates
@@ -179,16 +179,16 @@ Argo CD, and Kustomize inspection are also simulated.
 
 ### Lesson validation
 
-MVP checks are **structured predicates** — no expression language (that was
+MVP checks are **structured predicates** - no expression language (that was
 over-engineering for v1):
 
-1. **Pod checks** — namespace, name, image, labels, and phase, with a
+1. **Pod checks** - namespace, name, image, labels, and phase, with a
    human-readable label rendered in the checkpoint list.
-2. **Command checks** — require that the learner actually executed a command
+2. **Command checks** - require that the learner actually executed a command
    (e.g. `kubectl get pods`) before the lesson can complete.
-3. **Quiz checks** — multiple-choice knowledge checks for theory and
+3. **Quiz checks** - multiple-choice knowledge checks for theory and
    certification readiness.
-4. **Output assertions** (Phase 2) — regex/DOM checks on terminal output.
+4. **Output assertions** (Phase 2) - regex/DOM checks on terminal output.
 
 Checks run after each command and tick; hints stay in the lesson spec.
 
@@ -235,10 +235,10 @@ Skill tree (prereq graph) with unit gates:
 10. Observability & troubleshooting (logs, events, probes, metrics)
 11. Helm/Kustomize
 12. GitOps & operators
-13. **Certification tracks** — see [Certification targets](#certification-targets).
+13. **Certification tracks** - see [Certification targets](#certification-targets).
 
-**Content now spans units 1–12 plus five certification readiness checks.**
-Units 1–12 include interactive terminal lessons (workloads, services/DNS/Ingress,
+**Content now spans units 1-12 plus five certification readiness checks.**
+Units 1-12 include interactive terminal lessons (workloads, services/DNS/Ingress,
 configuration, storage, scheduling, networking, RBAC, observability, Helm,
 Kustomize, GitOps, and operators) with a live cluster map and toolchain
 simulators. Certification tracks include timed knowledge exams, hands-on lab
@@ -254,20 +254,20 @@ Core tracks (full product), matching the official CNCF/Linux Foundation path.
 |---|---|---|---|---|
 | **KCNA** | Multiple choice (60 Q) | 90 min / 75% | $250 | Foundations; first credential, theory-heavy |
 | **KCSA** | Multiple choice (60 Q) | 90 min / 75% | $250 | Security foundations; before CKS |
-| **CKA** | Hands-on, 15–20 tasks | 2 h / 66% | $445 | Administrator endgame; centerpiece |
-| **CKAD** | Hands-on, 15–20 tasks | 2 h / 66% | $445 | Developer branch after services/networking |
-| **CKS** | Hands-on, 15–20 tasks | 2 h / 67% | $445 | Security specialist; requires CKA |
+| **CKA** | Hands-on, 15-20 tasks | 2 h / 66% | $445 | Administrator endgame; centerpiece |
+| **CKAD** | Hands-on, 15-20 tasks | 2 h / 66% | $445 | Developer branch after services/networking |
+| **CKS** | Hands-on, 15-20 tasks | 2 h / 67% | $445 | Security specialist; requires CKA |
 
-Verified against CNCF/LF pages, October–November 2026:
+Verified against CNCF/LF pages, October-November 2026:
 
 - Official pathways: **KCNA → CKA → CKS** and **KCNA → CKAD**.
 - Professional exams are proctored, performance-based, open to the official docs
-  only, and re-versioned with Kubernetes (pages currently cite v1.35–v1.37;
-  exams track the latest minor within ~4–8 weeks).
+  only, and re-versioned with Kubernetes (pages currently cite v1.35-v1.37;
+  exams track the latest minor within ~4-8 weeks).
 - All five credentials are valid **2 years** (CKA/CKAD earned before Apr 1, 2024
   keep 3). The **CARE program** auto-extends KCNA when CKA/CKAD is earned
   (since Jan 2026), and KCSA/CKA when CKS is earned (since Jun 18, 2026).
-- Holding all five active at once makes a **Kubestronaut** — a natural in-app
+- Holding all five active at once makes a **Kubestronaut** - a natural in-app
   endgame badge and a good renewal story (refresh content before expiry).
 
 Curriculum mapping:
@@ -284,14 +284,14 @@ Curriculum mapping:
   `packages/content/curriculum/` with the exam's Kubernetes version, and add a
   CI check that flags a stale curriculum.
 
-Mock exams: 15–20 timed tasks, 2 hours, scored against state assertions (same
+Mock exams: 15-20 timed tasks, 2 hours, scored against state assertions (same
 engine as lessons). Sim-based mocks ship first and are labelled **"simulated"**;
-exam-realistic practice needs real clusters — offer BYO-cluster first, and add a
+exam-realistic practice needs real clusters - offer BYO-cluster first, and add a
 vcluster sandbox only if demand is proven.
 
 Complementary tracks (post-launch, optional): **PCA** (Prometheus), **CCA**
 (Cilium), **ICA** (Istio), **CAPA** (Argo), **CGOA** (GitOps), **OTCA**
-(OpenTelemetry), **KCA** (Kyverno) — each maps onto an existing unit
+(OpenTelemetry), **KCA** (Kyverno) - each maps onto an existing unit
 (observability, networking, GitOps, security).
 
 ### Lesson format (YAML spec + Markdown theory)
@@ -351,7 +351,7 @@ checks.
 
 The API is deliberately small: auth and progress sync only (telemetry is
 post-MVP). Lessons are bundled into the web build; there is no CMS and no
-server-side command execution. Phases 0–1 ship with **no backend at all**
+server-side command execution. Phases 0-1 ship with **no backend at all**
 (IndexedDB only); the Go service arrives in Phase 2 with accounts.
 
 **MVP endpoints**
@@ -377,7 +377,7 @@ last-write-wins per lesson).
 **Go service shape**: stdlib `net/http` router, `pgx` + `sqlc` for typed queries,
 `goose` migrations, `slog` logging, distroless binary. The built SPA is embedded
 with `go:embed` and served by the same binary (SPA fallback for client routes).
-Estimated ~1–2k LOC for MVP. When the real-cluster sandbox lands, this service
+Estimated ~1-2k LOC for MVP. When the real-cluster sandbox lands, this service
 grows into the vcluster/kubectl proxy (`client-go`), which is why Go is a good
 long-term choice.
 
@@ -401,7 +401,7 @@ remains the plan for the API, auth, and Postgres.
 
 Duolingo-inspired, not cloned. **Implemented locally:** XP per completed
 lesson, daily streak, saved quiz answers, linear lesson/unit unlocking,
-completion state, continue/next navigation, and reset — persisted in IndexedDB
+completion state, continue/next navigation, and reset - persisted in IndexedDB
 via Dexie. **Later:** streak freezes, timed debug challenges, leagues, and
 account sync; no hearts.
 
@@ -411,9 +411,9 @@ picker on small screens).
 
 ## 10. Build phases
 
-- **Phase 0 — spike (1–2 wks)**: sim core + terminal + one lesson + pod-lifecycle
+- **Phase 0 - spike (1-2 wks)**: sim core + terminal + one lesson + pod-lifecycle
   animation. Proves the whole bet.
-- **Phase 1 — MVP (4–6 wks)**: roadmap UI, XP/streaks, local progress
+- **Phase 1 - MVP (4-6 wks)**: roadmap UI, XP/streaks, local progress
   (IndexedDB, no backend), static build behind Envoy on a single 8 GB VPS. The
   content scaffold covers all core units and cert readiness checks; interactive
   depth now spans workloads, networking, storage, security, toolchains, and
@@ -436,8 +436,8 @@ for static-only Phase 1, CPX42 once the API exists); every item here is gated by
 a trigger in §14. At 10k registered users the sim runs in the browser, so the
 backend stays thin: auth and progress only, and static assets dominate traffic.
 
-**Assumptions**: 10k registered users, ~10–15% DAU (1–1.5k), peak concurrency
-~300–600, API ~50–150 rps, a few batched writes per active learner per minute.
+**Assumptions**: 10k registered users, ~10-15% DAU (1-1.5k), peak concurrency
+~300-600, API ~50-150 rps, a few batched writes per active learner per minute.
 The 10k-*concurrent* interpretation is at the end.
 
 ### Edge
@@ -480,7 +480,7 @@ The 10k-*concurrent* interpretation is at the end.
 
 ### If "10k" means concurrent
 
-Still feasible: ~1.5–2k API rps needs ~8–12 Go replicas, PgBouncer, a tuned
+Still feasible: ~1.5-2k API rps needs ~8-12 Go replicas, PgBouncer, a tuned
 Postgres, and Redis for sessions/rate limits. The architecture does not change;
 only those components become mandatory.
 
@@ -488,10 +488,10 @@ only those components become mandatory.
 
 | Process | RAM |
 |---|---|
-| OS + Docker | 0.5–1 GB |
-| Envoy | 100–250 MB |
-| Go API | 100–300 MB |
-| Postgres (shared_buffers ~1 GB) | 1–2 GB |
+| OS + Docker | 0.5-1 GB |
+| Envoy | 100-250 MB |
+| Go API | 100-300 MB |
+| Postgres (shared_buffers ~1 GB) | 1-2 GB |
 | Page cache / headroom | rest |
 
 An 8 GB host covers Phase 1 (static) and a core-only API setup, but the
@@ -506,7 +506,7 @@ point of failure until HA is triggered.
 2. **Phase 2**: one 16 GB VM running Compose (`envoy` + `api` with embedded SPA
    + `postgres`). Split the observability host only when its trigger fires.
 3. **Phase 3+**: replicas, partitioning, Redis, and Kubernetes only when the
-   triggers in §14 fire — never upfront.
+   triggers in §14 fire - never upfront.
 
 ## 12. Hosting, VPS sizing & cost (Hetzner)
 
@@ -535,34 +535,34 @@ the growth step, not the launch config.
 
 | Component | RAM | CPU | Disk |
 |---|---|---|---|
-| OS + Docker + images | 0.5–1 GB | ~0 | 10–15 GB |
-| Envoy | 100–250 MB | < 0.25 vCPU | — |
-| Go API (embedded SPA) | 100–300 MB | < 0.25 vCPU | — |
-| Postgres | 1–2 GB (1 GB shared_buffers) | 1–2 vCPU under load | 5–10 GB/yr + 1–2 GB WAL |
-| Umami | 100–250 MB | < 0.25 vCPU | ~1 GB |
-| Prometheus + Grafana | 0.5–1 GB | < 0.5 vCPU | 2–5 GB (90 d) |
-| Loki + Tempo (trigger) | +0.5–1 GB | +0.5 vCPU | +10–20 GB |
+| OS + Docker + images | 0.5-1 GB | ~0 | 10-15 GB |
+| Envoy | 100-250 MB | < 0.25 vCPU | - |
+| Go API (embedded SPA) | 100-300 MB | < 0.25 vCPU | - |
+| Postgres | 1-2 GB (1 GB shared_buffers) | 1-2 vCPU under load | 5-10 GB/yr + 1-2 GB WAL |
+| Umami | 100-250 MB | < 0.25 vCPU | ~1 GB |
+| Prometheus + Grafana | 0.5-1 GB | < 0.5 vCPU | 2-5 GB (90 d) |
+| Loki + Tempo (trigger) | +0.5-1 GB | +0.5 vCPU | +10-20 GB |
 
 **Totals**
 
-- **Phase 1 (static):** 2 GB minimum, 4 GB comfortable; 1–2 vCPU; 20–40 GB disk.
-- **Phase 2 (API + metrics):** 8 GB comfortable; 2–4 vCPU; **80 GB minimum,
+- **Phase 1 (static):** 2 GB minimum, 4 GB comfortable; 1-2 vCPU; 20-40 GB disk.
+- **Phase 2 (API + metrics):** 8 GB comfortable; 2-4 vCPU; **80 GB minimum,
   160 GB comfortable**.
-- **Full observability (triggered):** 16 GB; 4–8 vCPU; 160–320 GB.
-- **Growth:** DB stays under ~10 GB/year at 10k users; logs ~2–10 GB per 30 days;
-  Docker/build images ~10 GB; local backup staging ~10–20 GB.
+- **Full observability (triggered):** 16 GB; 4-8 vCPU; 160-320 GB.
+- **Growth:** DB stays under ~10 GB/year at 10k users; logs ~2-10 GB per 30 days;
+  Docker/build images ~10 GB; local backup staging ~10-20 GB.
 
 **CPU guidance:** this is I/O-bound, not CPU-bound. **2 vCPU is enough to
 start; 4 is comfortable.** Avoid 1 vCPU for Postgres + Envoy + Go. Prefer
 fixed-performance cores (dedicated CCX, m7g/c7g) over burstable t4g once the DB
 is busy; t4g is fine for Phase 1 and early Phase 2 with credit monitoring.
-ARM64 (Graviton; Hetzner CAX if preferred) is fine — build multi-arch images.
+ARM64 (Graviton; Hetzner CAX if preferred) is fine - build multi-arch images.
 
 **Example CPUs**
 
 | Host | CPU | vCPU / RAM | Notes |
 |---|---|---|---|
-| Hetzner CPX32 | Shared AMD EPYC | 4 / 8 GB | Phase 1–2 core, 160 GB |
+| Hetzner CPX32 | Shared AMD EPYC | 4 / 8 GB | Phase 1-2 core, 160 GB |
 | Hetzner CPX42 | Shared AMD EPYC | 8 / 16 GB | Single-box launch, 320 GB |
 | Hetzner CCX23 | Dedicated EPYC Milan/Genoa | 4 / 16 GB | Predictable Postgres p95 |
 | AWS t4g.large | Graviton2, burstable | 2 / 8 GB | Cheapest EC2 fit, credits can throttle |
@@ -577,7 +577,7 @@ upgrade. AWS rows are reference only.
 
 ### Alternative considered: AWS (not chosen)
 
-Kept for reference only. AWS is not used in v1: Lightsail is ~20–25% more than
+Kept for reference only. AWS is not used in v1: Lightsail is ~20-25% more than
 Hetzner for the same box, EC2 is ~2.5× once EBS/IPv4/snapshots/egress are
 counted, and egress has no 20 TB allowance.
 
@@ -597,12 +597,12 @@ without a CDN); storage is EBS gp3 for EC2, included SSD for Lightsail.
 Hetzner equivalents: **CPX42 ≈ €70 (~$76) + Storage Box ~$5 ≈ $81**, with
 **20 TB** included traffic; growth 2× CPX32 ≈ €72 (~$78) + storage. So:
 
-- **Lightsail 16 GB ≈ $100/mo vs Hetzner ≈ $81/mo** — closest like-for-like,
-  ~20–25% more, much simpler AWS integration.
-- **EC2 m7g.xlarge ≈ $200/mo** — roughly 2.5× Hetzner once EBS, IPv4,
+- **Lightsail 16 GB ≈ $100/mo vs Hetzner ≈ $81/mo** - closest like-for-like,
+  ~20-25% more, much simpler AWS integration.
+- **EC2 m7g.xlarge ≈ $200/mo** - roughly 2.5× Hetzner once EBS, IPv4,
   snapshots, and egress are counted.
 - **Egress is the AWS wildcard:** $0.09/GB after 100 GB, so an extra 1 TB adds
-  ~$90. Hetzner includes 20 TB. Savings Plans cut compute ~30–40%, not storage
+  ~$90. Hetzner includes 20 TB. Savings Plans cut compute ~30-40%, not storage
   or egress.
 - AWS Free Tier / new-account credits help for a month or two, not at 10k users.
 
@@ -620,14 +620,14 @@ observability start competing for page cache.
 |---|---|---|
 | **app** | 4 vCPU, 8 GB RAM, 160 GB NVMe | Envoy, Go API (embedded SPA), Postgres, PgBouncer |
 | **obs** | 4 vCPU, 8 GB RAM, 160 GB NVMe | Grafana, Prometheus, Loki, Tempo, Alloy, Umami/Plausible |
-| **backup** | Storage Box (1 TB) or 1–2 vCPU / 2 GB VPS with MinIO | pgBackRest + WAL archive, replay blobs, offsite copies |
+| **backup** | Storage Box (1 TB) or 1-2 vCPU / 2 GB VPS with MinIO | pgBackRest + WAL archive, replay blobs, offsite copies |
 
 - EU region (Germany/Finland) for GDPR and price. Hetzner **CPX32**
   (4 vCPU / 8 GB / 160 GB, 20 TB traffic) is ~€36/mo each excluding VAT and
-  IPv4 as of Nov 2026; plus a Storage Box (~€4–10/mo). Budget **~€80–100/mo**.
+  IPv4 as of Nov 2026; plus a Storage Box (~€4-10/mo). Budget **~€80-100/mo**.
 - Dedicated-vCPU alternative for the DB/API host: **CCX23** (4 dedicated vCPU /
-  16 GB / 160 GB) ~€86/mo — only if shared-vCPU noise hurts p95 latency.
-- Prices rose sharply during 2026, especially in US regions (roughly 2–3× the EU
+  16 GB / 160 GB) ~€86/mo - only if shared-vCPU noise hurts p95 latency.
+- Prices rose sharply during 2026, especially in US regions (roughly 2-3× the EU
   price). Re-check Hetzner's current page before ordering. Alternatives:
   Netcup, OVHcloud, Scaleway; avoid heavily oversold budget hosts for Postgres.
 
@@ -636,7 +636,7 @@ observability start competing for page cache.
 **8 vCPU / 16 GB RAM / 320 GB NVMe** (Hetzner **CPX42**, ~€70/mo) running the
 whole Compose stack. Recommended launch configuration; fine to roughly 1k DAU.
 It is a single point of failure, and observability competes with Postgres for
-page cache — split into the two-host layout before real growth.
+page cache - split into the two-host layout before real growth.
 
 ### Do not launch the full stack on 8 GB
 
@@ -653,7 +653,7 @@ host, or the 2-host layout above.
 - **TLS**: lego/certbot + Envoy SDS, renewed by a systemd timer; HSTS; TLS 1.2+.
 - **Analytics**: self-host **Umami** (lightweight, Postgres) or Plausible CE.
   PostHog self-host only on a dedicated ≥16 GB host (ClickHouse + Kafka) if we
-  later need its depth — never co-located.
+  later need its depth - never co-located.
 - **Observability**: metrics first (Prometheus + Grafana); Loki and Tempo land on
   trigger, with short retention (metrics 90 d, logs 30 d, traces 14 d). On the
   growth layout they live on the obs VPS; at launch everything shares the single
@@ -661,7 +661,7 @@ host, or the 2-host layout above.
 - **Backups**: pgBackRest → backup host/MinIO; 7 daily, 4 weekly, 1 monthly;
   restore drill monthly. Backups are the one thing that must leave the app host.
 - **DDoS**: provider mitigation + Fail2ban at launch; Envoy rate limits on
-  trigger. If targeted, put a filtering proxy VPS in front — still self-hosted.
+  trigger. If targeted, put a filtering proxy VPS in front - still self-hosted.
 - **Uptime**: **Uptime Kuma** on a tiny separate VPS (or the obs host at growth)
   probing the public endpoint; we are our own status page.
 - **Updates**: unattended-upgrades, pinned image tags, Renovate for dependency
@@ -670,7 +670,7 @@ host, or the 2-host layout above.
 
 ## 13. Observability & analytics
 
-Two different jobs, two different tools — don't try to make one do both.
+Two different jobs, two different tools - don't try to make one do both.
 
 - **Operational observability** (is the service healthy?) → OpenTelemetry +
   Grafana stack.
@@ -710,7 +710,7 @@ node_exporter · postgres_exporter · cAdvisor ──▶ Prometheus             
 - Once traces are enabled: head-based sampling (e.g. 10%), **tail sampling in the
   Collector** keeps 100% of errors and slow requests (> 500 ms) and 10% of the
   rest.
-- Retention: metrics 90 days (downsampled), logs 30 days, traces 7–14 days.
+- Retention: metrics 90 days (downsampled), logs 30 days, traces 7-14 days.
   Raw `lesson_runs` only if telemetry is ever added (90 days, aggregates kept).
 - Scrub PII in the Collector (drop `email`, query strings on auth routes) before
   anything is persisted.
@@ -721,7 +721,7 @@ node_exporter · postgres_exporter · cAdvisor ──▶ Prometheus             
   Envoy upstream 5xx, Go panic count, Postgres connections/locks, disk and
   memory.
 - Business: signups, lesson completion rate, hint usage, streak retention, API
-  sync failures — from `progress`/`xp_events` via Grafana's Postgres datasource.
+  sync failures - from `progress`/`xp_events` via Grafana's Postgres datasource.
 - SLOs: API p95 < 150 ms, error rate < 0.5%, progress write success > 99.9%.
   Alerts via Grafana Alerting → email/Discord/Slack; keep alerts few and
   actionable.
@@ -729,7 +729,7 @@ node_exporter · postgres_exporter · cAdvisor ──▶ Prometheus             
 ### Footprint & hosting
 
 Self-hosting the full Grafana stack (Grafana + Prometheus + Loki + Tempo +
-Alloy) adds roughly **1–1.5 GB RAM** and tens of GB of disk. On the growth
+Alloy) adds roughly **1-1.5 GB RAM** and tens of GB of disk. On the growth
 layout (§12) it lives on the **obs** host; on a single host use **16 GB
 minimum**. Copy the retention policy above so disk does not creep.
 
@@ -747,7 +747,7 @@ allowlist.
 - **Phase 2**: Prometheus + Grafana + node/postgres exporters; Umami for product
   analytics.
 - **Phase 3**: OTel tracing (Envoy + Go + browser), Loki, Tempo, and SLO
-  dashboards — on trigger.
+  dashboards - on trigger.
 
 ## 14. MVP scope & complexity budget
 
@@ -784,14 +784,14 @@ Default answer to "should we add X now?" is **no** until its trigger is met.
 
 1. **Sim-first**, real clusters later as an optional sandbox.
 2. **Anonymous-first** with optional accounts (no signup wall).
-3. **Frontend: Vite + React 19 + strict TypeScript** — no Next.js/SSR
+3. **Frontend: Vite + React 19 + strict TypeScript** - no Next.js/SSR
    framework. Marketing/docs can be prerendered separately if needed.
 4. **Backend: Go 1.27 + Postgres (`pgx`/`sqlc`)**, introduced in Phase 2;
    self-hostable via Docker Compose.
-5. **Edge: Envoy** (no nginx) — TLS and routing at MVP; rate limiting and
+5. **Edge: Envoy** (no nginx) - TLS and routing at MVP; rate limiting and
    tracing added on trigger. The SPA is embedded in the Go binary.
 6. **Styling: CSS Modules + Sass** with CSS custom-property tokens and Radix
-   primitives — no Tailwind, no shadcn, no runtime CSS-in-JS.
+   primitives - no Tailwind, no shadcn, no runtime CSS-in-JS.
 7. **Observability: OpenTelemetry-ready**, metrics first (Prometheus +
    Grafana); logs/traces on trigger; **Umami** for product analytics.
 8. **Hosting: Hetzner Cloud (EU), fully self-hosted** (no SaaS, no AWS):

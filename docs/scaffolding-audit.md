@@ -1,6 +1,6 @@
-# Kubelab — Scaffolding & Planning Audit
+# Kubelab - Scaffolding & Planning Audit
 
-> Date: 2026-11-23 · Status: **applied** — findings below were fixed in the
+> Date: 2026-11-23 · Status: **applied** - findings below were fixed in the
 > scaffold or explicitly deferred with a trigger. Verification commands are
 > listed at the end.
 
@@ -14,7 +14,7 @@ mise tasks, and CI. No new infrastructure was introduced.
 blocking issues.
 
 A second round ran the real UI in Chromium. It caught a duplicate `<h1>`, an
-xterm resize race on unmount, and the dev server binding only to IPv6 — all
+xterm resize race on unmount, and the dev server binding only to IPv6 - all
 fixed below.
 
 ## Findings fixed
@@ -78,8 +78,8 @@ fixed below.
 | 55 | Landing page promised under-the-hood animations; lessons only showed text terminal output | Live cluster map for Nodes → Deployments → ReplicaSets → Pods and Services → Endpoints |
 | 56 | DNS and Ingress lessons were quiz-only despite being core Unit 4 skills | Simulator now resolves Service DNS and routes HTTP through Ingress; both lessons are terminal checkpoints |
 | 57 | ConfigMaps and Secrets were quiz-only despite being core Unit 5 skills | Added configmap/secret creation, envFrom wiring, env checks, and redacted Secret display |
-| 58 | Units 6–10 were quiz-only despite covering core CKA/security/ops skills | Added seeded storage, scheduling, network policy, RBAC, event/log, and probe inspection scenarios with terminal checkpoints |
-| 59 | Units 11–12 and certification tracks were quiz-only | Added Helm/Kustomize/GitOps/CRD terminal scenarios, timed knowledge and hands-on lab exams, scoring/review, history, and spaced repetition |
+| 58 | Units 6-10 were quiz-only despite covering core CKA/security/ops skills | Added seeded storage, scheduling, network policy, RBAC, event/log, and probe inspection scenarios with terminal checkpoints |
+| 59 | Units 11-12 and certification tracks were quiz-only | Added Helm/Kustomize/GitOps/CRD terminal scenarios, timed knowledge and hands-on lab exams, scoring/review, history, and spaced repetition |
 | 60 | Probes were static seeded conditions with no restart behavior | Added readiness/liveness evaluation, restarts, warning events, endpoint removal, and CrashLoopBackOff |
 | 61 | Networking, storage, and RBAC lacked relationship depth | Added NetworkPolicy ports, headless/NodePort Services, PVC reclaim and delayed binding, and cluster-scoped RBAC |
 | 62 | Only Deployments and ReplicaSets represented workload controllers | Added init containers, DaemonSets, StatefulSets, Jobs, CronJobs, scheduling, completion, and inspection |
@@ -120,25 +120,25 @@ references in the docs.
   from what the scaffold implements; the lesson format uses structured checks;
   mise replaced Taskfile; testing claims were corrected.
 - **Unchanged risks.** Simulator fidelity, content authoring throughput, and
-  honest certification positioning remain the real risks — not infrastructure.
+  honest certification positioning remain the real risks - not infrastructure.
 - **Next milestone.** Finish Phase 0 with the cluster map/pod-lifecycle
   animation, then wire XP/progress into IndexedDB before Phase 1 content.
 
 ## Verification
 
-- `mise run lint` — Biome + Stylelint clean.
-- `mise run typecheck` — all four TS packages clean.
-- `mise run test` — 56 Vitest tests pass (sim, selectors, history, line editor,
+- `mise run lint` - Biome + Stylelint clean.
+- `mise run typecheck` - all four TS packages clean.
+- `mise run test` - 56 Vitest tests pass (sim, selectors, history, line editor,
   content, lesson checks, lesson guard, curriculum coverage, progress/streaks).
-- `mise run e2e` — 15 Playwright tests pass (progress persistence/unlock/reset,
+- `mise run e2e` - 15 Playwright tests pass (progress persistence/unlock/reset,
   brand → first lesson, roadmap/cert tracks, top-aligned lesson lists, quiz
   completion, clock-control visibility, correct/mistyped labels, wrong image,
   paste/cursor editing, sticky terminal, history recall, mobile viewport, API
   proxy), with no page errors.
-- `mise run api-test` — Go tests pass, including SPA fallback and method
+- `mise run api-test` - Go tests pass, including SPA fallback and method
   rejection; `gofmt` and `go vet` clean.
-- `mise run build` — Vite build clean; no chunk-size warning.
-- `pnpm audit --prod` — no known vulnerabilities.
+- `mise run build` - Vite build clean; no chunk-size warning.
+- `pnpm audit --prod` - no known vulnerabilities.
 - Docker image builds; Compose stack serves `/api/healthz`, `/`, and
   `/lesson/pods-101` through Envoy; SPA embed + fallback verified; security
   headers confirmed at the edge.

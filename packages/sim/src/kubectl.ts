@@ -1823,7 +1823,7 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
 
   const binary = tokens[0];
   if (binary !== "kubectl" && binary !== "k") {
-    return { error: `unknown command "${binary ?? ""}" — try "kubectl help"` };
+    return { error: `unknown command "${binary ?? ""}" - try "kubectl help"` };
   }
 
   const verb = tokens[1];
@@ -1876,6 +1876,6 @@ export function parseKubectl(input: string): ParsedCommand | ParseError {
     case "describe":
       return parseTarget(tokens, verb);
     default:
-      return { error: `unknown command "${verb}" for "kubectl" — try "kubectl help"` };
+      return { error: `unknown command "${verb}" for "kubectl" - try "kubectl help"` };
   }
 }

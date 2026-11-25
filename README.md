@@ -38,7 +38,7 @@ docs                architecture, audits, ADRs
 
 ## Prerequisites
 
-- [mise](https://mise.jdx.dev/) — installs Node 24, Go 1.27, and pnpm 11 from
+- [mise](https://mise.jdx.dev/) - installs Node 24, Go 1.27, and pnpm 11 from
   [`mise.toml`](mise.toml)
 - Docker (optional, for the full stack)
 

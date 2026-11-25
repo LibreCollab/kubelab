@@ -117,7 +117,7 @@ export function HomePage() {
             </h1>
             <p className={styles.lede}>
               Short theory, real kubectl in a simulated cluster, and animations that show what
-              happens under the hood — from your first Pod to CKA-level troubleshooting.
+              happens under the hood - from your first Pod to CKA-level troubleshooting.
             </p>
             <div className={styles.actions}>
               {firstLesson ? (

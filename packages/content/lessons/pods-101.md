@@ -4,9 +4,9 @@ containers that share a network namespace and storage volumes.
 When you ask Kubernetes to run a container, you create a Pod. The scheduler picks
 a node, the kubelet starts the containers, and the Pod moves through phases:
 
-1. **Pending** — accepted, but not yet scheduled or started.
-2. **Running** — at least one container is running.
-3. **Succeeded / Failed** — the containers exited.
+1. **Pending** - accepted, but not yet scheduled or started.
+2. **Running** - at least one container is running.
+3. **Succeeded / Failed** - the containers exited.
 
 ## Try it
 

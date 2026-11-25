@@ -47,8 +47,8 @@ change folder.
 
 Lessons live in `packages/content/lessons/` as a YAML spec plus Markdown theory:
 
-- `lesson-id.yaml` — objectives, scenario, checks, hints, solution.
-- `lesson-id.md` — theory shown in the lesson player.
+- `lesson-id.yaml` - objectives, scenario, checks, hints, solution.
+- `lesson-id.md` - theory shown in the lesson player.
 
 Rules:
 
@@ -70,7 +70,7 @@ Rules:
 
 - Every behavior change needs a Vitest test in `packages/sim`.
 - Keep the engine deterministic: no `Date.now()`, `Math.random()`, or real
-  timers inside command/controller logic — use the `VirtualClock`.
+  timers inside command/controller logic - use the `VirtualClock`.
 - Emit events for anything the animations or checks need to observe.
 - Prefer adding to the MVP subset before widening the kubectl surface.
 

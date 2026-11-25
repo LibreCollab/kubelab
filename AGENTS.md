@@ -25,22 +25,22 @@ does not need a change folder. If behavior is ambiguous, propose first.
 
 OpenSpec artifacts live in:
 
-- `openspec/config.yaml` — project context and workflow rules.
-- `openspec/changes/<change>/` — active proposals, deltas, designs, tasks.
-- `openspec/specs/` — archived source-of-truth capabilities.
-- `openspec/changes/archive/` — completed change history.
+- `openspec/config.yaml` - project context and workflow rules.
+- `openspec/changes/<change>/` - active proposals, deltas, designs, tasks.
+- `openspec/specs/` - archived source-of-truth capabilities.
+- `openspec/changes/archive/` - completed change history.
 
 Do not edit archived changes. Update the active change instead. Do not create
 specs for work that has not been agreed; propose it first.
 
 ## Commands
 
-- `pnpm dev` — web dev server.
-- `pnpm check` — lint, typecheck, Vitest, and Go tests.
-- `pnpm test:e2e` — Playwright; required for routes, terminal, lesson, exam, or responsive UI work.
-- `pnpm build` — production build.
-- `pnpm spec:list` — list active changes and specs.
-- `pnpm spec:validate` — validate changes and specs.
+- `pnpm dev` - web dev server.
+- `pnpm check` - lint, typecheck, Vitest, and Go tests.
+- `pnpm test:e2e` - Playwright; required for routes, terminal, lesson, exam, or responsive UI work.
+- `pnpm build` - production build.
+- `pnpm spec:list` - list active changes and specs.
+- `pnpm spec:validate` - validate changes and specs.
 
 Read `CONTRIBUTING.md` for lesson and simulator conventions. Check `git status`
 before editing and keep unrelated worktree changes out of the task.

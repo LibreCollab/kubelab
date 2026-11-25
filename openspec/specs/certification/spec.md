@@ -164,7 +164,7 @@ Hands-on exams SHALL display five task buttons per page and SHALL preserve termi
 
 #### Scenario: Five tasks per page
 - **WHEN** a 15-task lab starts
-- **THEN** the sidebar shows tasks 1–5 and indicates three pages
+- **THEN** the sidebar shows tasks 1-5 and indicates three pages
 
 #### Scenario: Move between task pages
 - **WHEN** the learner chooses Next or Previous

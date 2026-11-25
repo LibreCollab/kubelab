@@ -4,7 +4,7 @@
 
 The current mock exams are 10 questions for every track. Real KCNA/KCSA exams are
 60-question, 90-minute knowledge exams, while CKA/CKAD/CKS are 120-minute hands-on
-exams with 15–20 tasks and no multiple-choice section.
+exams with 15-20 tasks and no multiple-choice section.
 
 ## What Changes
 

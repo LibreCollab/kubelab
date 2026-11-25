@@ -1,4 +1,4 @@
-# Kubelab — Code & Design Review
+# Kubelab - Code & Design Review
 
 > Date: 2026-11-23 · Scope: the TypeScript simulator/web packages and the Go API,
 > reviewed for duplication, SOLID fit, design patterns, and Go idioms. Refactors
@@ -42,7 +42,7 @@
 | Deployment | No public Kubelab subdomain path | GitHub Pages workflow, CNAME, SPA 404 fallback, DNS guide |
 | Content | Deployment/Service theory linked to terminal commands the simulator does not support | Simulator now runs create/scale/set/expose/rollout; both lessons have terminal checkpoints |
 | Lesson UI | Terminal output was the only view of cluster state | Live cluster map shows workload ownership, Pod phases, Service endpoints, Ingress routes, and ConfigMap/Secret wiring |
-| Content | Storage, scheduling, networking, RBAC, and observability were quiz-only | Seeded inspection scenarios and command checkpoints cover Units 6–10 |
+| Content | Storage, scheduling, networking, RBAC, and observability were quiz-only | Seeded inspection scenarios and command checkpoints cover Units 6-10 |
 | Web/UI | `[...].filter(Boolean).join(" ")` repeated in Button, Card, landing | Single `cx` utility exported from `@kubelab/ui` |
 | Go | `DatabaseURL` / `SessionSecret` config fields and compose env were dead | Removed until Phase 2 actually wires the DB/auth |
 | Go | SPA handler re-read `index.html` per request and repeated header logic | Index pre-read once; `cacheControl` / `writeHTML` helpers |
@@ -57,7 +57,7 @@
 - **SRP**: parser, engine, selectors, lesson checks, HTTP handlers, middleware,
   and embedding each have one reason to change.
 - **OCP**: kubectl verbs dispatch through a discriminated union + switch. A
-  command registry was considered and rejected — with five verbs it would add
+  command registry was considered and rejected - with five verbs it would add
   indirection without reducing change cost.
 - **LSP**: all command results share one `CommandResult` contract; union members
   are exhaustively handled.

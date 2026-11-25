@@ -151,7 +151,7 @@ export function Terminal({ execute, follow, prompt = "kubelab@cluster:~$" }: Ter
         });
         if (followStop !== undefined) {
           stopFollow = followStop;
-          terminal.writeln(plainOutput("[following logs — Ctrl+C to stop]"));
+          terminal.writeln(plainOutput("[following logs - Ctrl+C to stop]"));
           return;
         }
 
@@ -169,7 +169,7 @@ export function Terminal({ execute, follow, prompt = "kubelab@cluster:~$" }: Ter
       render();
     };
 
-    terminal.writeln("Kubelab simulated cluster — type `kubectl help` to begin.");
+    terminal.writeln("Kubelab simulated cluster - type `kubectl help` to begin.");
     render();
 
     const dataSubscription = terminal.onData((data) => {

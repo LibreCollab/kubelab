@@ -1,7 +1,7 @@
 A Pod moves through Pending, Running, Succeeded, or Failed. kubelet restarts containers according to the restart policy; controllers replace deleted Pods.
 
-- **Pending** — scheduled or waiting for images.
-- **Running** — at least one container is running.
+- **Pending** - scheduled or waiting for images.
+- **Running** - at least one container is running.
 - `kubectl describe pod` shows events and container state.
 - `kubectl logs` shows container output.
 
