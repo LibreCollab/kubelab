@@ -2350,17 +2350,21 @@ export class SimEngine {
     const rows = [...items]
       .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
       .map((item) => {
-        const target = this.#cpuTarget(item);
-        const current =
-          item.status.currentCPUUtilization === undefined
-            ? "<unknown>"
-            : `${item.status.currentCPUUtilization}%`;
+        const target = this.#hpaTarget(item);
+        const utilization =
+          target === undefined
+            ? undefined
+            : target.resource === "cpu"
+              ? item.status.currentCPUUtilization
+              : item.status.currentMemoryUtilization;
         return [
           command.allNamespaces
             ? `${item.metadata.namespace}/${item.metadata.name}`
             : item.metadata.name,
           `${item.spec.scaleTargetRef.kind}/${item.spec.scaleTargetRef.name}`,
-          target === undefined ? "<none>" : `${current}/${target}%`,
+          target === undefined
+            ? "<none>"
+            : `${target.resource}: ${utilization === undefined ? "<unknown>" : `${utilization}%`}/${target.target}%`,
           String(item.spec.minReplicas),
           String(item.spec.maxReplicas),
           String(item.status.currentReplicas),
@@ -3887,12 +3891,17 @@ export class SimEngine {
       }
 
       const actualReplicas = deployment.spec.replicas;
-      const target = this.#cpuTarget(autoscaler);
-      let utilization = autoscaler.status.currentCPUUtilization;
+      const target = this.#hpaTarget(autoscaler);
+      let utilization =
+        target === undefined
+          ? undefined
+          : target.resource === "cpu"
+            ? autoscaler.status.currentCPUUtilization
+            : autoscaler.status.currentMemoryUtilization;
 
       if (target !== undefined) {
         if (utilization === undefined) {
-          utilization = this.#averageCpuUtilization(deployment);
+          utilization = this.#averageUtilization(deployment, target.resource);
         } else if (
           autoscaler.status.currentReplicas > 0 &&
           autoscaler.status.currentReplicas !== actualReplicas
@@ -3903,6 +3912,10 @@ export class SimEngine {
         }
       }
 
+      const withinTolerance =
+        target !== undefined &&
+        utilization !== undefined &&
+        Math.abs(utilization - target.target) <= target.target * 0.1;
       const desired =
         target === undefined || utilization === undefined
           ? Math.min(
@@ -3913,7 +3926,9 @@ export class SimEngine {
               autoscaler.spec.maxReplicas,
               Math.max(
                 autoscaler.spec.minReplicas,
-                Math.ceil((actualReplicas * utilization) / target),
+                withinTolerance
+                  ? actualReplicas
+                  : Math.ceil((actualReplicas * utilization) / target.target),
               ),
             );
 
@@ -3922,7 +3937,11 @@ export class SimEngine {
         status: {
           currentReplicas: actualReplicas,
           desiredReplicas: desired,
-          ...(utilization === undefined ? {} : { currentCPUUtilization: utilization }),
+          ...(utilization === undefined
+            ? {}
+            : target?.resource === "memory"
+              ? { currentMemoryUtilization: utilization }
+              : { currentCPUUtilization: utilization }),
         },
       });
 
@@ -3942,29 +3961,45 @@ export class SimEngine {
     }
   }
 
-  #cpuTarget(autoscaler: KubeHorizontalPodAutoscaler): number | undefined {
+  #hpaTarget(
+    autoscaler: KubeHorizontalPodAutoscaler,
+  ): { resource: "cpu" | "memory"; target: number } | undefined {
     for (const metric of autoscaler.spec.metrics ?? []) {
       if (
         metric.type === "Resource" &&
-        metric.resource.name === "cpu" &&
+        (metric.resource.name === "cpu" || metric.resource.name === "memory") &&
         metric.resource.target.type === "Utilization" &&
         (metric.resource.target.averageUtilization ?? 0) > 0
       ) {
-        return metric.resource.target.averageUtilization;
+        return {
+          resource: metric.resource.name,
+          target: metric.resource.target.averageUtilization ?? 0,
+        };
       }
     }
     return undefined;
   }
 
-  #averageCpuUtilization(deployment: KubeDeployment): number | undefined {
+  #averageUtilization(deployment: KubeDeployment, resource: "cpu" | "memory"): number | undefined {
     let totalUsage = 0;
     let totalRequest = 0;
 
     for (const pod of this.#deploymentPods(deployment)) {
-      const usage = pod.status.usage?.cpuMillicores;
+      const usage =
+        resource === "cpu" ? pod.status.usage?.cpuMillicores : pod.status.usage?.memoryBytes;
       const request = pod.spec.containers.reduce((sum, container) => {
-        const cpu = container.resources?.requests?.cpu;
-        return sum + (cpu === undefined ? 0 : parseCpuMillis(cpu));
+        const value =
+          resource === "cpu"
+            ? container.resources?.requests?.cpu
+            : container.resources?.requests?.memory;
+        return (
+          sum +
+          (value === undefined
+            ? 0
+            : resource === "cpu"
+              ? parseCpuMillis(value)
+              : parseMemoryBytes(value))
+        );
       }, 0);
       if (usage === undefined || request <= 0) {
         continue;

@@ -85,6 +85,7 @@ fixed below.
 | 62 | Only Deployments and ReplicaSets represented workload controllers | Added init containers, DaemonSets, StatefulSets, Jobs, CronJobs, scheduling, completion, and inspection |
 | 63 | Scheduling stopped at node selectors and taints | Added affinity, topology spread, LimitRange defaults, ResourceQuota, and PDB status |
 | 64 | `logs -f` was a one-shot snapshot | Added incremental log subscriptions and terminal follow mode with Ctrl+C cancellation |
+| 65 | HPA only handled CPU and scaled on tiny deviations | Added memory targets and a 10% tolerance band |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

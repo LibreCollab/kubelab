@@ -1175,6 +1175,86 @@ spec:
     ).toMatchObject({ currentReplicas: 4, desiredReplicas: 4, currentCPUUtilization: 40 });
   });
 
+  it("scales from memory metrics and respects tolerance", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Deployment",
+          metadata: { name: "cache" },
+          spec: {
+            replicas: 2,
+            template: {
+              labels: { app: "cache" },
+              containers: [{ name: "cache", image: "redis" }],
+            },
+          },
+          status: { replicas: 2, readyReplicas: 2, updatedReplicas: 2, availableReplicas: 2 },
+        },
+        {
+          kind: "HorizontalPodAutoscaler",
+          metadata: { name: "cache" },
+          spec: {
+            minReplicas: 1,
+            maxReplicas: 8,
+            scaleTargetRef: { kind: "Deployment", name: "cache" },
+            metrics: [
+              {
+                type: "Resource",
+                resource: {
+                  name: "memory",
+                  target: { type: "Utilization", averageUtilization: 100 },
+                },
+              },
+            ],
+          },
+          status: { currentReplicas: 2, desiredReplicas: 1, currentMemoryUtilization: 200 },
+        },
+        {
+          kind: "Deployment",
+          metadata: { name: "steady" },
+          spec: {
+            replicas: 3,
+            template: {
+              labels: { app: "steady" },
+              containers: [{ name: "steady", image: "nginx" }],
+            },
+          },
+          status: { replicas: 3, readyReplicas: 3, updatedReplicas: 3, availableReplicas: 3 },
+        },
+        {
+          kind: "HorizontalPodAutoscaler",
+          metadata: { name: "steady" },
+          spec: {
+            minReplicas: 1,
+            maxReplicas: 8,
+            scaleTargetRef: { kind: "Deployment", name: "steady" },
+            metrics: [
+              {
+                type: "Resource",
+                resource: {
+                  name: "cpu",
+                  target: { type: "Utilization", averageUtilization: 50 },
+                },
+              },
+            ],
+          },
+          status: { currentReplicas: 3, desiredReplicas: 1, currentCPUUtilization: 52 },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<KubeDeployment>("Deployment", "cache")?.spec.replicas).toBe(4);
+    expect(engine.store.get<KubeDeployment>("Deployment", "steady")?.spec.replicas).toBe(3);
+    expect(
+      engine.store.get<KubeHorizontalPodAutoscaler>("HorizontalPodAutoscaler", "cache")?.status,
+    ).toMatchObject({ desiredReplicas: 4, currentMemoryUtilization: 200 });
+    expect(engine.execute("kubectl get hpa cache").output).toContain("memory: 200%/100%");
+    expect(engine.execute("kubectl get hpa steady").output).toContain("cpu: 52%/50%");
+  });
+
   it("clamps HPA metric scaling to configured bounds", () => {
     const engine = createEngine();
     engine.seed({

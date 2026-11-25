@@ -166,7 +166,7 @@ matter for teaching.
 `scale`, `set image|env`, `rollout`, `exec` for DNS/HTTP/environment checks,
 `logs`, `auth can-i`, `apply -f/-k` with comma-separated files and directory
 manifests, NetworkPolicy peer/egress evaluation, configurable rolling-update
-strategies, HPA CPU utilization from Pod usage and requests, readiness/liveness
+strategies, HPA CPU/memory utilization from Pod usage and requests with tolerance, readiness/liveness
 probe evaluation with restarts and CrashLoopBackOff, NetworkPolicy ports,
 headless/NodePort Services, storage reclaim and delayed binding, cluster-scoped
 RBAC inspection, affinity/topology scheduling, LimitRange defaults, namespace

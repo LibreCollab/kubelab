@@ -101,7 +101,7 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
   Kustomize, GitOps, and operators.
 - Simulated `kubectl` across core, storage, networking, RBAC, events, and custom
   resources, including `apply -f/-k`, comma-separated files, directory apply,
-  `get -o yaml`, `top`, HPA CPU metrics from Pod usage, readiness/liveness
+  `get -o yaml`, `top`, HPA CPU/memory metrics with tolerance, readiness/liveness
   probes with restarts and CrashLoopBackOff, NetworkPolicy peers/ports/egress,
   headless and NodePort Services, storage reclaim/WaitForFirstConsumer,
   cluster-scoped RBAC, affinity and topology spread, ResourceQuota,

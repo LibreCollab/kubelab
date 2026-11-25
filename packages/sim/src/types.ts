@@ -380,6 +380,7 @@ export interface KubeHorizontalPodAutoscaler extends KubeObject {
     currentReplicas: number;
     desiredReplicas: number;
     currentCPUUtilization?: number;
+    currentMemoryUtilization?: number;
   };
 }
 
