@@ -15,7 +15,6 @@ function cspMeta(): Plugin {
     "object-src 'none'",
     "base-uri 'self'",
     "form-action 'self'",
-    "frame-ancestors 'none'",
   ].join("; ");
 
   return {
