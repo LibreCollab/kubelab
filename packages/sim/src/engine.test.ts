@@ -1663,6 +1663,301 @@ spec:
     expect(engine.followLogs("kubectl logs missing -f", () => undefined)).toBeUndefined();
   });
 
+  it("routes TLS Ingress and projects ServiceAccount files", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: { nodeName: "node-1", containers: [{ name: "web", image: "nginx" }] },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.80",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "client" },
+          spec: {
+            nodeName: "node-1",
+            serviceAccountName: "bot",
+            containers: [{ name: "client", image: "busybox" }],
+          },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.81",
+            conditions: [{ type: "Ready", status: "True" }],
+          },
+        },
+        {
+          kind: "Service",
+          metadata: { name: "web" },
+          spec: {
+            type: "ClusterIP",
+            selector: { app: "web" },
+            ports: [{ port: 80, targetPort: 80 }],
+            clusterIP: "10.96.0.80",
+          },
+        },
+        {
+          kind: "Ingress",
+          metadata: { name: "web" },
+          spec: {
+            rules: [{ host: "shop.example.com", path: "/", serviceName: "web", servicePort: 80 }],
+            tls: [{ hosts: ["shop.example.com"], secretName: "shop-tls" }],
+          },
+        },
+      ],
+    });
+    expect(engine.execute("kubectl exec client -- curl https://shop.example.com").output).toContain(
+      "200",
+    );
+    expect(
+      engine.execute(
+        "kubectl exec client -- cat /var/run/secrets/kubernetes.io/serviceaccount/token",
+      ).output,
+    ).toContain("kubelab-token.default.bot");
+  });
+
+  it("enforces restricted Pod Security", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Namespace",
+          metadata: {
+            name: "restricted",
+            labels: { "pod-security.kubernetes.io/enforce": "restricted" },
+          },
+          status: { phase: "Active" },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "unsafe" },
+          spec: { containers: [{ name: "app", image: "nginx" }] },
+          status: { phase: "Pending" },
+        },
+      ],
+    });
+    engine.execute("kubectl run safe --image=nginx -n restricted");
+    engine.step();
+    expect(engine.execute("kubectl get pod safe -n restricted").output).toContain("Pending");
+    expect(engine.execute("kubectl describe pod safe -n restricted").output).toContain(
+      "PodSecurity",
+    );
+  });
+
+  it("expires old events and reconciles external HPA metrics", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Event",
+          metadata: { name: "old" },
+          type: "Warning",
+          reason: "Old",
+          message: "old event",
+          involvedObject: { kind: "Pod", name: "web", namespace: "default" },
+        },
+        {
+          kind: "Deployment",
+          metadata: { name: "web" },
+          spec: {
+            replicas: 2,
+            template: { labels: { app: "web" }, containers: [{ name: "web", image: "nginx" }] },
+          },
+          status: { replicas: 2, readyReplicas: 2, updatedReplicas: 2, availableReplicas: 2 },
+        },
+        {
+          kind: "HorizontalPodAutoscaler",
+          metadata: { name: "web" },
+          spec: {
+            minReplicas: 1,
+            maxReplicas: 8,
+            scaleTargetRef: { kind: "Deployment", name: "web" },
+            metrics: [
+              {
+                type: "External",
+                metric: { name: "queue" },
+                target: { type: "AverageValue", averageValue: "10" },
+              },
+            ],
+          },
+          status: { currentReplicas: 2, desiredReplicas: 1, currentExternalMetric: 20 },
+        },
+      ],
+    });
+    const old = engine.store.get("Event", "old");
+    expect(old).toBeDefined();
+    if (old !== undefined) {
+      engine.store.upsert({ ...old, metadata: { ...old.metadata, creationTick: -400 } });
+    }
+    expect(engine.execute("kubectl get events").output).not.toContain("old event");
+    engine.step();
+    expect(engine.store.get<KubeDeployment>("Deployment", "web")?.spec.replicas).toBe(4);
+    expect(engine.execute("kubectl get hpa web").output).toContain("external: 20/10");
+  });
+
+  it("renders Kustomize patches, applies Helm charts, syncs Argo, and reconciles Widgets", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      files: {
+        "base/deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: web
+    containers:
+      - name: web
+        image: nginx
+`,
+        "base/kustomization.yaml": `resources:
+  - deployment.yaml
+patchesStrategicMerge:
+  - patch.yaml
+`,
+        "base/patch.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 3
+`,
+        "charts/web.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chart-web
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: chart-web
+    containers:
+      - name: web
+        image: nginx
+`,
+      },
+      objects: [
+        {
+          kind: "Application",
+          metadata: { name: "web" },
+          source: { repoURL: "https://example.com/repo", path: "charts/web.yaml" },
+          destination: { namespace: "default" },
+          syncStatus: "OutOfSync",
+          healthStatus: "Degraded",
+        },
+        {
+          kind: "Widget",
+          metadata: { name: "demo" },
+          spec: { size: 2, color: "green" },
+          status: { phase: "Ready" },
+        },
+      ],
+    });
+
+    expect(engine.execute("kubectl kustomize base").output).toContain("replicas: 3");
+    expect(engine.execute("helm install web charts/web.yaml").ok).toBe(true);
+    expect(engine.execute("kubectl get deployment chart-web").ok).toBe(true);
+    expect(engine.execute("argocd app sync web").ok).toBe(true);
+    engine.step();
+    engine.step();
+    expect(engine.execute("kubectl get deployment chart-web").output).toContain("1/1");
+    expect(engine.execute("kubectl get configmap demo-config").ok).toBe(true);
+  });
+
+  it("gates readiness on startup probes and delays scale-down", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "api" },
+          spec: {
+            nodeName: "node-1",
+            containers: [
+              {
+                name: "api",
+                image: "api",
+                startupProbe: { grpc: { port: 9000 }, periodSeconds: 1, failureThreshold: 1 },
+                simulator: { probeStatus: { startup: 500 } },
+              },
+            ],
+          },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.90",
+            conditions: [{ type: "Ready", status: "False" }],
+            containerStatuses: [{ name: "api", ready: false, restartCount: 0, state: "running" }],
+          },
+        },
+        {
+          kind: "Deployment",
+          metadata: { name: "steady" },
+          spec: {
+            replicas: 4,
+            template: {
+              labels: { app: "steady" },
+              containers: [{ name: "steady", image: "nginx" }],
+            },
+          },
+          status: { replicas: 4, readyReplicas: 4, updatedReplicas: 4, availableReplicas: 4 },
+        },
+        {
+          kind: "HorizontalPodAutoscaler",
+          metadata: { name: "steady" },
+          spec: {
+            minReplicas: 1,
+            maxReplicas: 8,
+            scaleTargetRef: { kind: "Deployment", name: "steady" },
+            metrics: [
+              {
+                type: "Resource",
+                resource: { name: "cpu", target: { type: "Utilization", averageUtilization: 50 } },
+              },
+            ],
+            behavior: { scaleDown: { stabilizationWindowSeconds: 60 } },
+          },
+          status: { currentReplicas: 4, desiredReplicas: 1, currentCPUUtilization: 20 },
+        },
+      ],
+    });
+
+    engine.step();
+    expect(engine.store.get<Pod>("Pod", "api")?.status.containerStatuses?.[0]?.reason).toBe(
+      "StartupProbeFailed",
+    );
+    expect(engine.store.get<KubeDeployment>("Deployment", "steady")?.spec.replicas).toBe(4);
+
+    const pod = engine.store.get<Pod>("Pod", "api");
+    expect(pod).toBeDefined();
+    if (pod === undefined) {
+      return;
+    }
+    engine.store.upsert({
+      ...pod,
+      spec: {
+        ...pod.spec,
+        containers: pod.spec.containers.map((container) => ({
+          ...container,
+          simulator: { probeStatus: { startup: 200 } },
+        })),
+      },
+    });
+    engine.step();
+    expect(engine.store.get<Pod>("Pod", "api")?.status.containerStatuses?.[0]?.ready).toBe(true);
+  });
+
   it("applies comma-separated files and directory manifests", () => {
     const engine = createEngine();
     engine.seed({

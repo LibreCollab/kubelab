@@ -55,6 +55,7 @@ export interface Probe {
   exec?: { command: string[] };
   httpGet?: { path?: string; port: number | string; scheme?: string };
   tcpSocket?: { port: number | string };
+  grpc?: { port: number | string };
 }
 
 export interface ContainerSecurityContext {
@@ -77,10 +78,12 @@ export interface ContainerSpec {
   securityContext?: ContainerSecurityContext;
   readinessProbe?: Probe;
   livenessProbe?: Probe;
+  startupProbe?: Probe;
   simulator?: {
     probeStatus?: {
       readiness?: number;
       liveness?: number;
+      startup?: number;
     };
   };
   resources?: {
@@ -132,6 +135,7 @@ export interface Pod extends KubeObject {
   kind: "Pod";
   spec: {
     nodeName?: string;
+    serviceAccountName?: string;
     nodeSelector?: Record<string, string>;
     securityContext?: PodSecurityContext;
     affinity?: {
@@ -343,6 +347,7 @@ export interface KubeApplication extends KubeObject {
   };
   syncStatus: "Synced" | "OutOfSync";
   healthStatus: "Healthy" | "Progressing" | "Degraded";
+  lastAppliedHash?: string;
 }
 
 export interface KubeWidget extends KubeObject {
@@ -368,19 +373,32 @@ export interface HpaResourceMetric {
   };
 }
 
+export interface HpaExternalMetric {
+  type: "External";
+  metric: { name: string };
+  target: { type: "AverageValue"; averageValue: string };
+}
+
+export type HpaMetric = HpaResourceMetric | HpaExternalMetric;
+
 export interface KubeHorizontalPodAutoscaler extends KubeObject {
   kind: "HorizontalPodAutoscaler";
   spec: {
     minReplicas: number;
     maxReplicas: number;
     scaleTargetRef: { kind: string; name: string };
-    metrics?: HpaResourceMetric[];
+    metrics?: HpaMetric[];
+    behavior?: {
+      scaleDown?: { stabilizationWindowSeconds?: number };
+    };
   };
   status: {
     currentReplicas: number;
     desiredReplicas: number;
     currentCPUUtilization?: number;
     currentMemoryUtilization?: number;
+    currentExternalMetric?: number;
+    lastScaleTick?: number;
   };
 }
 
@@ -499,6 +517,7 @@ export interface KubeIngress extends KubeObject {
   spec: {
     ingressClassName?: string;
     rules: IngressRule[];
+    tls?: Array<{ hosts: string[]; secretName?: string }>;
   };
 }
 

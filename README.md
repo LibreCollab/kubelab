@@ -106,8 +106,9 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
   headless and NodePort Services, storage reclaim/WaitForFirstConsumer,
   cluster-scoped RBAC, affinity and topology spread, ResourceQuota,
   LimitRange, PDB status, DaemonSets, StatefulSets, Jobs, CronJobs, init
-  containers, streaming `logs -f` with Ctrl+C, configurable rollout strategies,
-  `helm` release inspection, `argocd` applications, Kustomize
+  containers, streaming `logs -f`, TLS Ingress, ServiceAccount tokens, Pod
+  Security, startup/gRPC probes, external HPA metrics, Kustomize patches, Helm
+  install/rollback, Argo drift/sync, and operator child reconciliation
   rendering, `exec`, `logs`, `auth can-i`, and virtual-clock reconciliation.
 - Timed knowledge mock exams plus hands-on lab exams with randomized task order,
   scoring, weak-domain review, combined exam history, and spaced-repetition

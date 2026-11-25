@@ -171,7 +171,10 @@ probe evaluation with restarts and CrashLoopBackOff, NetworkPolicy ports,
 headless/NodePort Services, storage reclaim and delayed binding, cluster-scoped
 RBAC inspection, affinity/topology scheduling, LimitRange defaults, namespace
 quotas, PDB status, DaemonSets, StatefulSets, Jobs, CronJobs, init containers,
-streaming log follow, `delete`, and `help`. Helm,
+streaming log follow, TLS Ingress, ServiceAccount token files, Pod Security,
+startup/gRPC probes, external HPA metrics and stabilization, real Kustomize
+rendering, Helm lifecycle, Argo drift/sync, Widget child resources, `delete`, and
+`help`. Helm,
 Argo CD, and Kustomize inspection are also simulated.
 
 ### Lesson validation

@@ -259,6 +259,32 @@ function notSimulated(action: string, resource: string): CommandResult {
   return { ok: false, output: `error: ${action} ${resource} is not simulated yet` };
 }
 
+function mergeManifest(
+  base: Record<string, unknown>,
+  patch: Record<string, unknown>,
+): Record<string, unknown> {
+  const result = { ...base };
+  for (const [key, value] of Object.entries(patch)) {
+    const current = result[key];
+    if (
+      typeof value === "object" &&
+      value !== null &&
+      !Array.isArray(value) &&
+      typeof current === "object" &&
+      current !== null &&
+      !Array.isArray(current)
+    ) {
+      result[key] = mergeManifest(
+        current as Record<string, unknown>,
+        value as Record<string, unknown>,
+      );
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
 export class SimEngine {
   readonly store = new ClusterStore();
   readonly clock: VirtualClock;
@@ -1099,6 +1125,26 @@ export class SimEngine {
       };
     }
 
+    if (command.command === "cat" && command.args.length === 1) {
+      const path = command.args[0];
+      if (path === "/var/run/secrets/kubernetes.io/serviceaccount/token") {
+        return {
+          ok: true,
+          output: `kubelab-token.${pod.metadata.namespace}.${pod.spec.serviceAccountName ?? "default"}.${pod.metadata.uid}`,
+        };
+      }
+      if (path === "/var/run/secrets/kubernetes.io/serviceaccount/namespace") {
+        return { ok: true, output: pod.metadata.namespace };
+      }
+      if (path === "/var/run/secrets/kubernetes.io/serviceaccount/ca.crt") {
+        return {
+          ok: true,
+          output: "-----BEGIN CERTIFICATE-----\nKUBELAB-CA\n-----END CERTIFICATE-----",
+        };
+      }
+      return { ok: false, output: `cat: ${path}: No such file or directory` };
+    }
+
     if (command.command === "env" || command.command === "printenv") {
       const env = pod.spec.containers[0]?.env ?? [];
       if (command.command === "printenv") {
@@ -1134,12 +1180,14 @@ export class SimEngine {
         ? (header.slice("host:".length).trim().split(":")[0] ?? "")
         : undefined;
       let path = "/";
+      let secure = false;
 
       if (url !== undefined) {
         try {
           const parsed = new URL(url);
           host = host ?? parsed.hostname;
           path = parsed.pathname.length === 0 ? "/" : parsed.pathname;
+          secure = parsed.protocol === "https:";
         } catch {
           return { ok: false, output: `curl: (3) URL rejected: ${url}` };
         }
@@ -1162,6 +1210,16 @@ export class SimEngine {
             rule.host.toLowerCase() === host.toLowerCase() && matchesIngressPath(rule.path, path),
         )
         .sort((left, right) => right.rule.path.length - left.rule.path.length)[0];
+
+      if (secure) {
+        const tlsHosts = route?.ingress.spec.tls?.flatMap((tls) => tls.hosts) ?? [];
+        if (route === undefined || !tlsHosts.includes(host)) {
+          return {
+            ok: false,
+            output: `curl: (35) SSL connect error\nno TLS certificate matches ${host}`,
+          };
+        }
+      }
 
       if (route === undefined) {
         const dnsTarget = resolveServiceDns(host, command.namespace);
@@ -2356,7 +2414,9 @@ export class SimEngine {
             ? undefined
             : target.resource === "cpu"
               ? item.status.currentCPUUtilization
-              : item.status.currentMemoryUtilization;
+              : target.resource === "memory"
+                ? item.status.currentMemoryUtilization
+                : item.status.currentExternalMetric;
         return [
           command.allNamespaces
             ? `${item.metadata.namespace}/${item.metadata.name}`
@@ -2364,7 +2424,13 @@ export class SimEngine {
           `${item.spec.scaleTargetRef.kind}/${item.spec.scaleTargetRef.name}`,
           target === undefined
             ? "<none>"
-            : `${target.resource}: ${utilization === undefined ? "<unknown>" : `${utilization}%`}/${target.target}%`,
+            : `${target.resource}: ${
+                utilization === undefined
+                  ? "<unknown>"
+                  : target.resource === "external"
+                    ? String(utilization)
+                    : `${utilization}%`
+              }/${target.resource === "external" ? String(target.target) : `${target.target}%`}`,
           String(item.spec.minReplicas),
           String(item.spec.maxReplicas),
           String(item.status.currentReplicas),
@@ -2397,6 +2463,7 @@ export class SimEngine {
     }
 
     const rows = [...items]
+      .filter((item) => this.clock.tick - item.metadata.creationTick <= 300)
       .sort((left, right) => right.metadata.creationTick - left.metadata.creationTick)
       .map((item) => [
         `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
@@ -2530,6 +2597,10 @@ export class SimEngine {
     if (this.#files[source] !== undefined) {
       return this.#files[source];
     }
+    const rendered = this.#renderKustomize(source);
+    if (rendered !== undefined) {
+      return rendered;
+    }
     const prefix = `${source.replace(/\/$/, "")}/`;
     const nested = Object.entries(this.#files)
       .filter(([name]) => name.startsWith(prefix))
@@ -2541,6 +2612,52 @@ export class SimEngine {
   }
 
   #helm(command: Extract<ParsedCommand, { verb: "helm" }>): CommandResult {
+    if (command.action === "install" || command.action === "upgrade") {
+      const existing = this.store.get<KubeHelmRelease>(
+        "HelmRelease",
+        command.name ?? "",
+        command.namespace,
+      );
+      if (command.action === "install" && existing !== undefined) {
+        return { ok: false, output: "Error: release already exists" };
+      }
+      const revision = (existing?.history.at(-1)?.revision ?? 0) + 1;
+      const chartName = (command.chart ?? "chart").split("/").pop() ?? "chart";
+      const release: KubeHelmRelease = {
+        apiVersion: "helm.sh/v3",
+        kind: "HelmRelease",
+        metadata: {
+          name: command.name ?? chartName,
+          namespace: command.namespace,
+          labels: {},
+          uid: this.#nextUid("release"),
+          resourceVersion: 0,
+          creationTick: this.clock.tick,
+        },
+        chartName,
+        chartVersion: "0.1.0",
+        status: "deployed",
+        history: [
+          ...(existing?.history ?? []).map((entry) => ({ ...entry, status: "superseded" })),
+          {
+            revision,
+            status: "deployed",
+            chart: `${chartName}-0.1.0`,
+            description: `${command.action} complete`,
+          },
+        ],
+      };
+      this.store.upsert(release);
+      if (command.chart !== undefined) {
+        this.#apply({
+          verb: "apply",
+          file: command.chart,
+          namespace: command.namespace,
+        });
+      }
+      return { ok: true, output: `release "${release.metadata.name}" deployed` };
+    }
+
     const releases = this.store
       .list<KubeHelmRelease>(
         "HelmRelease",
@@ -2590,6 +2707,28 @@ export class SimEngine {
       };
     }
 
+    if (command.action === "rollback") {
+      const target = release.history.find((entry) => entry.revision === command.revision);
+      if (target === undefined) {
+        return { ok: false, output: `Error: revision ${command.revision ?? 0} not found` };
+      }
+      const revision = Math.max(...release.history.map((entry) => entry.revision)) + 1;
+      this.store.upsert({
+        ...release,
+        status: "deployed",
+        history: [
+          ...release.history,
+          {
+            revision,
+            status: "deployed",
+            chart: target.chart,
+            description: `rollback to ${target.revision}`,
+          },
+        ],
+      });
+      return { ok: true, output: `rollback to revision ${target.revision}` };
+    }
+
     return {
       ok: true,
       output: [
@@ -2630,7 +2769,18 @@ export class SimEngine {
       if (application === undefined) {
         return { ok: false, output: "Application not found" };
       }
-      this.store.upsert({ ...application, syncStatus: "Synced", healthStatus: "Healthy" });
+      this.#apply({
+        verb: "apply",
+        file: application.source.path,
+        namespace: application.destination.namespace,
+      });
+      const source = this.#readManifestSource(application.source.path);
+      this.store.upsert({
+        ...application,
+        syncStatus: "Synced",
+        healthStatus: "Healthy",
+        ...(source === undefined ? {} : { lastAppliedHash: hashString(source).toString(36) }),
+      });
       return { ok: true, output: `Sync successful for ${application.metadata.name}` };
     }
 
@@ -2654,11 +2804,76 @@ export class SimEngine {
   }
 
   #kustomize(command: Extract<ParsedCommand, { verb: "kustomize" }>): CommandResult {
-    const output = this.#files[command.path];
+    const output = this.#renderKustomize(command.path);
     if (output === undefined) {
       return { ok: false, output: `error: unable to read kustomization directory ${command.path}` };
     }
     return { ok: true, output };
+  }
+
+  #renderKustomize(source: string): string | undefined {
+    const kustomizationPath = [`${source}/kustomization.yaml`, `${source}/kustomization.yml`].find(
+      (path) => this.#files[path] !== undefined,
+    );
+    if (kustomizationPath === undefined) {
+      return this.#files[source];
+    }
+    const parsed = parseAllDocuments(this.#files[kustomizationPath] ?? "")[0]?.toJS() as
+      | Record<string, unknown>
+      | undefined;
+    if (parsed === undefined || !Array.isArray(parsed.resources)) {
+      return this.#files[kustomizationPath];
+    }
+    const documents: Array<Record<string, unknown>> = [];
+    for (const resource of parsed.resources) {
+      if (typeof resource !== "string") {
+        continue;
+      }
+      const content = this.#files[`${source}/${resource}`] ?? this.#files[resource];
+      if (content === undefined) {
+        continue;
+      }
+      for (const document of parseAllDocuments(content)) {
+        const value = document.toJS();
+        if (typeof value === "object" && value !== null) {
+          documents.push(value as Record<string, unknown>);
+        }
+      }
+    }
+    const patchPaths = [
+      ...(Array.isArray(parsed.patchesStrategicMerge) ? parsed.patchesStrategicMerge : []),
+      ...(Array.isArray(parsed.patches)
+        ? parsed.patches.flatMap((patch) =>
+            typeof patch === "object" && patch !== null && "path" in patch
+              ? [(patch as { path: unknown }).path]
+              : [],
+          )
+        : []),
+    ];
+    for (const patchPath of patchPaths) {
+      if (typeof patchPath !== "string") {
+        continue;
+      }
+      const content = this.#files[`${source}/${patchPath}`] ?? this.#files[patchPath];
+      if (content === undefined) {
+        continue;
+      }
+      for (const document of parseAllDocuments(content)) {
+        const patch = document.toJS() as Record<string, unknown> | undefined;
+        if (patch === undefined) {
+          continue;
+        }
+        const metadata = patch.metadata as Record<string, unknown> | undefined;
+        const index = documents.findIndex((candidate) => {
+          const candidateMetadata = candidate.metadata as Record<string, unknown> | undefined;
+          return candidate.kind === patch.kind && candidateMetadata?.name === metadata?.name;
+        });
+        if (index !== -1) {
+          documents[index] = mergeManifest(documents[index] ?? {}, patch);
+        }
+      }
+    }
+    return documents.map((document) => stringifyYaml(document).trimEnd()).join("\n---\n");
   }
 
   #logs(command: Extract<ParsedCommand, { verb: "logs" }>): CommandResult {
@@ -3237,6 +3452,7 @@ export class SimEngine {
     const tick = this.clock.tick;
 
     this.#reconcileWidgets();
+    this.#reconcileApplications();
     this.#reconcileAutoscalers();
     this.#reconcileCronJobs();
     this.#reconcileJobs();
@@ -3253,6 +3469,14 @@ export class SimEngine {
       }
 
       pod = this.#applyLimitRangeDefaults(pod);
+      const securityError = this.#podSecurityViolation(pod);
+      if (securityError !== undefined) {
+        this.store.upsert({
+          ...pod,
+          status: { ...pod.status, phase: "Pending", message: securityError },
+        });
+        continue;
+      }
       const quotaError = this.#quotaError(pod);
       if (quotaError !== undefined) {
         this.store.upsert({
@@ -3373,7 +3597,9 @@ export class SimEngine {
   #reconcilePodHealth(pod: Pod): void {
     const hasProbes = pod.spec.containers.some(
       (container) =>
-        container.readinessProbe !== undefined || container.livenessProbe !== undefined,
+        container.readinessProbe !== undefined ||
+        container.livenessProbe !== undefined ||
+        container.startupProbe !== undefined,
     );
     if (!hasProbes) {
       return;
@@ -3404,6 +3630,37 @@ export class SimEngine {
       const containerStatus = statuses.find((status) => status.name === container.name);
       if (containerStatus === undefined) {
         continue;
+      }
+
+      if (container.startupProbe !== undefined) {
+        const result = this.#checkProbe("startup", container, pod, probeState);
+        if (
+          result !== undefined &&
+          !result.ok &&
+          result.failures >= (container.startupProbe.failureThreshold ?? 3)
+        ) {
+          containerStatus.ready = false;
+          containerStatus.reason = "StartupProbeFailed";
+          this.#setReadyCondition(
+            conditions,
+            false,
+            "StartupProbeFailed",
+            `Startup probe failed: ${result.detail}`,
+          );
+          if (result.failures === (container.startupProbe.failureThreshold ?? 3)) {
+            this.#recordProbeEvent(pod, "Unhealthy", `Startup probe failed: ${result.detail}`);
+          }
+          changed = true;
+          continue;
+        }
+        if ((probeState[`${container.name}:startup`]?.successes ?? 0) === 0) {
+          continue;
+        }
+        if (result?.ok && container.readinessProbe === undefined && !containerStatus.ready) {
+          containerStatus.ready = true;
+          delete containerStatus.reason;
+          changed = true;
+        }
       }
 
       if (container.readinessProbe !== undefined) {
@@ -3511,12 +3768,17 @@ export class SimEngine {
   }
 
   #checkProbe(
-    kind: "readiness" | "liveness",
+    kind: "readiness" | "liveness" | "startup",
     container: Pod["spec"]["containers"][number],
     pod: Pod,
     probeState: Record<string, ProbeState>,
   ): { ok: boolean; detail: string; failures: number; successes: number } | undefined {
-    const probe = kind === "readiness" ? container.readinessProbe : container.livenessProbe;
+    const probe =
+      kind === "readiness"
+        ? container.readinessProbe
+        : kind === "liveness"
+          ? container.livenessProbe
+          : container.startupProbe;
     if (probe === undefined) {
       return undefined;
     }
@@ -3542,10 +3804,15 @@ export class SimEngine {
   }
 
   #evaluateProbe(
-    kind: "readiness" | "liveness",
+    kind: "readiness" | "liveness" | "startup",
     container: Pod["spec"]["containers"][number],
   ): { ok: boolean; detail: string } {
-    const probe = kind === "readiness" ? container.readinessProbe : container.livenessProbe;
+    const probe =
+      kind === "readiness"
+        ? container.readinessProbe
+        : kind === "liveness"
+          ? container.livenessProbe
+          : container.startupProbe;
     if (probe?.httpGet !== undefined) {
       const status = container.simulator?.probeStatus?.[kind] ?? 200;
       return {
@@ -3559,6 +3826,13 @@ export class SimEngine {
       return {
         ok: !failed,
         detail: `exec [${probe.exec.command.join(", ")}]`,
+      };
+    }
+    if (probe?.grpc !== undefined) {
+      const status = container.simulator?.probeStatus?.[kind] ?? 200;
+      return {
+        ok: status < 400,
+        detail: `gRPC :${probe.grpc.port} -> ${status}`,
       };
     }
     if (probe?.tcpSocket !== undefined) {
@@ -3871,8 +4145,43 @@ export class SimEngine {
 
   #reconcileWidgets(): void {
     for (const widget of this.store.list<KubeWidget>("Widget")) {
+      const childName = `${widget.metadata.name}-config`;
+      if (
+        this.store.get<KubeConfigMap>("ConfigMap", childName, widget.metadata.namespace) ===
+        undefined
+      ) {
+        this.store.upsert<KubeConfigMap>({
+          apiVersion: "v1",
+          kind: "ConfigMap",
+          metadata: {
+            name: childName,
+            namespace: widget.metadata.namespace,
+            labels: { "app.kubernetes.io/managed-by": "widget-operator" },
+            uid: this.#nextUid("configmap"),
+            resourceVersion: 0,
+            creationTick: this.clock.tick,
+          },
+          data: { size: String(widget.spec.size), color: widget.spec.color },
+        });
+      }
       if (widget.status.phase !== "Ready") {
         this.store.upsert({ ...widget, status: { phase: "Ready" } });
+      }
+    }
+  }
+
+  #reconcileApplications(): void {
+    for (const application of this.store.list<KubeApplication>("Application")) {
+      const source = this.#readManifestSource(application.source.path);
+      if (source === undefined || application.lastAppliedHash === undefined) {
+        continue;
+      }
+      if (hashString(source).toString(36) !== application.lastAppliedHash) {
+        this.store.upsert({
+          ...application,
+          syncStatus: "OutOfSync",
+          healthStatus: "Progressing",
+        });
       }
     }
   }
@@ -3897,12 +4206,15 @@ export class SimEngine {
           ? undefined
           : target.resource === "cpu"
             ? autoscaler.status.currentCPUUtilization
-            : autoscaler.status.currentMemoryUtilization;
+            : target.resource === "memory"
+              ? autoscaler.status.currentMemoryUtilization
+              : autoscaler.status.currentExternalMetric;
 
       if (target !== undefined) {
-        if (utilization === undefined) {
+        if (utilization === undefined && target.resource !== "external") {
           utilization = this.#averageUtilization(deployment, target.resource);
         } else if (
+          utilization !== undefined &&
           autoscaler.status.currentReplicas > 0 &&
           autoscaler.status.currentReplicas !== actualReplicas
         ) {
@@ -3916,7 +4228,7 @@ export class SimEngine {
         target !== undefined &&
         utilization !== undefined &&
         Math.abs(utilization - target.target) <= target.target * 0.1;
-      const desired =
+      let desired =
         target === undefined || utilization === undefined
           ? Math.min(
               autoscaler.spec.maxReplicas,
@@ -3932,6 +4244,17 @@ export class SimEngine {
               ),
             );
 
+      const stabilization = autoscaler.spec.behavior?.scaleDown?.stabilizationWindowSeconds ?? 0;
+      if (
+        desired < actualReplicas &&
+        stabilization > 0 &&
+        this.clock.tick - (autoscaler.status.lastScaleTick ?? autoscaler.metadata.creationTick) <
+          stabilization
+      ) {
+        desired = actualReplicas;
+      }
+
+      const scaled = desired !== actualReplicas;
       this.store.upsert({
         ...autoscaler,
         status: {
@@ -3941,7 +4264,10 @@ export class SimEngine {
             ? {}
             : target?.resource === "memory"
               ? { currentMemoryUtilization: utilization }
-              : { currentCPUUtilization: utilization }),
+              : target?.resource === "external"
+                ? { currentExternalMetric: utilization }
+                : { currentCPUUtilization: utilization }),
+          ...(scaled ? { lastScaleTick: this.clock.tick } : {}),
         },
       });
 
@@ -3963,18 +4289,24 @@ export class SimEngine {
 
   #hpaTarget(
     autoscaler: KubeHorizontalPodAutoscaler,
-  ): { resource: "cpu" | "memory"; target: number } | undefined {
+  ): { resource: "cpu" | "memory" | "external"; target: number } | undefined {
     for (const metric of autoscaler.spec.metrics ?? []) {
-      if (
-        metric.type === "Resource" &&
-        (metric.resource.name === "cpu" || metric.resource.name === "memory") &&
-        metric.resource.target.type === "Utilization" &&
-        (metric.resource.target.averageUtilization ?? 0) > 0
-      ) {
-        return {
-          resource: metric.resource.name,
-          target: metric.resource.target.averageUtilization ?? 0,
-        };
+      if (metric.type === "Resource") {
+        if (
+          (metric.resource.name === "cpu" || metric.resource.name === "memory") &&
+          metric.resource.target.type === "Utilization" &&
+          (metric.resource.target.averageUtilization ?? 0) > 0
+        ) {
+          return {
+            resource: metric.resource.name,
+            target: metric.resource.target.averageUtilization ?? 0,
+          };
+        }
+      } else if (metric.type === "External") {
+        const target = Number(metric.target.averageValue);
+        if (!Number.isNaN(target) && target > 0) {
+          return { resource: "external", target };
+        }
       }
     }
     return undefined;
@@ -4391,6 +4723,22 @@ export class SimEngine {
     const updated = { ...pod, spec: { ...pod.spec, containers } };
     this.store.upsert(updated);
     return updated;
+  }
+
+  #podSecurityViolation(pod: Pod): string | undefined {
+    const namespace = this.store.get<KubeNamespace>("Namespace", pod.metadata.namespace, "");
+    const level = namespace?.metadata.labels["pod-security.kubernetes.io/enforce"];
+    if (level === "restricted") {
+      if (pod.spec.securityContext?.runAsNonRoot !== true) {
+        return 'violates PodSecurity "restricted": runAsNonRoot=true is required';
+      }
+      for (const container of pod.spec.containers) {
+        if (container.securityContext?.allowPrivilegeEscalation !== false) {
+          return `violates PodSecurity "restricted": container ${container.name} must disable privilege escalation`;
+        }
+      }
+    }
+    return undefined;
   }
 
   #quotaError(pod: Pod): string | undefined {

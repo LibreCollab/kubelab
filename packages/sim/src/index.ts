@@ -11,6 +11,8 @@ export type {
   ContainerSpec,
   EnvFromSource,
   EnvVar,
+  HpaExternalMetric,
+  HpaMetric,
   IngressRule,
   KubeApplication,
   KubeConfigMap,

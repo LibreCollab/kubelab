@@ -86,6 +86,7 @@ fixed below.
 | 63 | Scheduling stopped at node selectors and taints | Added affinity, topology spread, LimitRange defaults, ResourceQuota, and PDB status |
 | 64 | `logs -f` was a one-shot snapshot | Added incremental log subscriptions and terminal follow mode with Ctrl+C cancellation |
 | 65 | HPA only handled CPU and scaled on tiny deviations | Added memory targets and a 10% tolerance band |
+| 66 | Remaining simulator fidelity gaps | Added TLS, ServiceAccount tokens, Pod Security, startup/gRPC probes, event expiry, external HPA, Kustomize patches, Helm lifecycle, Argo drift, and Widget children |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
