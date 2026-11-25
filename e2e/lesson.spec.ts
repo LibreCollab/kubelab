@@ -541,6 +541,15 @@ test("certification mock exam starts, submits, and reviews", async ({ page }) =>
   await expect(page.getByText("60 questions", { exact: true })).toBeVisible();
   await page.getByRole("button", { name: "Start exam" }).click();
   await expect(page.getByText("Answered 0 / 60")).toBeVisible();
+  await expect(page.getByText(/Page 1 of 6/)).toBeVisible();
+  await page.getByRole("button", { name: "Next page" }).click();
+  await expect(page.getByText(/Page 2 of 6/)).toBeVisible();
+  await page.getByRole("button", { name: "Previous" }).click();
+  await expect(page.getByText(/Page 1 of 6/)).toBeVisible();
+  for (let pageNumber = 1; pageNumber < 6; pageNumber += 1) {
+    await page.getByRole("button", { name: "Next page" }).click();
+  }
+  await expect(page.getByText(/Page 6 of 6/)).toBeVisible();
   await page.getByRole("button", { name: "Submit exam" }).click();
   await expect(page.getByText("Not passed")).toBeVisible();
   await expect(page.getByText("0/60 correct")).toBeVisible();

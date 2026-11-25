@@ -56,6 +56,8 @@ function ExamQuestionCard({
   );
 }
 
+const PAGE_SIZE = 10;
+
 function ExamRunner({
   exam,
   onFinish,
@@ -64,8 +66,11 @@ function ExamRunner({
   onFinish: (answers: Record<string, number>) => void;
 }) {
   const [answers, setAnswers] = useState<Record<string, number>>({});
+  const [page, setPage] = useState(0);
   const [remaining, setRemaining] = useState(exam.durationMinutes * 60);
   const [startedAt] = useState(() => Date.now());
+  const totalPages = Math.max(1, Math.ceil(exam.questions.length / PAGE_SIZE));
+  const pageQuestions = exam.questions.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE);
 
   const submit = useCallback(() => onFinish(answers), [answers, onFinish]);
 
@@ -100,19 +105,36 @@ function ExamRunner({
         </span>
       </div>
       <div className={styles.questions}>
-        {exam.questions.map((question, index) => (
+        {pageQuestions.map((question, index) => (
           <ExamQuestionCard
             key={question.id}
             question={question}
-            index={index}
+            index={page * PAGE_SIZE + index}
             answer={answers[question.id]}
             onAnswer={(answer) => setAnswers((current) => ({ ...current, [question.id]: answer }))}
           />
         ))}
       </div>
       <div className={styles.runnerFoot}>
-        <span>{exam.questions.length - answered} unanswered</span>
-        <Button onClick={submit}>Submit exam</Button>
+        <span>
+          Page {page + 1} of {totalPages} · {exam.questions.length - answered} unanswered
+        </span>
+        <div className={styles.pager}>
+          <Button
+            variant="secondary"
+            disabled={page === 0}
+            onClick={() => setPage((value) => Math.max(0, value - 1))}
+          >
+            Previous
+          </Button>
+          {page < totalPages - 1 ? (
+            <Button onClick={() => setPage((value) => Math.min(totalPages - 1, value + 1))}>
+              Next page
+            </Button>
+          ) : (
+            <Button onClick={submit}>Submit exam</Button>
+          )}
+        </div>
       </div>
     </div>
   );
