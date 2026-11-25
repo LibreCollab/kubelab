@@ -289,7 +289,21 @@ function normalizeEnvFrom(containers: unknown): void {
   }
 }
 
-function normalizeManifestEnvFrom(manifest: Record<string, unknown>): void {
+function normalizePodTemplate(template: Record<string, unknown>): void {
+  const podSpec = template.spec as Record<string, unknown> | undefined;
+  if (podSpec !== undefined) {
+    const metadata = template.metadata as { labels?: Record<string, string> } | undefined;
+    template.labels = metadata?.labels ?? {};
+    for (const [key, value] of Object.entries(podSpec)) {
+      template[key] = value;
+    }
+    delete template.spec;
+    delete template.metadata;
+  }
+  normalizeEnvFrom(template.containers);
+}
+
+function normalizeManifest(manifest: Record<string, unknown>): void {
   const kind = manifest.kind;
   const spec = manifest.spec as Record<string, unknown> | undefined;
   if (kind === "Pod") {
@@ -304,7 +318,9 @@ function normalizeManifestEnvFrom(manifest: Record<string, unknown>): void {
     kind === "Job"
   ) {
     const template = spec?.template as Record<string, unknown> | undefined;
-    normalizeEnvFrom(template?.containers);
+    if (template !== undefined) {
+      normalizePodTemplate(template);
+    }
     return;
   }
   if (kind === "CronJob") {
@@ -312,7 +328,9 @@ function normalizeManifestEnvFrom(manifest: Record<string, unknown>): void {
       | Record<string, unknown>
       | undefined;
     const template = jobSpec?.template as Record<string, unknown> | undefined;
-    normalizeEnvFrom(template?.containers);
+    if (template !== undefined) {
+      normalizePodTemplate(template);
+    }
   }
 }
 
@@ -2594,7 +2612,7 @@ export class SimEngine {
           continue;
         }
 
-        normalizeManifestEnvFrom(raw);
+        normalizeManifest(raw);
 
         if (kind === "Deployment") {
           raw.status ??= {
@@ -4231,6 +4249,9 @@ export class SimEngine {
           : { topologySpreadConstraints: template.topologySpreadConstraints }),
         ...(template.nodeSelector === undefined ? {} : { nodeSelector: template.nodeSelector }),
         ...(template.tolerations === undefined ? {} : { tolerations: template.tolerations }),
+        ...(template.securityContext === undefined
+          ? {}
+          : { securityContext: template.securityContext }),
       },
       status: { phase: "Pending" },
     };
@@ -4695,6 +4716,9 @@ export class SimEngine {
               ...(replicaSet.spec.template.tolerations === undefined
                 ? {}
                 : { tolerations: replicaSet.spec.template.tolerations }),
+              ...(replicaSet.spec.template.securityContext === undefined
+                ? {}
+                : { securityContext: replicaSet.spec.template.securityContext }),
             },
             status: { phase: "Pending" },
           };

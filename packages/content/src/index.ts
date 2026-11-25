@@ -7,6 +7,7 @@ import {
   type UnitDefinition,
   unitDefinitions,
 } from "./curriculum";
+import { quizExplanations } from "./quiz-explanations";
 import { type Lesson, type LessonCheck, type LessonSpec, lessonSpecSchema } from "./schema";
 
 interface Unit extends UnitDefinition {
@@ -54,7 +55,18 @@ export const lessons: Lesson[] = Object.entries(specSources)
       throw new Error(`Lesson "${parsed.id}" is missing ./${parsed.id}.md`);
     }
 
-    return { ...parsed, theoryMarkdown };
+    const checks = parsed.checks.map((check) =>
+      check.type === "quiz" && check.explanation === undefined
+        ? {
+            ...check,
+            ...(quizExplanations[`${parsed.id}:${check.id}`] === undefined
+              ? {}
+              : { explanation: quizExplanations[`${parsed.id}:${check.id}`] }),
+          }
+        : check,
+    );
+
+    return { ...parsed, checks, theoryMarkdown };
   })
   .sort((left, right) => left.id.localeCompare(right.id));
 
@@ -779,6 +791,327 @@ const extraExamQuestions: ExamQuestion[] = [
     unit: "scheduling",
     label: "HPA metrics",
     explanation: "HPA changes replicas from metrics compared with targets.",
+  },
+  {
+    id: "cert:kcna-cncf",
+    prompt: "What does the CNCF primarily do?",
+    options: [
+      "Hosts cloud native projects and community programs",
+      "Runs Kubernetes clusters for enterprises",
+      "Sells certification vouchers",
+      "Builds only container runtimes",
+    ],
+    answer: 0,
+    explanation:
+      "The CNCF hosts open-source cloud native projects and supports the surrounding community.",
+    lessonId: "kcna-readiness",
+    lessonTitle: "KCNA readiness",
+    unit: "architecture",
+    label: "CNCF role",
+  },
+  {
+    id: "cert:kcna-sig",
+    prompt: "What is a CNCF Special Interest Group (SIG)?",
+    options: [
+      "A focused community group for a technical area",
+      "A Kubernetes namespace",
+      "A type of Service",
+      "A node label",
+    ],
+    answer: 0,
+    explanation:
+      "SIGs organize contributors around technical areas such as networking, storage, or security.",
+    lessonId: "kcna-readiness",
+    lessonTitle: "KCNA readiness",
+    unit: "architecture",
+    label: "SIGs",
+  },
+  {
+    id: "cert:kcna-observability",
+    prompt: "Which set best describes the three pillars of observability?",
+    options: [
+      "Metrics, logs, and traces",
+      "Pods, Services, and Ingress",
+      "RBAC, Secrets, and quotas",
+      "Nodes, kubelet, and etcd",
+    ],
+    answer: 0,
+    explanation: "Observability commonly combines metrics, logs, and distributed traces.",
+    lessonId: "logs-events-101",
+    lessonTitle: "Logs and events",
+    unit: "observability",
+    label: "Observability pillars",
+  },
+  {
+    id: "cert:kcna-delivery",
+    prompt: "What is continuous delivery?",
+    options: [
+      "Keeping software deployable and releasing through an automated path",
+      "Running every commit directly in production",
+      "Only building container images",
+      "Replacing all tests with manual approval",
+    ],
+    answer: 0,
+    explanation:
+      "Continuous delivery keeps releases deployable while preserving a controlled release decision.",
+    lessonId: "gitops-101",
+    lessonTitle: "GitOps",
+    unit: "services",
+    label: "Continuous delivery",
+  },
+  {
+    id: "cert:kcna-gitops",
+    prompt: "What is the desired-state source in GitOps?",
+    options: ["Git", "The kubelet cache", "A NodePort", "The container runtime"],
+    answer: 0,
+    explanation: "GitOps treats Git as the desired-state source and reconciles clusters toward it.",
+    lessonId: "gitops-101",
+    lessonTitle: "GitOps",
+    unit: "config",
+    label: "GitOps source",
+  },
+  {
+    id: "cert:kcna-cost",
+    prompt: "Which practice most directly controls Kubernetes cost?",
+    options: [
+      "Right-sizing requests and cleaning unused resources",
+      "Adding more node taints",
+      "Using latest tags",
+      "Disabling readiness probes",
+    ],
+    answer: 0,
+    explanation: "Accurate requests and removing unused workloads prevent wasted cluster capacity.",
+    lessonId: "resource-quota-101",
+    lessonTitle: "ResourceQuota and LimitRange",
+    unit: "scheduling",
+    label: "Cost control",
+  },
+  {
+    id: "cert:kcna-api",
+    prompt: "How do Kubernetes components communicate?",
+    options: [
+      "Through the kube-apiserver",
+      "Directly through etcd only",
+      "Through the container runtime socket",
+      "Through NodePorts",
+    ],
+    answer: 0,
+    explanation:
+      "Clients and controllers use the API server as the central interface to cluster state.",
+    lessonId: "control-plane-101",
+    lessonTitle: "The control plane",
+    unit: "architecture",
+    label: "API server",
+  },
+  {
+    id: "cert:kcna-etcd",
+    prompt: "What is etcd responsible for?",
+    options: [
+      "Storing cluster state",
+      "Scheduling Pods",
+      "Serving application traffic",
+      "Pulling images",
+    ],
+    answer: 0,
+    explanation: "etcd is the consistent key-value store that holds Kubernetes cluster state.",
+    lessonId: "control-plane-101",
+    lessonTitle: "The control plane",
+    unit: "architecture",
+    label: "etcd",
+  },
+  {
+    id: "cert:kcna-service-mesh",
+    prompt: "What does a service mesh add?",
+    options: [
+      "Traffic policy, identity, and telemetry between services",
+      "A replacement for the API server",
+      "A node image",
+      "A storage class",
+    ],
+    answer: 0,
+    explanation:
+      "Service meshes add service-to-service traffic control, identity, and observability.",
+    lessonId: "cni-101",
+    lessonTitle: "CNI and Pod networking",
+    unit: "networking",
+    label: "Service mesh",
+  },
+  {
+    id: "cert:kcna-community",
+    prompt: "Which resource is best for tracking a CNCF project's maturity?",
+    options: ["Its CNCF maturity level", "Its Pod count", "Its namespace name", "Its Service port"],
+    answer: 0,
+    explanation:
+      "CNCF projects move through maturity levels such as sandbox, incubating, and graduated.",
+    lessonId: "kcna-readiness",
+    lessonTitle: "KCNA readiness",
+    unit: "containers",
+    label: "Project maturity",
+  },
+  {
+    id: "cert:kcsa-threat-model",
+    prompt: "What is the first step in a Kubernetes threat model?",
+    options: [
+      "Identify assets, actors, and trust boundaries",
+      "Create a Service",
+      "Scale the Deployment",
+      "Delete etcd",
+    ],
+    answer: 0,
+    explanation:
+      "Threat modeling starts by identifying what must be protected and where trust changes.",
+    lessonId: "kcsa-readiness",
+    lessonTitle: "KCSA readiness",
+    unit: "security",
+    label: "Threat modeling",
+  },
+  {
+    id: "cert:kcsa-runtime",
+    prompt: "Which signal is most useful for detecting runtime compromise?",
+    options: [
+      "Unexpected process or network activity inside a container",
+      "A valid YAML file",
+      "A Deployment replica count",
+      "A node hostname",
+    ],
+    answer: 0,
+    explanation:
+      "Runtime security observes behavior after startup, such as unusual processes or connections.",
+    lessonId: "pod-security-101",
+    lessonTitle: "Pod hardening",
+    unit: "observability",
+    label: "Runtime detection",
+  },
+  {
+    id: "cert:kcsa-supply-chain",
+    prompt: "Which control improves container supply chain trust?",
+    options: [
+      "Signed images with verified provenance",
+      "Using latest tags",
+      "Running privileged containers",
+      "Disabling admission control",
+    ],
+    answer: 0,
+    explanation:
+      "Signing and provenance let clusters verify where an image came from and whether it was altered.",
+    lessonId: "images-101",
+    lessonTitle: "Images, tags, and registries",
+    unit: "containers",
+    label: "Supply chain trust",
+  },
+  {
+    id: "cert:kcsa-admission",
+    prompt: "When does admission control run?",
+    options: [
+      "Before a resource is persisted by the API server",
+      "After a Pod exits",
+      "Only during node boot",
+      "Only when a Service is deleted",
+    ],
+    answer: 0,
+    explanation: "Admission controllers can validate or mutate requests before objects are stored.",
+    lessonId: "pod-security-101",
+    lessonTitle: "Pod hardening",
+    unit: "security",
+    label: "Admission control",
+  },
+  {
+    id: "cert:kcsa-audit",
+    prompt: "What is Kubernetes audit logging used for?",
+    options: [
+      "Recording API requests and security-relevant actions",
+      "Storing container images",
+      "Scheduling Pods",
+      "Encrypting Secrets automatically",
+    ],
+    answer: 0,
+    explanation: "Audit logs record who did what through the API and are central to investigation.",
+    lessonId: "logs-events-101",
+    lessonTitle: "Logs and events",
+    unit: "observability",
+    label: "Audit logs",
+  },
+  {
+    id: "cert:kcsa-compliance",
+    prompt: "What does a compliance framework provide?",
+    options: [
+      "A structured set of controls and evidence expectations",
+      "A Kubernetes CNI plugin",
+      "A Pod restart policy",
+      "A Service account token",
+    ],
+    answer: 0,
+    explanation:
+      "Compliance frameworks define controls that organizations must implement and evidence.",
+    lessonId: "kcsa-readiness",
+    lessonTitle: "KCSA readiness",
+    unit: "config",
+    label: "Compliance",
+  },
+  {
+    id: "cert:kcsa-secrets-management",
+    prompt: "Which practice improves Secret handling?",
+    options: [
+      "Encrypting at rest and limiting access with RBAC",
+      "Committing Secrets to Git",
+      "Using the default namespace",
+      "Using latest image tags",
+    ],
+    answer: 0,
+    explanation: "Encryption at rest and least-privilege access reduce Secret exposure.",
+    lessonId: "secrets-101",
+    lessonTitle: "Secrets",
+    unit: "security",
+    label: "Secret handling",
+  },
+  {
+    id: "cert:kcsa-network-threat",
+    prompt: "How does a default-deny NetworkPolicy help?",
+    options: [
+      "It blocks unapproved network paths until explicitly allowed",
+      "It encrypts all traffic",
+      "It restarts unhealthy Pods",
+      "It signs container images",
+    ],
+    answer: 0,
+    explanation: "Default deny narrows the network attack surface; allowed flows must be declared.",
+    lessonId: "network-policy-101",
+    lessonTitle: "NetworkPolicy",
+    unit: "networking",
+    label: "Network threats",
+  },
+  {
+    id: "cert:kcsa-node-hardening",
+    prompt: "Which action hardens a Kubernetes node?",
+    options: [
+      "Restricting access and keeping the runtime patched",
+      "Running every Pod privileged",
+      "Disabling audit logs",
+      "Mounting the host root everywhere",
+    ],
+    answer: 0,
+    explanation:
+      "Node hardening reduces host access and keeps critical runtime components current.",
+    lessonId: "nodes-101",
+    lessonTitle: "Nodes and kubelet",
+    unit: "scheduling",
+    label: "Node hardening",
+  },
+  {
+    id: "cert:kcsa-sbom",
+    prompt: "What is an SBOM?",
+    options: [
+      "A software bill of materials listing components",
+      "A Service load balancer",
+      "A Pod disruption budget",
+      "A node taint",
+    ],
+    answer: 0,
+    explanation: "An SBOM records the components and dependencies inside a software artifact.",
+    lessonId: "images-101",
+    lessonTitle: "Images, tags, and registries",
+    unit: "config",
+    label: "SBOM",
   },
 ];
 

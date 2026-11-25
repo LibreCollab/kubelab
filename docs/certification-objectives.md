@@ -30,9 +30,9 @@ The machine-readable source is `packages/content/src/certification-roadmaps.ts`.
 | --- | ---: | ---: | ---: |
 | Cluster architecture, installation and configuration | 25% | 4 | 2 |
 | Workloads and scheduling | 15% | 11 | 8 |
-| Services and networking | 20% | 6 | 5 |
-| Storage | 10% | 2 | 1 |
-| Troubleshooting | 30% | 4 | 5 |
+| Services and networking | 20% | 6 | 6 |
+| Storage | 10% | 2 | 2 |
+| Troubleshooting | 30% | 4 | 7 |
 
 ## CKAD
 
@@ -42,26 +42,26 @@ The machine-readable source is `packages/content/src/certification-roadmaps.ts`.
 | Application deployment | 20% | 4 | 5 |
 | Application observability and maintenance | 15% | 3 | 2 |
 | Application environment, configuration and security | 25% | 4 | 6 |
-| Services and networking | 20% | 5 | 5 |
+| Services and networking | 20% | 5 | 7 |
 
 ## CKS
 
 | Domain | Weight | Lessons | Tasks |
 | --- | ---: | ---: | ---: |
 | Cluster setup | 10% | 4 | 2 |
-| Cluster hardening | 15% | 3 | 3 |
-| System hardening | 15% | 3 | 2 |
-| Minimize microservice vulnerabilities | 20% | 3 | 5 |
-| Supply chain security | 20% | 4 | 4 |
-| Monitoring, logging and runtime security | 20% | 3 | 4 |
+| Cluster hardening | 15% | 3 | 5 |
+| System hardening | 15% | 3 | 4 |
+| Minimize microservice vulnerabilities | 20% | 3 | 6 |
+| Supply chain security | 20% | 4 | 6 |
+| Monitoring, logging and runtime security | 20% | 3 | 5 |
 
 ## Known gaps
 
-- KCNA: add more cloud-native ecosystem, delivery, and observability depth.
-- KCSA: add threat modeling, compliance, and supply-chain exercises.
-- CKA: add more multi-step troubleshooting incidents and real-cluster drills.
-- CKAD: add application design patterns and multi-resource delivery work.
-- CKS: add admission control, runtime security, image provenance, and supply-chain labs.
+- KCNA: cloud-native ecosystem and delivery can go deeper.
+- KCSA: compliance and threat-model exercises are still lighter than Kubernetes security.
+- CKA: add more long-form troubleshooting scenarios beyond single incidents.
+- CKAD: add larger multi-service application builds.
+- CKS: add image signing, policy engines, and deeper runtime detection labs.
 
 ## Review rules
 

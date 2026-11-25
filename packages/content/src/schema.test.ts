@@ -40,6 +40,12 @@ describe("content", () => {
     expect(coreUnits.every((unit) => unit.lessons.length > 0)).toBe(true);
     expect(certificationTracks.every((track) => track.lessons.length > 0)).toBe(true);
     expect(
+      lessons
+        .flatMap((lesson) => lesson.checks)
+        .filter((check) => check.type === "quiz")
+        .every((check) => check.explanation !== undefined),
+    ).toBe(true);
+    expect(
       certificationExams.some((exam) =>
         exam.questions.some((question) => question.explanation !== undefined),
       ),

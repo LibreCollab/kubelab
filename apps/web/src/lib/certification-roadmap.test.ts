@@ -84,6 +84,29 @@ describe("certification readiness", () => {
     expect(readiness.score).toBe(0);
   });
 
+  it("reports confidence and score change from recent attempts", () => {
+    const attempt = (completedAt: number, score: number): ExamAttempt => ({
+      trackId: "test",
+      score,
+      total: 10,
+      passed: score >= 7,
+      completedAt,
+      answers: {},
+      weakUnits: [],
+    });
+    const readiness = calculateReadiness(
+      "test",
+      {},
+      [attempt(2, 8), attempt(1, 6)],
+      [],
+      [domain({ lessonIds: [] })],
+    );
+
+    expect(readiness.confidence).toBe("Medium");
+    expect(readiness.evidenceAttempts).toBe(2);
+    expect(readiness.scoreChange).toBe(20);
+  });
+
   it("marks domains without proof as weak", () => {
     const readiness = calculateReadiness("test", {}, [], [], [domain({ lessonIds: ["a"] })]);
     expect(readiness.domains[0]?.weak).toBe(true);

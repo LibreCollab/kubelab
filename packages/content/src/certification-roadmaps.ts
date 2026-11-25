@@ -184,7 +184,14 @@ export const certificationDomains: CertificationDomain[] = [
       "network-policy-101",
       "tls-ingress-101",
     ],
-    taskIds: ["cka-netpol", "cka-incident-service", "ckad-ingress", "cks-netpol", "cks-tls"],
+    taskIds: [
+      "cka-netpol",
+      "cka-incident-service",
+      "cka-incident-ingress",
+      "ckad-ingress",
+      "cks-netpol",
+      "cks-tls",
+    ],
     questionUnits: [],
   },
   {
@@ -193,7 +200,7 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Storage",
     weight: 10,
     lessonIds: ["persistent-volumes-101", "storageclasses-101"],
-    taskIds: ["cka-storage"],
+    taskIds: ["cka-storage", "cka-incident-storage"],
     questionUnits: [],
   },
   {
@@ -202,7 +209,15 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Troubleshooting",
     weight: 30,
     lessonIds: ["logs-events-101", "probes-101", "pod-security-101", "cluster-rbac-101"],
-    taskIds: ["cka-probes", "cka-incident-service", "cks-cni", "cks-psa", "cks-secret"],
+    taskIds: [
+      "cka-probes",
+      "cka-incident-service",
+      "cka-incident-ingress",
+      "cka-incident-storage",
+      "cks-cni",
+      "cks-psa",
+      "cks-secret",
+    ],
     questionUnits: [],
   },
   {
@@ -254,7 +269,15 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Services and networking",
     weight: 20,
     lessonIds: ["services-101", "dns-101", "ingress-101", "network-policy-101", "tls-ingress-101"],
-    taskIds: ["ckad-ingress", "cka-netpol", "cks-netpol", "cks-tls", "cks-cni"],
+    taskIds: [
+      "ckad-ingress",
+      "ckad-incident-ingress",
+      "cka-netpol",
+      "cka-incident-ingress",
+      "cks-netpol",
+      "cks-tls",
+      "cks-cni",
+    ],
     questionUnits: [],
   },
   {
@@ -272,7 +295,13 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Cluster hardening",
     weight: 15,
     lessonIds: ["rbac-101", "cluster-rbac-101", "pod-security-101"],
-    taskIds: ["cks-cluster-rbac", "cks-psa", "cka-affinity"],
+    taskIds: [
+      "cks-cluster-rbac",
+      "cks-psa",
+      "cka-affinity",
+      "cks-admission-control",
+      "cks-node-hardening",
+    ],
     questionUnits: [],
   },
   {
@@ -281,7 +310,7 @@ export const certificationDomains: CertificationDomain[] = [
     title: "System hardening",
     weight: 15,
     lessonIds: ["pod-security-101", "secrets-101", "configmaps-101"],
-    taskIds: ["cks-psa", "cks-secret"],
+    taskIds: ["cks-psa", "cks-secret", "cks-admission-control", "cks-node-hardening"],
     questionUnits: [],
   },
   {
@@ -290,7 +319,14 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Minimize microservice vulnerabilities",
     weight: 20,
     lessonIds: ["network-policy-101", "tls-ingress-101", "cni-101"],
-    taskIds: ["cks-netpol", "cks-tls", "cka-netpol", "kcsa-netpol", "kcsa-tls"],
+    taskIds: [
+      "cks-netpol",
+      "cks-tls",
+      "cka-netpol",
+      "kcsa-netpol",
+      "kcsa-tls",
+      "cks-runtime-security",
+    ],
     questionUnits: [],
   },
   {
@@ -299,7 +335,14 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Supply chain security",
     weight: 20,
     lessonIds: ["images-101", "containers-101", "secrets-101", "configmaps-101"],
-    taskIds: ["cks-secret", "kcsa-secret", "ckad-config", "ckad-secret"],
+    taskIds: [
+      "cks-secret",
+      "kcsa-secret",
+      "ckad-config",
+      "ckad-secret",
+      "cks-image-provenance",
+      "cks-supply-chain",
+    ],
     questionUnits: [],
   },
   {
@@ -308,7 +351,7 @@ export const certificationDomains: CertificationDomain[] = [
     title: "Monitoring, logging and runtime security",
     weight: 20,
     lessonIds: ["logs-events-101", "probes-101", "pod-security-101"],
-    taskIds: ["cks-cni", "cka-probes", "kcsa-rbac", "kcsa-psa"],
+    taskIds: ["cks-cni", "cka-probes", "kcsa-rbac", "kcsa-psa", "cks-runtime-security"],
     questionUnits: [],
   },
 ];

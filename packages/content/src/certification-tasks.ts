@@ -607,6 +607,137 @@ spec:
         },
       ],
     },
+    {
+      id: "cka-incident-ingress",
+      title: "Ingress incident",
+      unit: "networking",
+      instruction:
+        "The shop Ingress has no working backend. Repair the Deployment and Service, then verify HTTPS routing.",
+      scenario: scenario(
+        {
+          "fix.yaml": `${deploymentManifest("web", 2, "nginx:1.27")}---
+${serviceManifest("web")}`,
+        },
+        [
+          {
+            kind: "Deployment",
+            metadata: { name: "web" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "web" },
+                containers: [{ name: "web", image: "nginx:1.25" }],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+          {
+            kind: "Service",
+            metadata: { name: "web" },
+            spec: {
+              type: "ClusterIP",
+              selector: { app: "old" },
+              ports: [{ port: 80, targetPort: 80 }],
+              clusterIP: "10.96.0.210",
+            },
+          },
+          {
+            kind: "Ingress",
+            metadata: { name: "shop" },
+            spec: {
+              rules: [{ host: "shop.example.com", path: "/", serviceName: "web", servicePort: 80 }],
+              tls: [{ hosts: ["shop.example.com"], secretName: "shop-tls" }],
+            },
+          },
+          {
+            kind: "Pod",
+            metadata: { name: "client" },
+            spec: {
+              nodeName: "node-1",
+              containers: [{ name: "client", image: "curlimages/curl" }],
+            },
+            status: {
+              phase: "Running",
+              podIP: "10.244.0.211",
+              conditions: [{ type: "Ready", status: "True" }],
+            },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Deployment repaired",
+          name: "web",
+          replicas: 2,
+          image: "nginx:1.27",
+        },
+        get("Verified endpoints", "endpoints", "web"),
+        { type: "command", label: "Tested HTTPS", verb: "exec", name: "client", command: "curl" },
+      ],
+    },
+    {
+      id: "cka-incident-storage",
+      title: "Storage incident",
+      unit: "storage",
+      instruction:
+        "The data claim is Pending. Add a matching PersistentVolume, then verify that the consumer Pod runs.",
+      scenario: scenario(
+        {
+          "pv.yaml": `apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-volume
+spec:
+  capacity:
+    storage: 5Gi
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: fast
+  reclaimPolicy: Retain
+`,
+        },
+        [
+          {
+            kind: "StorageClass",
+            metadata: { name: "fast" },
+            provisioner: "kubernetes.io/no-provisioner",
+            reclaimPolicy: "Retain",
+            volumeBindingMode: "Immediate",
+          },
+          {
+            kind: "PersistentVolumeClaim",
+            metadata: { name: "data" },
+            spec: {
+              accessModes: ["ReadWriteOnce"],
+              resources: { requests: { storage: "5Gi" } },
+              storageClassName: "fast",
+            },
+            status: { phase: "Pending" },
+          },
+          {
+            kind: "Pod",
+            metadata: { name: "consumer" },
+            spec: {
+              nodeName: "node-1",
+              containers: [{ name: "app", image: "busybox" }],
+              volumes: [{ name: "data", persistentVolumeClaim: { claimName: "data" } }],
+            },
+            status: { phase: "Pending" },
+          },
+        ],
+      ),
+      checks: [
+        get("Claim bound", "persistentvolumeclaims", "data"),
+        {
+          type: "pod",
+          label: "Consumer running",
+          name: "consumer",
+          image: "busybox",
+          phase: "Running",
+        },
+      ],
+    },
   ],
   ckad: [
     {
@@ -897,6 +1028,151 @@ spec:
         },
       ],
     },
+    {
+      id: "ckad-incident-secret",
+      title: "Secret incident",
+      unit: "config",
+      instruction:
+        "The API still has the old database password. Apply the corrected Secret and Deployment, then verify the injected value.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+stringData:
+  password: new-secret
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx
+        env:
+          - name: DB_PASSWORD
+            value: new-secret
+        envFrom:
+          - secretRef:
+              name: db-secret
+`,
+        },
+        [
+          {
+            kind: "Secret",
+            metadata: { name: "db-secret" },
+            type: "Opaque",
+            data: { password: "b2xkLXNlY3JldA==" },
+          },
+          {
+            kind: "Deployment",
+            metadata: { name: "api" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "api" },
+                containers: [
+                  {
+                    name: "api",
+                    image: "nginx",
+                    env: [{ name: "DB_PASSWORD", value: "old-secret" }],
+                    envFrom: [{ kind: "Secret", name: "db-secret" }],
+                  },
+                ],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+        ],
+      ),
+      checks: [
+        get("Listed Secret", "secrets", "db-secret"),
+        {
+          type: "env",
+          label: "Password updated",
+          deployment: "api",
+          name: "DB_PASSWORD",
+          value: "new-secret",
+          sourceKind: "Secret",
+          sourceName: "db-secret",
+        },
+      ],
+    },
+    {
+      id: "ckad-incident-ingress",
+      title: "Application ingress incident",
+      unit: "services",
+      instruction:
+        "The app Ingress has no endpoints. Repair the Service and Deployment, then verify HTTPS.",
+      scenario: scenario(
+        {
+          "fix.yaml": `${deploymentManifest("app", 2, "nginx:1.27")}---
+${serviceManifest("app")}`,
+        },
+        [
+          {
+            kind: "Deployment",
+            metadata: { name: "app" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "app" },
+                containers: [{ name: "app", image: "nginx:1.25" }],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+          {
+            kind: "Service",
+            metadata: { name: "app" },
+            spec: {
+              type: "ClusterIP",
+              selector: { app: "old" },
+              ports: [{ port: 80, targetPort: 80 }],
+              clusterIP: "10.96.0.220",
+            },
+          },
+          {
+            kind: "Ingress",
+            metadata: { name: "app" },
+            spec: {
+              rules: [{ host: "app.example.com", path: "/", serviceName: "app", servicePort: 80 }],
+              tls: [{ hosts: ["app.example.com"], secretName: "app-tls" }],
+            },
+          },
+          {
+            kind: "Pod",
+            metadata: { name: "client" },
+            spec: {
+              nodeName: "node-1",
+              containers: [{ name: "client", image: "curlimages/curl" }],
+            },
+            status: {
+              phase: "Running",
+              podIP: "10.244.0.221",
+              conditions: [{ type: "Ready", status: "True" }],
+            },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Application repaired",
+          name: "app",
+          replicas: 2,
+          image: "nginx:1.27",
+        },
+        get("Verified endpoints", "endpoints", "app"),
+        { type: "command", label: "Tested HTTPS", verb: "exec", name: "client", command: "curl" },
+      ],
+    },
   ],
   cks: [
     {
@@ -1038,6 +1314,279 @@ spec:
         get("Listed Pods", "pods"),
         get("Listed endpoints", "endpoints", "web"),
         { type: "command", label: "Resolved DNS", verb: "exec", name: "client", command: "getent" },
+      ],
+    },
+    {
+      id: "cks-admission-control",
+      title: "Admission control",
+      unit: "security",
+      instruction:
+        "The restricted namespace rejects the unsafe Deployment. Apply the hardened Deployment, then verify Pods run.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: restricted
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: web
+          image: nginx
+          securityContext:
+            allowPrivilegeEscalation: false
+`,
+        },
+        [
+          {
+            kind: "Namespace",
+            metadata: {
+              name: "restricted",
+              labels: { "pod-security.kubernetes.io/enforce": "restricted" },
+            },
+            status: { phase: "Active" },
+          },
+          {
+            kind: "Deployment",
+            metadata: { name: "web", namespace: "restricted" },
+            spec: {
+              replicas: 1,
+              template: { labels: { app: "web" }, containers: [{ name: "web", image: "nginx" }] },
+            },
+            status: { replicas: 0, readyReplicas: 0, updatedReplicas: 0, availableReplicas: 0 },
+          },
+        ],
+      ),
+      checks: [
+        get("Listed Namespace", "namespaces", "restricted"),
+        { ...get("Listed Deployment", "deployments", "web"), namespace: "restricted" },
+        { ...get("Listed Web Pods", "pods"), namespace: "restricted" },
+      ],
+    },
+    {
+      id: "cks-runtime-security",
+      title: "Runtime restart incident",
+      unit: "observability",
+      instruction:
+        "The worker is crash-looping because of its liveness probe. Apply the corrected Pod and verify it runs.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: worker
+spec:
+  containers:
+    - name: worker
+      image: busybox
+      livenessProbe:
+        exec:
+          command: ["true"]
+`,
+        },
+        [
+          {
+            kind: "Pod",
+            metadata: { name: "worker" },
+            spec: {
+              nodeName: "node-1",
+              containers: [
+                {
+                  name: "worker",
+                  image: "busybox",
+                  livenessProbe: {
+                    exec: { command: ["false"] },
+                    periodSeconds: 1,
+                    failureThreshold: 1,
+                  },
+                },
+              ],
+            },
+            status: { phase: "Running", podIP: "10.244.0.230", reason: "CrashLoopBackOff" },
+          },
+        ],
+      ),
+      checks: [get("Checked worker", "pods", "worker"), describe("Read worker", "pods", "worker")],
+    },
+    {
+      id: "cks-image-provenance",
+      title: "Image provenance",
+      unit: "containers",
+      instruction:
+        "The API uses a mutable image tag. Apply the digest-pinned Deployment, then verify the image reference.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+`,
+        },
+        [
+          {
+            kind: "Deployment",
+            metadata: { name: "api" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "api" },
+                containers: [{ name: "api", image: "nginx:latest" }],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Digest pinned",
+          name: "api",
+          replicas: 1,
+          image: "nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        },
+      ],
+    },
+    {
+      id: "cks-supply-chain",
+      title: "Supply chain secret",
+      unit: "config",
+      instruction:
+        "The database password is still the old value. Apply the corrected Secret and Deployment, then verify the environment.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+stringData:
+  password: rotated
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx
+        env:
+          - name: DB_PASSWORD
+            value: rotated
+        envFrom:
+          - secretRef:
+              name: db-secret
+`,
+        },
+        [
+          {
+            kind: "Secret",
+            metadata: { name: "db-secret" },
+            type: "Opaque",
+            data: { password: "b2xk" },
+          },
+          {
+            kind: "Deployment",
+            metadata: { name: "api" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "api" },
+                containers: [
+                  {
+                    name: "api",
+                    image: "nginx",
+                    env: [{ name: "DB_PASSWORD", value: "old" }],
+                    envFrom: [{ kind: "Secret", name: "db-secret" }],
+                  },
+                ],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+        ],
+      ),
+      checks: [
+        get("Listed Secret", "secrets", "db-secret"),
+        {
+          type: "env",
+          label: "Password rotated",
+          deployment: "api",
+          name: "DB_PASSWORD",
+          value: "rotated",
+          sourceKind: "Secret",
+          sourceName: "db-secret",
+        },
+      ],
+    },
+    {
+      id: "cks-node-hardening",
+      title: "Node hardening",
+      unit: "scheduling",
+      instruction:
+        "The secure node rejects the Pod. Add the required toleration, then verify the Pod runs.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: worker
+spec:
+  tolerations:
+    - key: dedicated
+      operator: Equal
+      value: secure
+      effect: NoSchedule
+  containers:
+    - name: worker
+      image: busybox
+`,
+        },
+        [
+          {
+            kind: "Pod",
+            metadata: { name: "worker" },
+            spec: { containers: [{ name: "worker", image: "busybox" }] },
+            status: { phase: "Pending" },
+          },
+        ],
+        [
+          {
+            name: "node-1",
+            cpu: "4",
+            memory: "8Gi",
+            taints: [{ key: "dedicated", value: "secure", effect: "NoSchedule" }],
+          },
+        ],
+      ),
+      checks: [
+        get("Checked worker", "pods", "worker"),
+        {
+          type: "pod",
+          label: "Worker scheduled",
+          name: "worker",
+          image: "busybox",
+          phase: "Running",
+        },
       ],
     },
   ],

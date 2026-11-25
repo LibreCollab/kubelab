@@ -34,6 +34,9 @@ export interface CertificationReadiness {
   trackId: string;
   score: number;
   band: ReadinessBand;
+  confidence: "None" | "Low" | "Medium" | "High";
+  evidenceAttempts: number;
+  scoreChange?: number;
   domains: DomainReadiness[];
   nextAction?: ReadinessNextAction;
 }
@@ -140,6 +143,24 @@ export function calculateReadiness(
     } satisfies DomainReadiness;
   });
 
+  const evidenceAttempts = format === "hands-on" ? recentLabs.length : recentKnowledge.length;
+  const confidence =
+    evidenceAttempts === 0
+      ? "None"
+      : evidenceAttempts === 1
+        ? "Low"
+        : evidenceAttempts === 2
+          ? "Medium"
+          : "High";
+  const percentages =
+    format === "hands-on"
+      ? recentLabs.map((attempt) => attempt.percent)
+      : recentKnowledge.map((attempt) =>
+          attempt.total === 0 ? 0 : Math.round((attempt.score / attempt.total) * 100),
+        );
+  const scoreChange =
+    percentages.length < 2 ? undefined : (percentages[0] ?? 0) - (percentages[1] ?? 0);
+
   const totalWeight = domains.reduce((sum, domain) => sum + domain.weight, 0);
   const score =
     totalWeight === 0
@@ -174,6 +195,9 @@ export function calculateReadiness(
     trackId,
     score,
     band: readinessBand(score),
+    confidence,
+    evidenceAttempts,
+    ...(scoreChange === undefined ? {} : { scoreChange }),
     domains: domainReadiness,
     ...(nextAction === undefined ? {} : { nextAction }),
   };

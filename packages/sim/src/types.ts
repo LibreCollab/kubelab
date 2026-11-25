@@ -186,6 +186,7 @@ export interface PodTemplate {
   topologySpreadConstraints?: TopologySpreadConstraint[];
   nodeSelector?: Record<string, string>;
   tolerations?: Pod["spec"]["tolerations"];
+  securityContext?: Pod["spec"]["securityContext"];
 }
 
 export interface KubeNamespace extends KubeObject {

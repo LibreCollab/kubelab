@@ -2388,6 +2388,37 @@ spec:
     ).toEqual([{ kind: "ConfigMap", name: "app-config" }]);
   });
 
+  it("normalizes standard Deployment pod templates on apply", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      files: {
+        "deployment.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+spec:
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app: web
+    spec:
+      containers:
+        - name: web
+          image: nginx
+`,
+      },
+    });
+
+    expect(engine.execute("kubectl apply -f deployment.yaml").ok).toBe(true);
+    const deployment = engine.store.get<KubeDeployment>("Deployment", "web");
+    expect(deployment?.spec.template.labels.app).toBe("web");
+    expect(deployment?.spec.template.containers[0]?.image).toBe("nginx");
+    engine.step();
+    expect(engine.store.list<Pod>("Pod", "default")).toHaveLength(1);
+  });
+
   it("reports rollout status", () => {
     const engine = createEngine();
     engine.execute("kubectl create deployment web --image=nginx");

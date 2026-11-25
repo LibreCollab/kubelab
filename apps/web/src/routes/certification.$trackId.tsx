@@ -101,12 +101,22 @@ export function CertificationRoadmapPage() {
           <span className={styles.eyebrow}>Readiness</span>
           <strong className={styles.readinessScore}>{readiness.score}%</strong>
           <p>{readiness.band}</p>
+          <p className={styles.muted}>
+            {readiness.confidence} confidence · {readiness.evidenceAttempts} recent{" "}
+            {readiness.evidenceAttempts === 1 ? "attempt" : "attempts"}
+          </p>
         </div>
         <div className={styles.readinessBody}>
           <p>
             Weighted from mapped lesson coverage and recent local exam evidence. This is practice
             guidance, not an official certification prediction.
           </p>
+          {readiness.scoreChange === undefined ? null : (
+            <p className={styles.muted}>
+              Latest attempt {readiness.scoreChange >= 0 ? "+" : ""}
+              {readiness.scoreChange} points versus the previous attempt.
+            </p>
+          )}
           {readiness.nextAction === undefined ? null : readiness.nextAction.type === "lesson" ? (
             <Link
               className={styles.primaryLink}

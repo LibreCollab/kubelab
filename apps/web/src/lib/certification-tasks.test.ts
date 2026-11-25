@@ -48,6 +48,23 @@ describe("incident certification tasks", () => {
     expect(evaluateChecks(task.checks, context(engine)).every((check) => check.pass)).toBe(true);
   });
 
+  it("allows the hardened CKS Deployment into a restricted namespace", () => {
+    const task = findTask("cks", "cks-admission-control");
+    expect(task).toBeDefined();
+    if (task === undefined) {
+      return;
+    }
+    const engine = new SimEngine({ intervalMs: 1000 });
+    engine.seed(task.scenario as Scenario);
+    expect(engine.execute("kubectl apply -f fix.yaml").ok).toBe(true);
+    engine.step();
+    engine.step();
+    engine.execute("kubectl get namespace restricted");
+    engine.execute("kubectl get deployment web -n restricted");
+    engine.execute("kubectl get pods -n restricted");
+    expect(evaluateChecks(task.checks, context(engine)).every((check) => check.pass)).toBe(true);
+  });
+
   it("can be repaired with the provided CKAD manifest", () => {
     const task = findTask("ckad", "ckad-incident-config");
     expect(task).toBeDefined();
