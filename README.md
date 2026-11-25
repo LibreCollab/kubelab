@@ -91,6 +91,7 @@ Behavior changes are planned with [OpenSpec](https://openspec.dev). Read
 | `mise run check` | lint + typecheck + tests + Go tests + spec validation |
 | `mise run spec-list` | list OpenSpec changes and specs |
 | `mise run spec-validate` | validate OpenSpec changes and specs |
+| `pnpm audit:lighthouse` | run Lighthouse CI performance/accessibility budgets |
 | `mise run up` | Full Compose stack |
 
 ## Current scaffold

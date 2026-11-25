@@ -11,7 +11,7 @@ export function RootLayout() {
         Skip to content
       </a>
       <header className="site-header">
-        <Link to="/" className="brand" aria-label="Kubelab — home">
+        <Link to="/" className="brand">
           <span className="brand-mark" aria-hidden="true">
             K
           </span>

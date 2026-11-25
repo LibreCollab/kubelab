@@ -203,7 +203,7 @@ export function ClusterMap({
         data-ingresses={ingresses.length}
         data-configmaps={configMaps.length}
         data-secrets={secrets.length}
-        aria-label="Open cluster state"
+        aria-label={`Open cluster state: ${pods.length} pods · ${services.length} svc`}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="cluster-drawer"

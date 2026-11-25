@@ -91,6 +91,7 @@ fixed below.
 | 68 | Mock exams used a 10-question format for every track | Matched KCNA/KCSA 60-question knowledge and CKA/CKAD/CKS 15-task hands-on formats |
 | 69 | A 60-question exam was one very long page | Added 10-question pages with Previous/Next and final-page Submit |
 | 70 | Hands-on labs listed all 15 tasks in one sidebar | Added five-task pages with Previous/Next and final-page Submit |
+| 71 | Residual XSS, CSP, question relevance, and audit gaps | Sanitized Markdown, added production CSP, tightened knowledge pools, and added axe/Lighthouse CI gates |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

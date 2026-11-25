@@ -24,11 +24,14 @@
     "api:build": "go -C apps/api build ./cmd/api",
     "check": "pnpm lint && pnpm typecheck && pnpm test && pnpm api:test && pnpm spec:validate",
     "spec:list": "openspec list --all",
-    "spec:validate": "openspec validate --all"
+    "spec:validate": "openspec validate --all",
+    "audit:lighthouse": "lhci autorun"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.14.0",
     "@biomejs/biome": "^2.0.0",
     "@fission-ai/openspec": "2.2.0",
+    "@lhci/cli": "^0.15.1",
     "@playwright/test": "^1.50.0",
     "@types/node": "^24.0.0",
     "stylelint": "^16.0.0",

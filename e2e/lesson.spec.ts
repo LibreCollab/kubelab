@@ -1,3 +1,4 @@
+import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
 function trackPageErrors(page: Page): Error[] {
@@ -73,7 +74,7 @@ test("progress persists and unlocks the next lesson", async ({ page }) => {
 
 test("brand mark returns to the roadmap", async ({ page }) => {
   await page.goto("/lesson/containers-101");
-  await page.getByRole("link", { name: /Kubelab — home/ }).click();
+  await page.getByRole("link", { name: /Kubelab/ }).click();
   await expect(page).toHaveURL(/\/$/);
 });
 
@@ -949,4 +950,17 @@ test("API health check is reachable through the dev proxy", async ({ request }) 
   const response = await request.get("/api/healthz");
   expect(response.ok()).toBe(true);
   expect(await response.json()).toMatchObject({ status: "ok", service: "kubelab-api" });
+});
+
+test("key pages have no serious accessibility violations", async ({ page }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  for (const route of ["/", "/lesson/containers-101", "/exam/kcna", "/lab-exam/cka"]) {
+    await page.goto(route);
+    await page.waitForTimeout(200);
+    const results = await new AxeBuilder({ page }).analyze();
+    const serious = results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(serious, `${route}: ${serious.map((violation) => violation.id).join(", ")}`).toEqual([]);
+  }
 });

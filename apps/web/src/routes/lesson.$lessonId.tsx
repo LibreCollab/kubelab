@@ -13,6 +13,7 @@ import {
 } from "@kubelab/sim";
 import { cx } from "@kubelab/ui";
 import { Link, useParams } from "@tanstack/react-router";
+import DOMPurify from "dompurify";
 import { marked } from "marked";
 import { AnimatePresence } from "motion/react";
 import { useEffect, useMemo, useReducer, useRef, useState } from "react";
@@ -280,7 +281,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
   };
 
   const theoryHtml = useMemo(
-    () => marked.parse(lesson.theoryMarkdown, { async: false }) as string,
+    () => DOMPurify.sanitize(marked.parse(lesson.theoryMarkdown, { async: false }) as string),
     [lesson.theoryMarkdown],
   );
 
@@ -301,7 +302,7 @@ function LessonPlayer({ lesson }: { lesson: Lesson }) {
 
       <div className={cx(styles.layout, !interactive && styles.singleColumn)}>
         <article className={styles.panel}>
-          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: lesson Markdown is trusted, in-repo content */}
+          {/* biome-ignore lint/security/noDangerouslySetInnerHtml: HTML is sanitized with DOMPurify */}
           <div className={styles.theory} dangerouslySetInnerHTML={{ __html: theoryHtml }} />
           {quizChecks.length > 0 ? (
             <section className={styles.quiz}>

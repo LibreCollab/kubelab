@@ -19,6 +19,9 @@ apps/api/kubelab
 apps/api/internal/web/dist/*
 !apps/api/internal/web/dist/.gitkeep
 
+# Lighthouse
+.lighthouseci/
+
 # Playwright
 test-results/
 playwright-report/
