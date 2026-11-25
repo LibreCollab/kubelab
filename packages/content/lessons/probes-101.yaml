@@ -40,6 +40,9 @@ scenario:
                 path: /healthz
                 port: 8080
               periodSeconds: 5
+            simulator:
+              probeStatus:
+                readiness: 500
       status:
         phase: Running
         podIP: 10.244.0.51

@@ -8,6 +8,7 @@ import { filterPods, isPodReady, matchesLabels, type PodFilter } from "./selecto
 import { ClusterStore } from "./store";
 import type {
   CommandResult,
+  ContainerStatus,
   KubeApplication,
   KubeConfigMap,
   KubeDeployment,
@@ -31,6 +32,7 @@ import type {
   NetworkPolicyPeer,
   Pod,
   PodTemplate,
+  ProbeState,
   Scenario,
 } from "./types";
 
@@ -670,12 +672,25 @@ export class SimEngine {
     const rows = [...pods]
       .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
       .map((pod) => {
-        const ready = isPodReady(pod) ? 1 : 0;
+        const ready =
+          pod.status.containerStatuses === undefined
+            ? isPodReady(pod)
+              ? pod.spec.containers.length
+              : 0
+            : pod.status.containerStatuses.filter((status) => status.ready).length;
+        const restarts =
+          pod.status.containerStatuses?.reduce((sum, status) => sum + status.restartCount, 0) ?? 0;
         const age = `${Math.max(0, this.clock.tick - pod.metadata.creationTick)}s`;
         const name = command.allNamespaces
           ? `${pod.metadata.namespace}/${pod.metadata.name}`
           : pod.metadata.name;
-        const row = [name, `${ready}/${pod.spec.containers.length}`, pod.status.phase, "0", age];
+        const row = [
+          name,
+          `${ready}/${pod.spec.containers.length}`,
+          pod.status.reason ?? pod.status.phase,
+          String(restarts),
+          age,
+        ];
         if (wide) {
           row.push(pod.status.podIP ?? "<none>", pod.spec.nodeName ?? "<none>");
         }
@@ -2519,9 +2534,20 @@ export class SimEngine {
       `Status:       ${pod.status.phase}`,
       `Labels:       ${labels}`,
       "Containers:",
-      ...pod.spec.containers.map(
-        (container) => `  ${container.name}:\n    Image: ${container.image}`,
-      ),
+      ...pod.spec.containers.map((container) => {
+        const containerStatus = pod.status.containerStatuses?.find(
+          (status) => status.name === container.name,
+        );
+        return `  ${container.name}:\n    Image: ${container.image}${
+          containerStatus === undefined
+            ? ""
+            : `\n    Ready: ${containerStatus.ready}\n    Restart Count: ${containerStatus.restartCount}${
+                containerStatus.reason === undefined
+                  ? ""
+                  : `\n    State Reason: ${containerStatus.reason}`
+              }`
+        }`;
+      }),
     ];
 
     if (pod.status.podIP !== undefined) {
@@ -2795,8 +2821,30 @@ export class SimEngine {
       const running: Pod = {
         ...pod,
         status: {
+          ...pod.status,
           phase: "Running",
           ...(pod.status.podIP === undefined ? {} : { podIP: pod.status.podIP }),
+          containerStatuses:
+            pod.status.containerStatuses ??
+            pod.spec.containers.map((container) => ({
+              name: container.name,
+              ready: container.readinessProbe === undefined,
+              restartCount: 0,
+              state: "running",
+            })),
+          ...(pod.status.conditions !== undefined ||
+          !pod.spec.containers.some((container) => container.readinessProbe !== undefined)
+            ? {}
+            : {
+                conditions: [
+                  {
+                    type: "Ready",
+                    status: "False",
+                    reason: "ContainersNotReady",
+                    message: "containers with unready status",
+                  },
+                ],
+              }),
         },
       };
 
@@ -2805,7 +2853,274 @@ export class SimEngine {
       this.events.emit({ type: "pod.running", tick, pod: stored });
     }
 
+    for (const pod of this.store.list<Pod>("Pod")) {
+      if (pod.status.phase === "Running") {
+        this.#reconcilePodHealth(pod);
+      }
+    }
+
     this.#updateDeploymentStatuses();
+  }
+
+  #reconcilePodHealth(pod: Pod): void {
+    const hasProbes = pod.spec.containers.some(
+      (container) =>
+        container.readinessProbe !== undefined || container.livenessProbe !== undefined,
+    );
+    if (!hasProbes) {
+      return;
+    }
+
+    const tick = this.clock.tick;
+    if (pod.status.backoffUntil !== undefined && tick < pod.status.backoffUntil) {
+      return;
+    }
+
+    const statuses = this.#containerStatusesFor(pod);
+    const probeState: Record<string, ProbeState> = { ...(pod.status.probeState ?? {}) };
+    const conditions = [...(pod.status.conditions ?? [])];
+    let reason = pod.status.reason;
+    let backoffUntil = pod.status.backoffUntil;
+    let changed = false;
+
+    if (backoffUntil !== undefined) {
+      backoffUntil = undefined;
+      reason = undefined;
+      changed = true;
+    }
+
+    let restartHappened = false;
+    let crashLoop = false;
+
+    for (const container of pod.spec.containers) {
+      const containerStatus = statuses.find((status) => status.name === container.name);
+      if (containerStatus === undefined) {
+        continue;
+      }
+
+      if (container.readinessProbe !== undefined) {
+        const result = this.#checkProbe("readiness", container, pod, probeState);
+        if (result !== undefined) {
+          if (result.ok) {
+            if (!containerStatus.ready) {
+              containerStatus.ready = true;
+              changed = true;
+            }
+            delete containerStatus.reason;
+          } else if (result.failures >= (container.readinessProbe.failureThreshold ?? 3)) {
+            if (containerStatus.reason !== "ContainersNotReady") {
+              this.#recordProbeEvent(pod, "Unhealthy", `Readiness probe failed: ${result.detail}`);
+            }
+            containerStatus.ready = false;
+            containerStatus.reason = "ContainersNotReady";
+            this.#setReadyCondition(
+              conditions,
+              false,
+              "ContainersNotReady",
+              `Readiness probe failed: ${result.detail}`,
+            );
+            changed = true;
+          }
+        }
+      }
+
+      if (container.livenessProbe !== undefined) {
+        const result = this.#checkProbe("liveness", container, pod, probeState);
+        if (
+          result !== undefined &&
+          !result.ok &&
+          result.failures >= (container.livenessProbe.failureThreshold ?? 3)
+        ) {
+          containerStatus.restartCount += 1;
+          containerStatus.ready = false;
+          containerStatus.reason =
+            containerStatus.restartCount >= 3 ? "CrashLoopBackOff" : "ContainerRestarting";
+          containerStatus.state = "running";
+          restartHappened = true;
+          changed = true;
+          probeState[`${container.name}:readiness`] = { lastTick: tick, failures: 0, successes: 0 };
+          probeState[`${container.name}:liveness`] = { lastTick: tick, failures: 0, successes: 0 };
+          this.#recordProbeEvent(pod, "Unhealthy", `Liveness probe failed: ${result.detail}`);
+
+          if (containerStatus.restartCount >= 3) {
+            const delay = Math.min(30, 2 ** (containerStatus.restartCount - 3));
+            crashLoop = true;
+            reason = "CrashLoopBackOff";
+            backoffUntil = tick + delay;
+            this.#recordProbeEvent(
+              pod,
+              "BackOff",
+              `Back-off ${delay}s restarting failed container ${container.name}`,
+            );
+          }
+        } else if (result?.ok && containerStatus.reason === "ContainerRestarting") {
+          delete containerStatus.reason;
+          if (container.readinessProbe === undefined || containerStatus.ready) {
+            containerStatus.ready = true;
+          }
+          changed = true;
+        }
+      }
+    }
+
+    const allReady = statuses.every((status) => status.ready);
+    if (crashLoop) {
+      this.#setReadyCondition(
+        conditions,
+        false,
+        "CrashLoopBackOff",
+        pod.status.message ?? "back-off restarting failed container",
+      );
+    } else if (restartHappened) {
+      this.#setReadyCondition(conditions, allReady, allReady ? "Ready" : "ContainerRestarting");
+    } else if (allReady) {
+      const current = conditions.find((condition) => condition.type === "Ready");
+      if (current?.status !== "True") {
+        this.#setReadyCondition(conditions, true, "Ready");
+        changed = true;
+      }
+    }
+
+    if (!crashLoop) {
+      reason = undefined;
+    }
+
+    if (!changed && pod.status.probeState !== undefined) {
+      return;
+    }
+
+    this.store.upsert({
+      ...pod,
+      status: {
+        ...pod.status,
+        conditions,
+        containerStatuses: statuses,
+        probeState,
+        ...(reason === undefined ? { reason: undefined } : { reason }),
+        ...(backoffUntil === undefined ? { backoffUntil: undefined } : { backoffUntil }),
+      },
+    });
+  }
+
+  #checkProbe(
+    kind: "readiness" | "liveness",
+    container: Pod["spec"]["containers"][number],
+    pod: Pod,
+    probeState: Record<string, ProbeState>,
+  ): { ok: boolean; detail: string; failures: number; successes: number } | undefined {
+    const probe = kind === "readiness" ? container.readinessProbe : container.livenessProbe;
+    if (probe === undefined) {
+      return undefined;
+    }
+
+    const tick = this.clock.tick;
+    const initialDelay = probe.initialDelaySeconds ?? 0;
+    if (tick - pod.metadata.creationTick < initialDelay) {
+      return undefined;
+    }
+
+    const key = `${container.name}:${kind}`;
+    const previous = probeState[key];
+    const period = probe.periodSeconds ?? 10;
+    if (previous !== undefined && tick - previous.lastTick < period) {
+      return undefined;
+    }
+
+    const evaluated = this.#evaluateProbe(kind, container);
+    const failures = evaluated.ok ? 0 : (previous?.failures ?? 0) + 1;
+    const successes = evaluated.ok ? (previous?.successes ?? 0) + 1 : 0;
+    probeState[key] = { lastTick: tick, failures, successes };
+    return { ...evaluated, failures, successes };
+  }
+
+  #evaluateProbe(
+    kind: "readiness" | "liveness",
+    container: Pod["spec"]["containers"][number],
+  ): { ok: boolean; detail: string } {
+    const probe = kind === "readiness" ? container.readinessProbe : container.livenessProbe;
+    if (probe?.httpGet !== undefined) {
+      const status = container.simulator?.probeStatus?.[kind] ?? 200;
+      return {
+        ok: status >= 200 && status < 400,
+        detail: `GET ${probe.httpGet.path ?? "/"} :${probe.httpGet.port} -> ${status}`,
+      };
+    }
+    if (probe?.exec !== undefined) {
+      const command = probe.exec.command.join(" ");
+      const failed = /(^|\s)(false|exit 1)(\s|$)/.test(command);
+      return {
+        ok: !failed,
+        detail: `exec [${probe.exec.command.join(", ")}]`,
+      };
+    }
+    if (probe?.tcpSocket !== undefined) {
+      const status = container.simulator?.probeStatus?.[kind] ?? 200;
+      return {
+        ok: status < 400,
+        detail: `TCP :${probe.tcpSocket.port} -> ${status}`,
+      };
+    }
+    return { ok: true, detail: "no handler" };
+  }
+
+  #containerStatusesFor(pod: Pod): ContainerStatus[] {
+    return pod.spec.containers.map((container) => {
+      const existing = pod.status.containerStatuses?.find(
+        (status) => status.name === container.name,
+      );
+      return (
+        existing ?? {
+          name: container.name,
+          ready: container.readinessProbe === undefined,
+          restartCount: 0,
+          state: "running",
+        }
+      );
+    });
+  }
+
+  #setReadyCondition(
+    conditions: NonNullable<Pod["status"]["conditions"]>,
+    ready: boolean,
+    reason?: string,
+    message?: string,
+  ): void {
+    const existing = conditions.find((condition) => condition.type === "Ready");
+    const next = {
+      type: "Ready",
+      status: ready ? ("True" as const) : ("False" as const),
+      ...(reason === undefined ? {} : { reason }),
+      ...(message === undefined ? {} : { message }),
+    };
+    if (existing === undefined) {
+      conditions.push(next);
+    } else {
+      Object.assign(existing, next);
+    }
+  }
+
+  #recordProbeEvent(pod: Pod, reason: string, message: string): void {
+    const name = `${pod.metadata.name}.${reason.toLowerCase()}-${this.#nextUid("event")}`;
+    this.store.upsert<KubeEvent>({
+      apiVersion: "v1",
+      kind: "Event",
+      metadata: {
+        name,
+        namespace: pod.metadata.namespace,
+        labels: {},
+        uid: this.#nextUid("event"),
+        resourceVersion: 0,
+        creationTick: this.clock.tick,
+      },
+      type: "Warning",
+      reason,
+      message,
+      involvedObject: {
+        kind: "Pod",
+        name: pod.metadata.name,
+        namespace: pod.metadata.namespace,
+      },
+    });
   }
 
   #reconcileWidgets(): void {

@@ -46,6 +46,17 @@ export interface EnvFromSource {
   name: string;
 }
 
+export interface Probe {
+  initialDelaySeconds?: number;
+  periodSeconds?: number;
+  timeoutSeconds?: number;
+  failureThreshold?: number;
+  successThreshold?: number;
+  exec?: { command: string[] };
+  httpGet?: { path?: string; port: number | string; scheme?: string };
+  tcpSocket?: { port: number | string };
+}
+
 export interface ContainerSecurityContext {
   allowPrivilegeEscalation?: boolean;
   readOnlyRootFilesystem?: boolean;
@@ -64,6 +75,14 @@ export interface ContainerSpec {
   env?: EnvVar[];
   envFrom?: EnvFromSource[];
   securityContext?: ContainerSecurityContext;
+  readinessProbe?: Probe;
+  livenessProbe?: Probe;
+  simulator?: {
+    probeStatus?: {
+      readiness?: number;
+      liveness?: number;
+    };
+  };
   resources?: {
     requests?: { cpu?: string; memory?: string };
     limits?: { cpu?: string; memory?: string };
@@ -75,6 +94,20 @@ export interface PodCondition {
   status: "True" | "False";
   reason?: string;
   message?: string;
+}
+
+export interface ContainerStatus {
+  name: string;
+  ready: boolean;
+  restartCount: number;
+  state: "running" | "waiting" | "terminated";
+  reason?: string;
+}
+
+export interface ProbeState {
+  lastTick: number;
+  failures: number;
+  successes: number;
 }
 
 export interface Pod extends KubeObject {
@@ -103,6 +136,10 @@ export interface Pod extends KubeObject {
     podIP?: string;
     conditions?: PodCondition[];
     usage?: { cpuMillicores: number; memoryBytes: number };
+    containerStatuses?: ContainerStatus[];
+    probeState?: Record<string, ProbeState>;
+    reason?: string;
+    backoffUntil?: number;
   };
   logs?: string[];
 }

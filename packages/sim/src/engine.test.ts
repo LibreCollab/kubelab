@@ -847,6 +847,134 @@ describe("engine", () => {
     ).toBe("no");
   });
 
+  it("evaluates readiness probes without restarting and restores endpoints", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Service",
+          metadata: { name: "web" },
+          spec: {
+            type: "ClusterIP",
+            selector: { app: "web" },
+            ports: [{ port: 80, targetPort: 8080 }],
+            clusterIP: "10.96.0.70",
+          },
+        },
+        {
+          kind: "Pod",
+          metadata: { name: "web", labels: { app: "web" } },
+          spec: {
+            nodeName: "node-1",
+            containers: [
+              {
+                name: "web",
+                image: "nginx",
+                readinessProbe: {
+                  httpGet: { path: "/healthz", port: 8080 },
+                  periodSeconds: 1,
+                  failureThreshold: 1,
+                },
+                simulator: { probeStatus: { readiness: 500 } },
+              },
+            ],
+          },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.70",
+            conditions: [{ type: "Ready", status: "True" }],
+            containerStatuses: [{ name: "web", ready: true, restartCount: 0, state: "running" }],
+          },
+        },
+      ],
+    });
+
+    engine.step();
+    const pod = engine.store.get<Pod>("Pod", "web");
+    expect(pod?.status.conditions?.find((condition) => condition.type === "Ready")?.status).toBe(
+      "False",
+    );
+    expect(pod?.status.containerStatuses?.[0]?.restartCount).toBe(0);
+    expect(engine.execute("kubectl get endpoints web").output).toContain("<none>");
+    expect(engine.execute("kubectl get events").output).toContain("Readiness probe failed");
+
+    const current = engine.store.get<Pod>("Pod", "web");
+    expect(current).toBeDefined();
+    if (current === undefined) {
+      return;
+    }
+    engine.store.upsert({
+      ...current,
+      spec: {
+        ...current.spec,
+        containers: current.spec.containers.map((container) => ({
+          ...container,
+          simulator: { probeStatus: { readiness: 200 } },
+        })),
+      },
+    });
+
+    engine.step();
+    expect(
+      engine.store
+        .get<Pod>("Pod", "web")
+        ?.status.conditions?.find((condition) => condition.type === "Ready")?.status,
+    ).toBe("True");
+    expect(engine.execute("kubectl get endpoints web").output).toContain("10.244.0.70");
+  });
+
+  it("restarts failed liveness containers and enters CrashLoopBackOff", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Pod",
+          metadata: { name: "worker", labels: { app: "worker" } },
+          spec: {
+            nodeName: "node-1",
+            containers: [
+              {
+                name: "worker",
+                image: "busybox",
+                livenessProbe: {
+                  exec: { command: ["false"] },
+                  periodSeconds: 1,
+                  failureThreshold: 1,
+                },
+              },
+            ],
+          },
+          status: {
+            phase: "Running",
+            podIP: "10.244.0.71",
+            conditions: [{ type: "Ready", status: "True" }],
+            containerStatuses: [{ name: "worker", ready: true, restartCount: 0, state: "running" }],
+          },
+        },
+      ],
+    });
+
+    engine.step();
+    engine.step();
+    engine.step();
+
+    const pod = engine.store.get<Pod>("Pod", "worker");
+    expect(pod?.status.reason).toBe("CrashLoopBackOff");
+    expect(pod?.status.containerStatuses?.[0]?.restartCount).toBe(3);
+    expect(pod?.status.conditions?.find((condition) => condition.type === "Ready")?.status).toBe(
+      "False",
+    );
+
+    const listed = engine.execute("kubectl get pods");
+    expect(listed.output).toContain("CrashLoopBackOff");
+    expect(listed.output).toContain("3");
+    expect(engine.execute("kubectl get events").output).toContain("Liveness probe failed");
+    expect(engine.execute("kubectl get events").output).toContain("Back-off");
+    expect(engine.execute("kubectl describe pod worker").output).toContain("Restart Count: 3");
+  });
+
   it("reconciles HPAs and dynamically provisions PVCs", () => {
     const engine = createEngine();
     engine.seed({
