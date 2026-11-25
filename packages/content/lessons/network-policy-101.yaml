@@ -84,7 +84,7 @@ checks:
       - disables DNS
     answer: 0
 hints:
-  - "List policies: kubectl get networkpolicy"
+  - "List policies: kubectl get networkpolicy deny-all"
   - "Inspect the selector and policy types: kubectl describe networkpolicy deny-all"
   - "Check the workload labels: kubectl get pods --show-labels"
 solution: deny-all selects every Pod in the namespace and blocks ingress and egress.

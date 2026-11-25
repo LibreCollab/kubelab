@@ -1,6 +1,6 @@
 # Kubelab - Scaffolding & Planning Audit
 
-> Date: 2026-11-23 · Status: **applied** - findings below were fixed in the
+> Date: 2026-11-25 · Status: **applied** - findings below were fixed in the
 > scaffold or explicitly deferred with a trigger. Verification commands are
 > listed at the end.
 
@@ -94,6 +94,11 @@ fixed below.
 | 71 | Residual XSS, CSP, question relevance, and audit gaps | Sanitized Markdown, added production CSP, tightened knowledge pools, and added axe/Lighthouse CI gates |
 | 72 | Certification cards did not map curriculum to official exam domains | Added per-certification roadmaps with weighted readiness, weak areas, next actions, and local trends |
 | 73 | Course feedback lacked rationales and practical incidents | Added authored answer explanations, multi-step CKA/CKAD incidents, objective audit, and real-cluster bridge |
+| 74 | Several lessons listed incomplete or missing commands, so checkpoints could not be solved from the hints | Added every required command to hints and a completability gate that executes all documented commands for all 43 lessons |
+| 75 | Hands-on exams mixed tasks from other certifications | Added enough per-track tasks and restricted every pool to its own CKA, CKAD, or CKS tasks |
+| 76 | `kubectl get secrets` crashed for Secrets without a type, and CronJob describe was not simulated | Fixed Secret rendering and generic workload describe output, with task-level regression tests |
+| 77 | A single readiness snapshot rendered as a solid green block | Replaced the stretched bar with a first-session summary and fixed-width trend bars |
+| 78 | Cluster status accessible name did not contain its visible text, and scrollable code blocks were not keyboard reachable | Matched the accessible name to the visible summary and made code wrap instead of scroll |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -123,24 +128,25 @@ references in the docs.
   mise replaced Taskfile; testing claims were corrected.
 - **Unchanged risks.** Simulator fidelity, content authoring throughput, and
   honest certification positioning remain the real risks - not infrastructure.
-- **Next milestone.** Finish Phase 0 with the cluster map/pod-lifecycle
-  animation, then wire XP/progress into IndexedDB before Phase 1 content.
+- **Next milestone.** Public beta launch readiness: production TLS, rate limits,
+  backups, monitoring, content QA, and feedback instrumentation. Accounts and
+  progress sync remain Phase 2 until beta retention justifies the backend.
 
 ## Verification
 
 - `mise run lint` - Biome + Stylelint clean.
 - `mise run typecheck` - all four TS packages clean.
-- `mise run test` - 56 Vitest tests pass (sim, selectors, history, line editor,
-  content, lesson checks, lesson guard, curriculum coverage, progress/streaks).
-- `mise run e2e` - 15 Playwright tests pass (progress persistence/unlock/reset,
-  brand → first lesson, roadmap/cert tracks, top-aligned lesson lists, quiz
-  completion, clock-control visibility, correct/mistyped labels, wrong image,
-  paste/cursor editing, sticky terminal, history recall, mobile viewport, API
-  proxy), with no page errors.
+- `mise run test` - 274 Vitest tests pass, including every lesson's documented
+  commands, every certification task, readiness math, progress, guards, and the
+  simulator.
+- `mise run e2e` - 42 Playwright tests pass. Every lesson is rendered and checked
+  with axe, the full lesson set has no serious accessibility violations, and the
+  main terminal, exam, lab, roadmap, mobile, and API flows are covered.
 - `mise run api-test` - Go tests pass, including SPA fallback and method
   rejection; `gofmt` and `go vet` clean.
 - `mise run build` - Vite build clean; no chunk-size warning.
 - `pnpm audit --prod` - no known vulnerabilities.
+- Lighthouse performance, accessibility, best-practices, and SEO assertions pass.
 - Docker image builds; Compose stack serves `/api/healthz`, `/`, and
   `/lesson/pods-101` through Envoy; SPA embed + fallback verified; security
   headers confirmed at the edge.

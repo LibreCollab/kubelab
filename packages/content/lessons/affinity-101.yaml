@@ -68,5 +68,5 @@ checks:
     answer: 0
 hints:
   - "Check it: kubectl get pod web"
-  - "Read Node: in describe output"
+  - "Read the placement: kubectl describe pod web"
 solution: Required node affinity places the Pod in zone b, on node-2.

@@ -96,5 +96,5 @@ checks:
 hints:
   - "See placement labels: kubectl get nodes --show-labels"
   - "Read the taint: kubectl describe node node-2"
-  - "See the selected node: kubectl get pods -o wide"
+  - "See the selected node: kubectl get pod db -o wide"
 solution: The db Pod uses nodeSelector disk=hdd and tolerates the dedicated=db taint.

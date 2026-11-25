@@ -1,3 +1,4 @@
+import { readdirSync } from "node:fs";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
@@ -276,6 +277,9 @@ test("deployment lesson runs a scale and image rollout", async ({ page }) => {
     "pass",
     { timeout: 10_000 },
   );
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-pods", "5", {
+    timeout: 15_000,
+  });
   await openClusterMap(page);
   await expect(page.getByTestId("cluster-deployment-web")).toHaveAttribute("data-state", "ready");
   await expect(page.locator("[data-map-pod]")).toHaveCount(5);
@@ -526,6 +530,10 @@ test("hands-on certification lab starts and reviews tasks", async ({ page }) => 
   await expect(page.locator("[data-correct]").first()).toBeVisible();
   await page.getByRole("link", { name: "Practice missed questions" }).click();
   await expect(page.getByText("CKA hands-on")).toBeVisible();
+
+  await page.goto("/certification/cka");
+  await expect(page.getByText("Readiness trend")).toBeVisible();
+  await expect(page.getByText("Trend starts after your next session")).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
 
@@ -860,6 +868,9 @@ test("cluster map fits a mobile lesson", async ({ page }) => {
   await page.keyboard.press("Enter");
 
   await expect(page.getByTestId("cluster-status")).toBeVisible();
+  await expect(page.getByTestId("cluster-status")).toHaveAttribute("data-pods", "1", {
+    timeout: 15_000,
+  });
   await openClusterMap(page);
   await expect(page.getByTestId("cluster-deployment-web")).toBeVisible();
   const overflows = await page.evaluate(
@@ -966,6 +977,49 @@ test("API health check is reachable through the dev proxy", async ({ request }) 
   const response = await request.get("/api/healthz");
   expect(response.ok()).toBe(true);
   expect(await response.json()).toMatchObject({ status: "ok", service: "kubelab-api" });
+});
+
+test("every lesson route renders without runtime errors", async ({ page }) => {
+  test.setTimeout(120_000);
+  const lessonIds = readdirSync("packages/content/lessons")
+    .filter((file) => file.endsWith(".yaml"))
+    .map((file) => file.slice(0, -".yaml".length));
+
+  expect(lessonIds.length).toBeGreaterThanOrEqual(40);
+
+  for (const lessonId of lessonIds) {
+    const errors: Error[] = [];
+    const onError = (error: Error) => errors.push(error);
+    page.on("pageerror", onError);
+
+    await page.goto(`/lesson/${lessonId}`);
+    await expect(page.getByRole("heading", { level: 1 }), lessonId).toBeVisible();
+    await expect(page.getByText("Lesson not found"), lessonId).toHaveCount(0);
+    await expect(page.getByText("Lesson complete"), lessonId).toHaveCount(0);
+    expect(errors, lessonId).toEqual([]);
+
+    page.off("pageerror", onError);
+  }
+});
+
+test("every lesson has no serious accessibility violations", async ({ page }) => {
+  test.setTimeout(180_000);
+  await page.emulateMedia({ reducedMotion: "reduce" });
+  const lessonIds = readdirSync("packages/content/lessons")
+    .filter((file) => file.endsWith(".yaml"))
+    .map((file) => file.slice(0, -".yaml".length));
+
+  for (const lessonId of lessonIds) {
+    await page.goto(`/lesson/${lessonId}`);
+    await page.waitForTimeout(100);
+    const results = await new AxeBuilder({ page }).analyze();
+    const serious = results.violations.filter(
+      (violation) => violation.impact === "serious" || violation.impact === "critical",
+    );
+    expect(serious, `${lessonId}: ${serious.map((violation) => violation.id).join(", ")}`).toEqual(
+      [],
+    );
+  }
 });
 
 test("key pages have no serious accessibility violations", async ({ page }) => {

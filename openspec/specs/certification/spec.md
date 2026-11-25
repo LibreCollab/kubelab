@@ -221,3 +221,14 @@ The dashboard SHALL show the score change between the two most recent attempts o
 #### Scenario: First attempt
 - **WHEN** only one attempt exists
 - **THEN** no score-change comparison is shown
+
+### Requirement: Track-scoped hands-on pools
+Each hands-on exam SHALL draw only from tasks belonging to its own certification.
+
+#### Scenario: CKA run
+- **WHEN** a CKA lab starts
+- **THEN** every selected task has a CKA task id
+
+#### Scenario: Pool rotation
+- **WHEN** a learner retries a lab
+- **THEN** task selection rotates within the same certification pool

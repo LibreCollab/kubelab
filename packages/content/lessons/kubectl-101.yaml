@@ -25,5 +25,6 @@ checks:
     verb: get
     resource: pods
 hints:
-  - Read the try-it commands, then check the checkpoint for the next step.
+  - "List the nodes: kubectl get nodes"
+  - "List the Pods: kubectl get pods"
 solution: kubectl get nodes && kubectl get pods

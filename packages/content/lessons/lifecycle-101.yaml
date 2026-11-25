@@ -32,7 +32,9 @@ checks:
     resource: pods
     name: web
 hints:
-  - Read the try-it commands, then check the checkpoint for the next step.
+  - "Create the Pod: kubectl run web --image=nginx"
+  - "List it: kubectl get pods"
+  - "Inspect it: kubectl describe pod web"
 solution: |-
   kubectl run web --image=nginx
   kubectl get pods

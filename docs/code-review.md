@@ -96,12 +96,13 @@
 
 - Content is parsed with Zod/YAML at runtime, which keeps authors on YAML but
   ships both parsers. A build-time content pipeline is the next bundle-size win.
-- The lesson-check evaluator still lives in the web app; move it beside the
-  simulator when the CI "solution passes its own checks" gate lands.
+- The lesson-check evaluator still lives in the web app. The solution gate now
+  runs there; move the evaluator beside the simulator when a second consumer
+  justifies the package boundary.
 - Revisit a command registry when the kubectl surface passes ~8 verbs.
 - Add Storybook when the UI surface stabilizes (trigger in architecture §14).
 
 ## Verification
 
-`mise run lint`, `typecheck`, 56 Vitest tests, Go tests, `gofmt`, `go vet`,
-`mise run build`, and 15 Playwright E2E tests all pass.
+`mise run lint`, `typecheck`, 274 Vitest tests, Go tests, `gofmt`, `go vet`,
+`mise run build`, and 42 Playwright E2E tests all pass.

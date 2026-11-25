@@ -30,5 +30,5 @@ checks:
       - etcd
     answer: 0
 hints:
-  - Read the try-it commands, then check the checkpoint for the next step.
+  - "List the nodes: kubectl get nodes"
 solution: kubectl get nodes

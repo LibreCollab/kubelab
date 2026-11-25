@@ -2173,8 +2173,8 @@ export class SimEngine {
           command.allNamespaces
             ? `${secret.metadata.namespace}/${secret.metadata.name}`
             : secret.metadata.name,
-          secret.type,
-          String(Object.keys(secret.data).length),
+          secret.type ?? "Opaque",
+          String(Object.keys(secret.data ?? {}).length),
           `${Math.max(0, this.clock.tick - secret.metadata.creationTick)}s`,
         ];
         if (command.showLabels) {
@@ -3289,6 +3289,11 @@ export class SimEngine {
       namespaces: "Namespace",
       horizontalpodautoscalers: "HorizontalPodAutoscaler",
       events: "Event",
+      jobs: "Job",
+      cronjobs: "CronJob",
+      statefulsets: "StatefulSet",
+      daemonsets: "DaemonSet",
+      replicasets: "ReplicaSet",
     };
     const genericKind = genericKinds[command.resource];
     if (genericKind !== undefined) {

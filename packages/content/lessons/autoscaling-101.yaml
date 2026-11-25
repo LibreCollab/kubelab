@@ -76,7 +76,7 @@ checks:
       - PVC size
     answer: 0
 hints:
-  - "List autoscalers: kubectl get hpa"
+  - "List autoscalers: kubectl get hpa web"
   - "Read the target and limits: kubectl describe hpa web"
   - "Compare current utilization with the 50% CPU target."
   - "Inspect Pod usage: kubectl top pods"

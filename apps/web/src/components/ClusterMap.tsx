@@ -188,6 +188,7 @@ export function ClusterMap({
 
   const clusterState =
     readyNodes < nodes.length ? "not-ready" : pendingPods > 0 ? "pending" : "ready";
+  const summary = `${pods.length} pod${pods.length === 1 ? "" : "s"} · ${services.length} svc`;
 
   return (
     <>
@@ -203,16 +204,14 @@ export function ClusterMap({
         data-ingresses={ingresses.length}
         data-configmaps={configMaps.length}
         data-secrets={secrets.length}
-        aria-label={`Open cluster state: ${pods.length} pods · ${services.length} svc`}
+        aria-label={`Open cluster state: ${summary}`}
         aria-haspopup="dialog"
         aria-expanded={open}
         aria-controls="cluster-drawer"
         onClick={() => onOpenChange(true)}
       >
         <span className={styles.statusDot} aria-hidden="true" />
-        <span>
-          {pods.length} pod{pods.length === 1 ? "" : "s"} · {services.length} svc
-        </span>
+        <span>{summary}</span>
       </button>
 
       {open

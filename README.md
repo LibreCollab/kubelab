@@ -100,7 +100,7 @@ simulator to kind or k3d.
 
 ## Current scaffold
 
-- 43 lessons across 12 core units plus 5 certification readiness checks:
+- 43 lessons across 12 core units, including 5 certification readiness checks:
   interactive terminal lessons through Pods, Deployments, Services, DNS, Ingress,
   ConfigMaps, Secrets, Storage, Scheduling, Networking, RBAC, Observability, Helm,
   Kustomize, GitOps, and operators.

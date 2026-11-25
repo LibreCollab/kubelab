@@ -29,31 +29,31 @@ The machine-readable source is `packages/content/src/certification-roadmaps.ts`.
 | Domain | Weight | Lessons | Tasks |
 | --- | ---: | ---: | ---: |
 | Cluster architecture, installation and configuration | 25% | 4 | 2 |
-| Workloads and scheduling | 15% | 11 | 8 |
-| Services and networking | 20% | 6 | 6 |
-| Storage | 10% | 2 | 2 |
-| Troubleshooting | 30% | 4 | 7 |
+| Workloads and scheduling | 15% | 11 | 4 |
+| Services and networking | 20% | 6 | 5 |
+| Storage | 10% | 2 | 3 |
+| Troubleshooting | 30% | 4 | 5 |
 
 ## CKAD
 
 | Domain | Weight | Lessons | Tasks |
 | --- | ---: | ---: | ---: |
-| Application design and build | 20% | 4 | 5 |
+| Application design and build | 20% | 4 | 6 |
 | Application deployment | 20% | 4 | 5 |
 | Application observability and maintenance | 15% | 3 | 2 |
-| Application environment, configuration and security | 25% | 4 | 6 |
-| Services and networking | 20% | 5 | 7 |
+| Application environment, configuration and security | 25% | 4 | 5 |
+| Services and networking | 20% | 5 | 3 |
 
 ## CKS
 
 | Domain | Weight | Lessons | Tasks |
 | --- | ---: | ---: | ---: |
-| Cluster setup | 10% | 4 | 2 |
+| Cluster setup | 10% | 4 | 1 |
 | Cluster hardening | 15% | 3 | 5 |
-| System hardening | 15% | 3 | 4 |
-| Minimize microservice vulnerabilities | 20% | 3 | 6 |
-| Supply chain security | 20% | 4 | 6 |
-| Monitoring, logging and runtime security | 20% | 3 | 5 |
+| System hardening | 15% | 3 | 6 |
+| Minimize microservice vulnerabilities | 20% | 3 | 4 |
+| Supply chain security | 20% | 4 | 3 |
+| Monitoring, logging and runtime security | 20% | 3 | 4 |
 
 ## Known gaps
 
@@ -68,4 +68,5 @@ The machine-readable source is `packages/content/src/certification-roadmaps.ts`.
 - Every certification domain must map to at least one lesson or task.
 - Domain weights must sum to 100 per track.
 - Lesson and task references must resolve to known content.
+- Hands-on exam pools must contain only tasks from that certification.
 - A domain with no exam evidence is shown as weak in the readiness dashboard.

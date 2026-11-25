@@ -1164,9 +1164,9 @@ function normalizeTaskCheck(raw: Record<string, unknown>): LessonCheck {
 }
 
 const labTaskPools: Record<string, string[]> = {
-  cka: ["cka", "ckad", "cks"],
-  ckad: ["ckad", "cka", "cks"],
-  cks: ["cks", "cka", "kcsa"],
+  cka: ["cka"],
+  ckad: ["ckad"],
+  cks: ["cks"],
 };
 
 const taskCounts: Record<string, number> = { kcna: 0, kcsa: 0, cka: 15, ckad: 15, cks: 15 };

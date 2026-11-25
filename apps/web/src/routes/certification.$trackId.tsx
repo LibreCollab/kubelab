@@ -71,6 +71,7 @@ export function CertificationRoadmapPage() {
   const recentKnowledge = attempts.filter((attempt) => attempt.trackId === trackId).slice(0, 3);
   const recentLabs = labAttempts.filter((attempt) => attempt.trackId === trackId).slice(0, 3);
   const trend = snapshots.slice(-5);
+  const latestSnapshot = trend[trend.length - 1];
 
   return (
     <div className={styles.page}>
@@ -210,17 +211,29 @@ export function CertificationRoadmapPage() {
         )}
         <div className={styles.trend}>
           <span>Readiness trend</span>
-          {trend.length === 0 ? (
-            <small>Not enough history yet</small>
+          {latestSnapshot === undefined ? (
+            <small>No readiness snapshots yet</small>
+          ) : trend.length === 1 ? (
+            <div className={styles.trendSummary}>
+              <strong>{latestSnapshot.score}% today</strong>
+              <small>Trend starts after your next session</small>
+            </div>
           ) : (
-            <div className={styles.trendBars} role="img" aria-label="Readiness trend">
-              {trend.map((snapshot) => (
-                <i
-                  key={`${snapshot.dateKey}-${snapshot.id ?? snapshot.createdAt}`}
-                  style={{ height: `${Math.max(8, snapshot.score)}%` }}
-                  title={`${snapshot.dateKey}: ${snapshot.score}%`}
-                />
-              ))}
+            <div className={styles.trendChart}>
+              <div
+                className={styles.trendBars}
+                role="img"
+                aria-label={`Readiness from ${trend[0]?.score ?? 0}% on ${trend[0]?.dateKey ?? "the first day"} to ${latestSnapshot.score}% today`}
+              >
+                {trend.map((snapshot) => (
+                  <i
+                    key={`${snapshot.dateKey}-${snapshot.id ?? snapshot.createdAt}`}
+                    style={{ height: `${Math.max(8, snapshot.score)}%` }}
+                    title={`${snapshot.dateKey}: ${snapshot.score}%`}
+                  />
+                ))}
+              </div>
+              <small>{latestSnapshot.score}% today</small>
             </div>
           )}
         </div>

@@ -34,7 +34,9 @@ checks:
     verb: get
     resource: pods
 hints:
-  - Read the try-it commands, then check the checkpoint for the next step.
+  - "Create web: kubectl run web --image=nginx --labels=app=web"
+  - "Create api: kubectl run api --image=nginx --labels=app=api"
+  - "Verify both: kubectl get pods --show-labels"
 solution: |-
   kubectl run web --image=nginx --labels=app=web
   kubectl run api --image=nginx --labels=app=api

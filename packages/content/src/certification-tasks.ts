@@ -738,6 +738,287 @@ spec:
         },
       ],
     },
+    {
+      id: "cka-rbac",
+      title: "Namespace RBAC",
+      unit: "security",
+      instruction:
+        "Create a Role and RoleBinding that let deploy-bot list Pods, then verify the permission.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: deploy-bot
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: pod-reader
+rules:
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: bind-pods
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: pod-reader
+subjects:
+  - kind: ServiceAccount
+    name: deploy-bot
+`,
+      }),
+      checks: [
+        get("Listed the binding", "rolebindings", "bind-pods"),
+        {
+          type: "command",
+          label: "Tested access",
+          verb: "auth",
+          subjectVerb: "list",
+          subjectResource: "pods",
+          as: "system:serviceaccount:default:deploy-bot",
+        },
+      ],
+    },
+    {
+      id: "cka-pv-binding",
+      title: "Persistent volume binding",
+      unit: "storage",
+      instruction: "Create the PersistentVolume and claim, then verify both bind.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-pv
+spec:
+  capacity:
+    storage: 1Gi
+  accessModes: [ReadWriteOnce]
+  hostPath:
+    path: /data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+`,
+        },
+        [
+          {
+            kind: "PersistentVolumeClaim",
+            metadata: { name: "data" },
+            spec: {
+              accessModes: ["ReadWriteOnce"],
+              resources: { requests: { storage: "1Gi" } },
+            },
+            status: { phase: "Pending" },
+          },
+        ],
+      ),
+      checks: [
+        get("Listed the claim", "persistentvolumeclaims", "data"),
+        get("Listed the volume", "persistentvolumes", "data-pv"),
+      ],
+    },
+    {
+      id: "cka-service-dns",
+      title: "Service discovery",
+      unit: "networking",
+      instruction: "Create the Deployment, Service, and client, then resolve the Service by name.",
+      scenario: scenario({
+        "fix.yaml": `${deploymentManifest("web", 2, "nginx:1.27")}---
+${serviceManifest("web")}---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+spec:
+  containers:
+    - name: client
+      image: busybox
+`,
+      }),
+      checks: [
+        {
+          type: "deployment",
+          label: "Two web replicas",
+          name: "web",
+          replicas: 2,
+          image: "nginx:1.27",
+        },
+        { type: "service", label: "Web Service", name: "web", port: 80 },
+        {
+          type: "command",
+          label: "Resolved DNS",
+          verb: "exec",
+          name: "client",
+          command: "nslookup",
+        },
+      ],
+    },
+    {
+      id: "cka-configmap-env",
+      title: "Configuration injection",
+      unit: "config",
+      instruction: "Apply the ConfigMap and Deployment, then verify the injected environment.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  MODE: prod
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx
+        env:
+          - name: MODE
+            value: prod
+        envFrom:
+          - configMapRef:
+              name: app-config
+`,
+      }),
+      checks: [
+        get("Listed the ConfigMap", "configmaps", "app-config"),
+        {
+          type: "env",
+          label: "Environment injected",
+          deployment: "api",
+          name: "MODE",
+          value: "prod",
+          sourceKind: "ConfigMap",
+          sourceName: "app-config",
+        },
+      ],
+    },
+    {
+      id: "cka-tls-ingress",
+      title: "TLS Ingress repair",
+      unit: "networking",
+      instruction: "Apply the TLS Ingress and verify HTTPS routing from the client.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shop
+spec:
+  tls:
+    - hosts: [shop.example.com]
+      secretName: shop-tls
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+`,
+        },
+        [
+          pod("web", { app: "web" }, "10.244.0.240"),
+          pod("client", {}, "10.244.0.241"),
+          service("web", { app: "web" }, "10.96.0.240"),
+        ],
+      ),
+      checks: [
+        get("Listed the Ingress", "ingresses", "shop"),
+        { type: "command", label: "Tested HTTPS", verb: "exec", name: "client", command: "curl" },
+      ],
+    },
+    {
+      id: "cka-troubleshoot-logs",
+      title: "CrashLoop troubleshooting",
+      unit: "observability",
+      instruction: "The worker is crash-looping. Apply the fixed Pod and read its logs.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: worker
+spec:
+  containers:
+    - name: worker
+      image: busybox
+      command: ["sh", "-c", "echo ready && sleep 3600"]
+`,
+        },
+        [
+          {
+            kind: "Pod",
+            metadata: { name: "worker" },
+            spec: {
+              nodeName: "node-1",
+              containers: [{ name: "worker", image: "busybox", command: ["false"] }],
+            },
+            status: { phase: "Failed", podIP: "10.244.0.242", reason: "CrashLoopBackOff" },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "pod",
+          label: "Worker running",
+          name: "worker",
+          image: "busybox",
+          phase: "Running",
+        },
+        { type: "command", label: "Read the logs", verb: "logs", name: "worker" },
+      ],
+    },
+    {
+      id: "cka-quota-audit",
+      title: "Quota audit",
+      unit: "scheduling",
+      instruction: "Inspect the namespace quota and its default limits.",
+      scenario: scenario({}, [
+        {
+          kind: "ResourceQuota",
+          metadata: { name: "team-quota" },
+          spec: { hard: { pods: "10", "requests.cpu": "4" } },
+          status: {
+            hard: { pods: "10", "requests.cpu": "4" },
+            used: { pods: "3", "requests.cpu": "1" },
+          },
+        },
+        {
+          kind: "LimitRange",
+          metadata: { name: "defaults" },
+          spec: { limits: [{ type: "Container", default: { cpu: "500m" } }] },
+        },
+      ]),
+      checks: [
+        get("Listed the quota", "resourcequotas", "team-quota"),
+        describe("Inspected the quota", "resourcequotas", "team-quota"),
+        get("Listed the LimitRange", "limitranges"),
+      ],
+    },
   ],
   ckad: [
     {
@@ -765,6 +1046,9 @@ spec:
     containers:
       - name: web
         image: nginx
+        env:
+          - name: MODE
+            value: prod
         envFrom:
           - configMapRef:
               name: app-config
@@ -800,6 +1084,9 @@ spec:
     containers:
       - name: api
         image: nginx
+        env:
+          - name: password
+            value: s3cret
         envFrom:
           - secretRef:
               name: db-secret
@@ -813,6 +1100,8 @@ spec:
           deployment: "api",
           name: "password",
           value: "s3cret",
+          sourceKind: "Secret",
+          sourceName: "db-secret",
         },
       ],
     },
@@ -1171,6 +1460,252 @@ ${serviceManifest("app")}`,
         },
         get("Verified endpoints", "endpoints", "app"),
         { type: "command", label: "Tested HTTPS", verb: "exec", name: "client", command: "curl" },
+      ],
+    },
+    {
+      id: "ckad-maintenance",
+      title: "Application maintenance",
+      unit: "observability",
+      instruction: "Apply the corrected Pod image, then inspect the running container.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+spec:
+  containers:
+    - name: web
+      image: nginx:1.27
+`,
+        },
+        [
+          {
+            kind: "Pod",
+            metadata: { name: "web", labels: { app: "web" } },
+            spec: { nodeName: "node-1", containers: [{ name: "web", image: "httpd" }] },
+            status: { phase: "Running", podIP: "10.244.0.250" },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "pod",
+          label: "Correct image",
+          name: "web",
+          image: "nginx:1.27",
+          phase: "Running",
+        },
+        describe("Inspected the Pod", "pods", "web"),
+      ],
+    },
+    {
+      id: "ckad-multicontainer",
+      title: "Sidecar logging",
+      unit: "workloads",
+      instruction: "Apply the two-container Pod, then read the sidecar logs.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+spec:
+  containers:
+    - name: web
+      image: nginx:1.27
+    - name: sidecar
+      image: busybox
+      command: ["sh", "-c", "echo sidecar && sleep 3600"]
+`,
+      }),
+      checks: [
+        {
+          type: "pod",
+          label: "Web container",
+          name: "web",
+          image: "nginx:1.27",
+          phase: "Running",
+        },
+        {
+          type: "command",
+          label: "Read sidecar logs",
+          verb: "logs",
+          name: "web",
+          container: "sidecar",
+        },
+      ],
+    },
+    {
+      id: "ckad-rollback",
+      title: "Rollback a release",
+      unit: "deployment",
+      instruction: "Update the web image to nginx:1.25, inspect history, then roll back.",
+      scenario: scenario({ "deployment.yaml": deploymentManifest("web", 2, "nginx:1.27") }),
+      checks: [
+        {
+          type: "command",
+          label: "Updated the image",
+          verb: "set",
+          resource: "deployments",
+          name: "web",
+          container: "web",
+          image: "nginx:1.25",
+        },
+        {
+          type: "command",
+          label: "Rolled back",
+          verb: "rollout",
+          action: "undo",
+          resource: "deployments",
+          name: "web",
+        },
+        {
+          type: "deployment",
+          label: "Original image restored",
+          name: "web",
+          replicas: 2,
+          image: "nginx:1.27",
+        },
+      ],
+    },
+    {
+      id: "ckad-envfrom",
+      title: "Environment from ConfigMap",
+      unit: "config",
+      instruction: "Apply the ConfigMap and Deployment, then verify the environment source.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  MODE: prod
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx
+        env:
+          - name: MODE
+            value: prod
+        envFrom:
+          - configMapRef:
+              name: app-config
+`,
+      }),
+      checks: [
+        {
+          type: "env",
+          label: "ConfigMap environment",
+          deployment: "api",
+          name: "MODE",
+          value: "prod",
+          sourceKind: "ConfigMap",
+          sourceName: "app-config",
+        },
+        describe("Inspected the Deployment", "deployments", "api"),
+      ],
+    },
+    {
+      id: "ckad-init",
+      title: "Init container setup",
+      unit: "workloads",
+      instruction: "Apply the Pod with its init container, then verify the app container.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+spec:
+  initContainers:
+    - name: migrate
+      image: busybox
+      command: ["sh", "-c", "echo migrated"]
+  containers:
+    - name: web
+      image: nginx:1.27
+`,
+      }),
+      checks: [
+        {
+          type: "pod",
+          label: "Web running",
+          name: "web",
+          image: "nginx:1.27",
+          phase: "Running",
+        },
+        describe("Read the Pod", "pods", "web"),
+      ],
+    },
+    {
+      id: "ckad-cronjob",
+      title: "Scheduled batch job",
+      unit: "workloads",
+      instruction: "Apply the CronJob and verify its schedule.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: report
+              image: busybox
+              command: ["sh", "-c", "date"]
+`,
+      }),
+      checks: [
+        get("Listed the CronJob", "cronjobs", "report"),
+        describe("Read the CronJob", "cronjobs", "report"),
+      ],
+    },
+    {
+      id: "ckad-http-route",
+      title: "HTTP route",
+      unit: "services",
+      instruction: "Create the Deployment, Service, and client, then request the Service.",
+      scenario: scenario({
+        "fix.yaml": `${deploymentManifest("app", 2, "nginx:1.27")}---
+${serviceManifest("app")}---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: client
+spec:
+  containers:
+    - name: client
+      image: curlimages/curl
+`,
+      }),
+      checks: [
+        {
+          type: "deployment",
+          label: "Two app replicas",
+          name: "app",
+          replicas: 2,
+          image: "nginx:1.27",
+        },
+        { type: "service", label: "App Service", name: "app", port: 80 },
+        {
+          type: "command",
+          label: "Requested the Service",
+          verb: "exec",
+          name: "client",
+          command: "curl",
+        },
       ],
     },
   ],
@@ -1587,6 +2122,201 @@ spec:
           image: "busybox",
           phase: "Running",
         },
+      ],
+    },
+    {
+      id: "cks-egress-policy",
+      title: "Egress policy",
+      unit: "networking",
+      instruction: "Apply the egress policy and inspect its selected targets.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-dns
+spec:
+  podSelector:
+    matchLabels:
+      app: web
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: {}
+      ports:
+        - protocol: UDP
+          port: 53
+`,
+        },
+        [pod("web", { app: "web" }, "10.244.0.260")],
+      ),
+      checks: [
+        get("Listed the policy", "networkpolicies", "allow-dns"),
+        describe("Read the policy", "networkpolicies", "allow-dns"),
+      ],
+    },
+    {
+      id: "cks-readonly-root",
+      title: "Read-only root filesystem",
+      unit: "security",
+      instruction: "Apply the hardened Deployment, then inspect its security context.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    spec:
+      securityContext:
+        runAsNonRoot: true
+      containers:
+        - name: api
+          image: nginx:1.27
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+`,
+        },
+        [
+          {
+            kind: "Deployment",
+            metadata: { name: "api" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "api" },
+                containers: [{ name: "api", image: "nginx:1.25" }],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Hardened image",
+          name: "api",
+          replicas: 1,
+          image: "nginx:1.27",
+        },
+        describe("Inspected the Deployment", "deployments", "api"),
+      ],
+    },
+    {
+      id: "cks-seccomp",
+      title: "Seccomp profile",
+      unit: "security",
+      instruction: "Apply the Pod with a RuntimeDefault seccomp profile, then inspect it.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: worker
+spec:
+  securityContext:
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: worker
+      image: busybox
+`,
+      }),
+      checks: [
+        {
+          type: "pod",
+          label: "Worker running",
+          name: "worker",
+          image: "busybox",
+          phase: "Running",
+        },
+        describe("Read the Pod", "pods", "worker"),
+      ],
+    },
+    {
+      id: "cks-serviceaccount",
+      title: "ServiceAccount hardening",
+      unit: "security",
+      instruction: "Apply the non-automounting ServiceAccount and workload, then inspect them.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: api-sa
+automountServiceAccountToken: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    spec:
+      serviceAccountName: api-sa
+      containers:
+        - name: api
+          image: nginx:1.27
+`,
+      }),
+      checks: [
+        get("Listed the ServiceAccount", "serviceaccounts", "api-sa"),
+        describe("Inspected the Deployment", "deployments", "api"),
+      ],
+    },
+    {
+      id: "cks-pod-hardening",
+      title: "Restricted Pod hardening",
+      unit: "security",
+      instruction: "Apply the restricted Pod, then verify it runs and inspect its controls.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: web
+      image: nginx:1.27
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+`,
+        },
+        [
+          {
+            kind: "Namespace",
+            metadata: {
+              name: "restricted",
+              labels: { "pod-security.kubernetes.io/enforce": "restricted" },
+            },
+            status: { phase: "Active" },
+          },
+        ],
+      ),
+      checks: [
+        {
+          type: "pod",
+          label: "Restricted Pod running",
+          name: "web",
+          image: "nginx:1.27",
+          phase: "Running",
+        },
+        describe("Read the Pod", "pods", "web"),
       ],
     },
   ],

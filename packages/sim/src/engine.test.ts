@@ -639,6 +639,26 @@ describe("engine", () => {
     expect(unicodePod?.spec.containers[0]?.env?.[0]?.value).toBe("🔐");
   });
 
+  it("lists applied Secrets without a type or data", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [{ name: "node-1" }],
+      files: {
+        "secret.yaml": `apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+`,
+      },
+    });
+
+    expect(engine.execute("kubectl apply -f secret.yaml").ok).toBe(true);
+    const result = engine.execute("kubectl get secrets --show-labels");
+    expect(result.ok).toBe(true);
+    expect(result.output).toContain("db-secret");
+    expect(result.output).toContain("Opaque");
+  });
+
   it("seeds storage, events, logs, and RBAC resources", () => {
     const engine = createEngine();
     engine.seed({

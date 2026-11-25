@@ -57,6 +57,7 @@ checks:
       - Node count only
     answer: 0
 hints:
-  - "Quota: kubectl get resourcequota"
-  - "Defaults: kubectl get limitrange"
+  - "List quotas: kubectl get resourcequota"
+  - "Inspect the quota: kubectl describe resourcequota team-quota"
+  - "List defaults: kubectl get limitrange"
 solution: The quota caps aggregate namespace Pods and CPU requests.
