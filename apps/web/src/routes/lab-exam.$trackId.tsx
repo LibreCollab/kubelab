@@ -271,9 +271,6 @@ export function LabExamPage() {
     runtime: item,
     checks: taskChecks(item),
   }));
-  const completedTasks = taskResults.filter((item) =>
-    item.checks.every((check) => check.pass),
-  ).length;
   const totalPages = Math.max(1, Math.ceil(taskResults.length / TASKS_PER_PAGE));
   const pageTasks = taskResults.slice(page * TASKS_PER_PAGE, (page + 1) * TASKS_PER_PAGE);
   const selectPage = (nextPage: number) => {
@@ -317,7 +314,7 @@ export function LabExamPage() {
         <div className={styles.examMeta}>
           <span>{exam.taskCount} tasks</span>
           <span>{Math.round(durationSeconds / 60)} min</span>
-          <span>{completedTasks} complete</span>
+          <span>{phase === "review" ? "Review ready" : "Checkpoints hidden"}</span>
         </div>
       </div>
 
@@ -346,19 +343,16 @@ export function LabExamPage() {
             </div>
             {pageTasks.map((item, index) => {
               const taskIndex = page * TASKS_PER_PAGE + index;
-              const complete = item.checks.every((check) => check.pass);
               return (
                 <button
                   key={item.runtime.task.id}
                   type="button"
                   className={cx(styles.taskButton, taskIndex === selected && styles.taskSelected)}
-                  data-complete={complete}
                   aria-pressed={taskIndex === selected}
                   onClick={() => setSelected(taskIndex)}
                 >
                   <span>Task {taskIndex + 1}</span>
                   <strong>{item.runtime.task.title}</strong>
-                  <span>{complete ? "complete" : "in progress"}</span>
                 </button>
               );
             })}

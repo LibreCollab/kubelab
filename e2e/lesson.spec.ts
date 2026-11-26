@@ -526,6 +526,7 @@ test("hands-on certification lab starts and reviews tasks", async ({ page }) => 
   await expect(page.getByText("Page 3 of 3")).toBeVisible();
   await page.getByRole("button", { name: "Submit lab exam" }).click();
   await expect(page.getByText("Not passed")).toBeVisible();
+  await expect(page.getByText("Review ready")).toBeVisible();
   await expect(page.getByText("0%")).toBeVisible();
   await expect(page.locator("[data-correct]").first()).toBeVisible();
   await page.getByRole("link", { name: "Practice missed questions" }).click();

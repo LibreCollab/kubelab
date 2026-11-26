@@ -102,6 +102,7 @@ fixed below.
 | 79 | Content was too thin for five-certification prep: 38 short lessons, 60 pooled questions, 16 tasks per track | Expanded to 54 teaching lessons at 150-250 words, 100 domain-weighted questions per knowledge track, and 30 tasks per hands-on track |
 | 80 | Three lesson hints contained prose that looked like executable kubectl commands | Rewrote the hints and made the completability gate require every documented command to succeed |
 | 81 | Applying an HPA without status could crash reconciliation or `get hpa`, and lab suggestions stayed tied to the static question set | Initialized and guarded HPA status and derived lab links from the rotated session questions |
+| 82 | The lab sidebar exposed per-task completion and a completed count before submission | Hid checkpoint state during the run and switched the header to review-ready only after submission |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

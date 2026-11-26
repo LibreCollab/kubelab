@@ -513,10 +513,6 @@
   font-size: 0.72rem;
 }
 
-.taskButton[data-complete="true"] {
-  border-left-color: var(--color-accent);
-}
-
 .taskSelected {
   background: var(--color-accent-soft);
   border-color: var(--color-accent-strong);
