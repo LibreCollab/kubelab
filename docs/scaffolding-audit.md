@@ -109,6 +109,7 @@ fixed below.
 | 86 | Populated practice and certification roadmap states had no accessibility or mobile coverage | Added axe/mobile checks after a failed exam creates review cards and readiness evidence |
 | 87 | A capstone instruction said to repair a Service that the scenario never created | Corrected the instruction to create the Service |
 | 88 | Readiness counted only answered questions and ignored questions from the rotated 100-question pool | Evidence now counts unanswered questions as wrong and resolves the full pool |
+| 89 | The cluster-state modal did not move focus into the dialog or return it on close | Focus now enters the dialog, traps Tab, and returns to the status button on close |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

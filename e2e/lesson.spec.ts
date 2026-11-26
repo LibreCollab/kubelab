@@ -841,12 +841,17 @@ test("observability lessons expose logs, events, and readiness", async ({ page }
 test("cluster status opens and closes the inspector", async ({ page }) => {
   await page.goto("/lesson/pods-101");
 
-  await expect(page.getByTestId("cluster-status")).toBeVisible();
+  const status = page.getByTestId("cluster-status");
+  await expect(status).toBeVisible();
   await expect(page.getByTestId("cluster-map")).toHaveCount(0);
 
-  await openClusterMap(page);
-  await page.getByRole("button", { name: "Close cluster state" }).click();
+  await status.focus();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("cluster-map")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Close cluster state" })).toBeFocused();
+  await page.keyboard.press("Escape");
   await expect(page.getByTestId("cluster-map")).toHaveCount(0);
+  await expect(status).toBeFocused();
 });
 
 test("cluster status stays visible while scrolling", async ({ page }) => {

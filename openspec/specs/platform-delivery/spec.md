@@ -81,3 +81,10 @@ Practice queues and certification readiness pages SHALL remain accessible and mo
 #### Scenario: Populated practice and roadmap
 - **WHEN** a failed exam creates review cards and readiness evidence
 - **THEN** the practice and roadmap pages pass serious axe checks and fit a 390px viewport
+
+### Requirement: Dialog focus management
+The cluster-state modal SHALL move focus inside on open, trap Tab, and restore focus on close.
+
+#### Scenario: Keyboard open and close
+- **WHEN** a learner opens the cluster state from the keyboard and presses Escape
+- **THEN** focus returns to the cluster status button

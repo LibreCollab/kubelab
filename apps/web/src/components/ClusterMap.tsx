@@ -10,7 +10,7 @@ import {
   matchesLabels,
   type Pod,
 } from "@kubelab/sim";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 
 import styles from "./cluster-map.module.scss";
@@ -125,20 +125,56 @@ export function ClusterMap({
   open,
   onOpenChange,
 }: ClusterMapProps) {
+  const statusRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useRef<HTMLElement>(null);
+
   useEffect(() => {
     if (!open) {
       return;
     }
-    const close = (event: KeyboardEvent) => {
+    const previousFocus =
+      document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const dialog = dialogRef.current;
+    const focusable = () =>
+      Array.from(
+        dialog?.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])',
+        ) ?? [],
+      );
+    const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onOpenChange(false);
+        return;
+      }
+      if (event.key !== "Tab") {
+        return;
+      }
+      const elements = focusable();
+      const first = elements[0];
+      const last = elements[elements.length - 1];
+      if (first === undefined || last === undefined) {
+        return;
+      }
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
       }
     };
+    const first = focusable()[0];
+    first?.focus();
     document.body.style.overflow = "hidden";
-    window.addEventListener("keydown", close);
+    window.addEventListener("keydown", handleKey);
     return () => {
       document.body.style.overflow = "";
-      window.removeEventListener("keydown", close);
+      window.removeEventListener("keydown", handleKey);
+      if (previousFocus !== null && document.contains(previousFocus)) {
+        previousFocus.focus();
+      } else {
+        statusRef.current?.focus();
+      }
     };
   }, [onOpenChange, open]);
 
@@ -193,6 +229,7 @@ export function ClusterMap({
   return (
     <>
       <button
+        ref={statusRef}
         type="button"
         className={styles.statusChip}
         data-testid="cluster-status"
@@ -223,6 +260,7 @@ export function ClusterMap({
                 onClick={() => onOpenChange(false)}
               />
               <aside
+                ref={dialogRef}
                 id="cluster-drawer"
                 className={styles.popup}
                 role="dialog"
