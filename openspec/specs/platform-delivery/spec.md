@@ -88,3 +88,10 @@ The cluster-state modal SHALL move focus inside on open, trap Tab, and restore f
 #### Scenario: Keyboard open and close
 - **WHEN** a learner opens the cluster state from the keyboard and presses Escape
 - **THEN** focus returns to the cluster status button
+
+### Requirement: Stable dialog focus
+Cluster dialog focus SHALL remain on the learner's chosen control while live cluster state updates.
+
+#### Scenario: Dialog open during a tick
+- **WHEN** the engine advances while the cluster dialog is open
+- **THEN** focus does not jump back to the dialog close button

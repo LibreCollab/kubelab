@@ -848,7 +848,10 @@ test("cluster status opens and closes the inspector", async ({ page }) => {
   await status.focus();
   await page.keyboard.press("Enter");
   await expect(page.getByTestId("cluster-map")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Close cluster state" })).toBeFocused();
+  const close = page.getByRole("button", { name: "Close cluster state" });
+  await expect(close).toBeFocused();
+  await page.waitForTimeout(1_100);
+  await expect(close).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(page.getByTestId("cluster-map")).toHaveCount(0);
   await expect(status).toBeFocused();

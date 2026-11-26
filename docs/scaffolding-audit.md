@@ -111,6 +111,7 @@ fixed below.
 | 88 | Readiness counted only answered questions and ignored questions from the rotated 100-question pool | Evidence now counts unanswered questions as wrong and resolves the full pool |
 | 89 | The cluster-state modal did not move focus into the dialog or return it on close | Focus now enters the dialog, traps Tab, and returns to the status button on close |
 | 90 | Correct practice answers never advanced past the 3-day review interval | Added explicit repetition counts and verified the 3, 7, 14, 30-day progression |
+| 91 | The cluster dialog focus effect depended on an inline callback and could steal focus on every engine tick | Held the callback in a ref and kept the effect keyed only to open state |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup

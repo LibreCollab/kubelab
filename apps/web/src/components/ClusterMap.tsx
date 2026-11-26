@@ -127,6 +127,8 @@ export function ClusterMap({
 }: ClusterMapProps) {
   const statusRef = useRef<HTMLButtonElement>(null);
   const dialogRef = useRef<HTMLElement>(null);
+  const onOpenChangeRef = useRef(onOpenChange);
+  onOpenChangeRef.current = onOpenChange;
 
   useEffect(() => {
     if (!open) {
@@ -143,7 +145,7 @@ export function ClusterMap({
       );
     const handleKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        onOpenChange(false);
+        onOpenChangeRef.current(false);
         return;
       }
       if (event.key !== "Tab") {
@@ -176,7 +178,7 @@ export function ClusterMap({
         statusRef.current?.focus();
       }
     };
-  }, [onOpenChange, open]);
+  }, [open]);
 
   const replicaSetsByDeployment = new Map<string, KubeReplicaSet[]>();
   const replicaSetKeys = new Set<string>();
