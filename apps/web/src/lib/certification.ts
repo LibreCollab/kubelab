@@ -10,6 +10,7 @@ export interface ExamAttempt {
   passed: boolean;
   completedAt: number;
   answers: Record<string, number>;
+  questionIds?: string[];
   weakUnits: string[];
 }
 
@@ -83,6 +84,7 @@ export async function saveExamAttempt(
     passed: result.passed,
     completedAt: Date.now(),
     answers,
+    questionIds: exam.questions.map((question) => question.id),
     weakUnits: result.weakUnits,
   };
   const existingCards = await progressDb.reviewCards.bulkGet(

@@ -33,11 +33,12 @@ describe("certification readiness", () => {
     if (exam === undefined) {
       return;
     }
-    const answers = Object.fromEntries(
-      exam.questions
-        .filter((question) => question.unit === "containers")
-        .map((question) => [question.id, question.answer]),
-    );
+    const target = exam.questions.find((question) => question.domainId === "kcna-fundamentals");
+    expect(target).toBeDefined();
+    if (target === undefined) {
+      return;
+    }
+    const answers = { [target.id]: target.answer };
     const attempt: ExamAttempt = {
       trackId: "kcna",
       score: 1,
@@ -61,12 +62,102 @@ describe("certification readiness", () => {
       progress,
       [attempt],
       [],
-      [domain({ trackId: "kcna", lessonIds: ["containers-101"], questionUnits: ["containers"] })],
+      [
+        domain({
+          id: "kcna-fundamentals",
+          trackId: "kcna",
+          lessonIds: ["containers-101"],
+          questionUnits: ["containers"],
+        }),
+      ],
     );
 
     expect(readiness.score).toBe(100);
     expect(readiness.band).toBe("Ready to book");
     expect(readiness.domains[0]?.strong).toBe(true);
+  });
+
+  it("counts unanswered questions as incorrect evidence", () => {
+    const exam = getCertificationExam("kcna");
+    expect(exam).toBeDefined();
+    if (exam === undefined) {
+      return;
+    }
+    const questions = exam.questions.filter(
+      (question) => question.domainId === "kcna-fundamentals",
+    );
+    expect(questions.length).toBeGreaterThanOrEqual(2);
+    const first = questions[0];
+    const second = questions[1];
+    if (first === undefined || second === undefined) {
+      return;
+    }
+    const attempt: ExamAttempt = {
+      trackId: "kcna",
+      score: 1,
+      total: 2,
+      passed: false,
+      completedAt: 10,
+      answers: { [first.id]: first.answer },
+      questionIds: [first.id, second.id],
+      weakUnits: [],
+    };
+    const readiness = calculateReadiness(
+      "kcna",
+      {},
+      [attempt],
+      [],
+      [
+        domain({
+          id: "kcna-fundamentals",
+          trackId: "kcna",
+          lessonIds: [],
+        }),
+      ],
+    );
+
+    expect(readiness.domains[0]?.evidence).toBe(0.5);
+  });
+
+  it("counts questions from the full rotated bank", () => {
+    const exam = getCertificationExam("kcna");
+    expect(exam).toBeDefined();
+    if (exam === undefined) {
+      return;
+    }
+    const visibleIds = new Set(exam.questions.map((question) => question.id));
+    const question = exam.questionPool.find(
+      (candidate) => candidate.domainId === "kcna-fundamentals" && !visibleIds.has(candidate.id),
+    );
+    expect(question).toBeDefined();
+    if (question === undefined) {
+      return;
+    }
+    const attempt: ExamAttempt = {
+      trackId: "kcna",
+      score: 1,
+      total: 1,
+      passed: false,
+      completedAt: 10,
+      answers: { [question.id]: question.answer },
+      questionIds: [question.id],
+      weakUnits: [],
+    };
+    const readiness = calculateReadiness(
+      "kcna",
+      {},
+      [attempt],
+      [],
+      [
+        domain({
+          id: "kcna-fundamentals",
+          trackId: "kcna",
+          lessonIds: [],
+        }),
+      ],
+    );
+
+    expect(readiness.domains[0]?.evidence).toBe(1);
   });
 
   it("weights domains by their official weight", () => {

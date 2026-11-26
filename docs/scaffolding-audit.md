@@ -108,6 +108,7 @@ fixed below.
 | 85 | Failed-exam review labels missed WCAG contrast, and review states lacked browser coverage | Lifted the danger token contrast and added axe/mobile tests for knowledge and lab review |
 | 86 | Populated practice and certification roadmap states had no accessibility or mobile coverage | Added axe/mobile checks after a failed exam creates review cards and readiness evidence |
 | 87 | A capstone instruction said to repair a Service that the scenario never created | Corrected the instruction to create the Service |
+| 88 | Readiness counted only answered questions and ignored questions from the rotated 100-question pool | Evidence now counts unanswered questions as wrong and resolves the full pool |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -145,7 +146,7 @@ references in the docs.
 
 - `mise run lint` - Biome + Stylelint clean.
 - `mise run typecheck` - all four TS packages clean.
-- `mise run test` - 359 Vitest tests pass, including every lesson's documented
+- `mise run test` - 361 Vitest tests pass, including every lesson's documented
   commands, every certification task, readiness math, progress, guards, and the
   simulator.
 - `mise run e2e` - 47 Playwright tests pass. Every lesson is rendered and checked

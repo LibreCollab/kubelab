@@ -64,13 +64,21 @@ function knowledgeEvidence(
   let correct = 0;
   let total = 0;
   for (const attempt of attempts) {
-    for (const [questionId, answer] of Object.entries(attempt.answers)) {
+    const questionIds = attempt.questionIds ?? Object.keys(attempt.answers);
+    for (const questionId of questionIds) {
       const question = questions.get(questionId);
-      if (question === undefined || !domain.questionUnits.includes(question.unit)) {
+      if (question === undefined) {
+        continue;
+      }
+      const matchesDomain =
+        question.domainId === undefined
+          ? domain.questionUnits.includes(question.unit)
+          : question.domainId === domain.id;
+      if (!matchesDomain) {
         continue;
       }
       total += 1;
-      if (answer === question.answer) {
+      if (attempt.answers[questionId] === question.answer) {
         correct += 1;
       }
     }
@@ -105,7 +113,9 @@ export function calculateReadiness(
   const exam = getCertificationExam(trackId);
   const format = exam?.format ?? "knowledge";
   const questions = new Map(
-    (exam?.questions ?? []).map((question) => [question.id, question] as const),
+    (exam?.questionPool.length === 0 ? exam.questions : (exam?.questionPool ?? [])).map(
+      (question) => [question.id, question] as const,
+    ),
   );
   const recentKnowledge = knowledgeAttempts
     .filter((attempt) => attempt.trackId === trackId)
