@@ -1317,6 +1317,56 @@ spec:
     expect(engine.execute("kubectl get hpa web").output).toContain("500%/50%");
   });
 
+  it("initializes status for an applied HorizontalPodAutoscaler", () => {
+    const engine = createEngine();
+    engine.seed({
+      nodes: [],
+      objects: [
+        {
+          kind: "Deployment",
+          metadata: { name: "web" },
+          spec: {
+            replicas: 2,
+            template: {
+              labels: { app: "web" },
+              containers: [
+                { name: "web", image: "nginx", resources: { requests: { cpu: "100m" } } },
+              ],
+            },
+          },
+          status: { replicas: 2, readyReplicas: 2, updatedReplicas: 2, availableReplicas: 2 },
+        },
+      ],
+      files: {
+        "hpa.yaml": `apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web
+spec:
+  minReplicas: 2
+  maxReplicas: 8
+  scaleTargetRef:
+    kind: Deployment
+    name: web
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+`,
+      },
+    });
+
+    expect(engine.execute("kubectl apply -f hpa.yaml").ok).toBe(true);
+    engine.step();
+    expect(
+      engine.store.get<KubeHorizontalPodAutoscaler>("HorizontalPodAutoscaler", "web")?.status,
+    ).toBeDefined();
+    expect(engine.execute("kubectl get hpa web").ok).toBe(true);
+  });
+
   it("uses authored Pod usage in top output", () => {
     const engine = createEngine();
     engine.seed({

@@ -2485,15 +2485,19 @@ export class SimEngine {
     const rows = [...items]
       .sort((left, right) => left.metadata.name.localeCompare(right.metadata.name))
       .map((item) => {
+        const status = item.status ?? {
+          currentReplicas: 0,
+          desiredReplicas: 0,
+        };
         const target = this.#hpaTarget(item);
         const utilization =
           target === undefined
             ? undefined
             : target.resource === "cpu"
-              ? item.status.currentCPUUtilization
+              ? status.currentCPUUtilization
               : target.resource === "memory"
-                ? item.status.currentMemoryUtilization
-                : item.status.currentExternalMetric;
+                ? status.currentMemoryUtilization
+                : status.currentExternalMetric;
         return [
           command.allNamespaces
             ? `${item.metadata.namespace}/${item.metadata.name}`
@@ -2510,7 +2514,7 @@ export class SimEngine {
               }/${target.resource === "external" ? String(target.target) : `${target.target}%`}`,
           String(item.spec.minReplicas),
           String(item.spec.maxReplicas),
-          String(item.status.currentReplicas),
+          String(status.currentReplicas),
           `${Math.max(0, this.clock.tick - item.metadata.creationTick)}s`,
         ];
       });
@@ -4328,27 +4332,29 @@ export class SimEngine {
       }
 
       const actualReplicas = deployment.spec.replicas;
+      const status = (autoscaler.status ?? {
+        currentReplicas: actualReplicas,
+        desiredReplicas: actualReplicas,
+      }) as KubeHorizontalPodAutoscaler["status"];
       const target = this.#hpaTarget(autoscaler);
       let utilization =
         target === undefined
           ? undefined
           : target.resource === "cpu"
-            ? autoscaler.status.currentCPUUtilization
+            ? status.currentCPUUtilization
             : target.resource === "memory"
-              ? autoscaler.status.currentMemoryUtilization
-              : autoscaler.status.currentExternalMetric;
+              ? status.currentMemoryUtilization
+              : status.currentExternalMetric;
 
       if (target !== undefined) {
         if (utilization === undefined && target.resource !== "external") {
           utilization = this.#averageUtilization(deployment, target.resource);
         } else if (
           utilization !== undefined &&
-          autoscaler.status.currentReplicas > 0 &&
-          autoscaler.status.currentReplicas !== actualReplicas
+          status.currentReplicas > 0 &&
+          status.currentReplicas !== actualReplicas
         ) {
-          utilization = Math.round(
-            (utilization * autoscaler.status.currentReplicas) / actualReplicas,
-          );
+          utilization = Math.round((utilization * status.currentReplicas) / actualReplicas);
         }
       }
 
@@ -4360,7 +4366,7 @@ export class SimEngine {
         target === undefined || utilization === undefined
           ? Math.min(
               autoscaler.spec.maxReplicas,
-              Math.max(autoscaler.spec.minReplicas, autoscaler.status.desiredReplicas),
+              Math.max(autoscaler.spec.minReplicas, status.desiredReplicas),
             )
           : Math.min(
               autoscaler.spec.maxReplicas,
@@ -4376,8 +4382,7 @@ export class SimEngine {
       if (
         desired < actualReplicas &&
         stabilization > 0 &&
-        this.clock.tick - (autoscaler.status.lastScaleTick ?? autoscaler.metadata.creationTick) <
-          stabilization
+        this.clock.tick - (status.lastScaleTick ?? autoscaler.metadata.creationTick) < stabilization
       ) {
         desired = actualReplicas;
       }

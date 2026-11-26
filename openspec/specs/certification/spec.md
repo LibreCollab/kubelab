@@ -271,3 +271,10 @@ Knowledge exams SHALL select a different weighted 60-question set on each attemp
 #### Scenario: Retake
 - **WHEN** a learner retakes KCNA or KCSA
 - **THEN** the selected question set changes and domain counts remain weighted
+
+### Requirement: Session lab suggestions
+The exam intro SHALL derive suggested labs from the current rotated question set.
+
+#### Scenario: Retake with rotation
+- **WHEN** a learner retakes a knowledge exam
+- **THEN** the suggested labs match the questions selected for that attempt

@@ -86,7 +86,8 @@ describe("lesson completability", () => {
 
       const engine = seed(lesson);
       for (const command of commands) {
-        engine.execute(command);
+        const result = engine.execute(command);
+        expect(result.ok, `${lesson.id}: ${command}`).toBe(true);
         for (let tick = 0; tick < 10; tick += 1) {
           engine.step();
         }

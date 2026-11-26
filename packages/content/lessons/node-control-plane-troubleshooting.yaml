@@ -94,5 +94,5 @@ hints:
   - "Check control plane health: kubectl get pods -n kube-system"
   - "Read the app failure: kubectl logs api"
   - "Correlate events: kubectl get events"
-  - "Inspect the node path with kubectl describe pod api when scheduling looks wrong."
+  - "Inspect scheduling: kubectl describe pod api"
 solution: Separate API-wide failures from node-local and workload-local symptoms before changing anything.

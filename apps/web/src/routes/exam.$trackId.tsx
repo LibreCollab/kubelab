@@ -270,6 +270,14 @@ export function ExamPage() {
   }
 
   const activeExam = sessionExam ?? exam;
+  const labs = [
+    ...new Map(activeExam.questions.map((question) => [question.lessonId, question])).values(),
+  ]
+    .slice(0, 4)
+    .map((question) => ({
+      lessonId: question.lessonId,
+      lessonTitle: question.lessonTitle,
+    }));
   const finish = async (nextAnswers: Record<string, number>) => {
     const graded = gradeExam(activeExam, nextAnswers);
     await saveExamAttempt(activeExam, nextAnswers, graded).catch(() => undefined);
@@ -332,10 +340,10 @@ export function ExamPage() {
               <Button onClick={() => setPhase("running")}>Start exam</Button>
             </>
           )}
-          {exam.labs.length > 0 ? (
+          {labs.length > 0 ? (
             <div className={styles.labs}>
               <span className={styles.labLabel}>Hands-on labs</span>
-              {exam.labs.map((lab) => (
+              {labs.map((lab) => (
                 <Link key={lab.lessonId} to="/lesson/$lessonId" params={{ lessonId: lab.lessonId }}>
                   {lab.lessonTitle}
                 </Link>

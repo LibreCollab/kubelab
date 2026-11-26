@@ -101,6 +101,9 @@ describe("certification task pools", () => {
 
       expect(exam.taskPool).toHaveLength(30);
       expect(exam.taskPool.length).toBeGreaterThan(exam.taskCount);
+      const capstones = exam.taskPool.filter((task) => task.id.includes("capstone"));
+      expect(capstones).toHaveLength(5);
+      expect(capstones.every((task) => task.checks.length >= 4)).toBe(true);
       expect(exam.taskPool.every((task) => task.id.startsWith(`${track}-`))).toBe(true);
       expect(new Set(exam.taskPool.map((task) => task.id)).size).toBe(exam.taskPool.length);
       const mapped = new Set(

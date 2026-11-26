@@ -84,5 +84,5 @@ hints:
   - "Find it: kubectl get pvc data"
   - "Read the events: kubectl describe pvc data"
   - "Inspect the consumer: kubectl describe pod db"
-  - "Compare the requested class with kubectl get storageclass fast."
+  - "Inspect the class: kubectl get storageclass fast"
 solution: Storage failures usually surface as Pending claims and Pending Pods with events naming the missing class or unschedulable volume.

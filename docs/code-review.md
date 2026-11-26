@@ -49,6 +49,7 @@
 | Go | Repeated test logger setup; `io.Discard` boilerplate | `newTestHandler` helper using `slog.DiscardHandler` |
 | Go/Compose | API declared a dependency on Postgres it does not use yet | Removed the false `depends_on`; Postgres remains provisioned for Phase 2 |
 | Go | Unknown `/api/*` paths fell through to the SPA and wrong methods bypassed `405` | JSON `404` for unknown API paths, explicit `405` + `Allow` via `onlyMethod`; tests added |
+| Simulator | Applied HPAs without status crashed reconciliation and reads | HPA status is initialized on apply and guarded on read; regression test added |
 | E2E | Reused stale dev servers on shared ports, masking a wrong proxy target | Dedicated E2E ports (5174 / 18081) and `reuseExistingServer: false` |
 | E2E | Mobile test did not fail on uncaught page errors | Page-error tracking added for consistency |
 
@@ -104,5 +105,5 @@
 
 ## Verification
 
-`mise run lint`, `typecheck`, 358 Vitest tests, Go tests, `gofmt`, `go vet`,
+`mise run lint`, `typecheck`, 359 Vitest tests, Go tests, `gofmt`, `go vet`,
 `mise run build`, and 42 Playwright E2E tests all pass.

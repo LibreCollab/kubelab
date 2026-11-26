@@ -87,6 +87,10 @@ describe("knowledge question banks", () => {
           .filter((domain) => domain.trackId === track)
           .map((domain) => questions.filter((question) => question.domainId === domain.id).length);
         expect(domainCounts.reduce((sum, count) => sum + count, 0)).toBe(60);
+        const answers = [0, 1, 2, 3].map(
+          (answer) => questions.filter((question) => question.answer === answer).length,
+        );
+        expect(Math.max(...answers) - Math.min(...answers)).toBeLessThanOrEqual(6);
       }
     });
   }

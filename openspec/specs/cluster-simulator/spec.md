@@ -552,3 +552,10 @@ The simulator SHALL describe built-in batch and workload controllers.
 #### Scenario: Describe a CronJob
 - **WHEN** a learner runs `kubectl describe cronjob report`
 - **THEN** the simulator returns the stored object details
+
+### Requirement: HPA defaults
+An applied HorizontalPodAutoscaler SHALL receive initial status, and reads SHALL tolerate missing status.
+
+#### Scenario: Apply an HPA
+- **WHEN** a learner applies an HPA manifest without a status block
+- **THEN** reconciliation and `kubectl get hpa` work without crashing
