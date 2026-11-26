@@ -1350,7 +1350,7 @@ spec:
       title: "Capstone: service outage",
       unit: "networking",
       instruction:
-        "Repair the Deployment and Service end to end, then prove a client request succeeds.",
+        "Repair the Deployment, create the Service, then prove a client request succeeds.",
       scenario: scenario(
         {
           "fix.yaml": `${deploymentManifest("web", 3, "nginx:1.27")}---

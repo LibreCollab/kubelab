@@ -141,3 +141,10 @@ Every command shown in a lesson hint SHALL execute successfully in that lesson's
 #### Scenario: Hint audit
 - **WHEN** the completability test runs a documented command
 - **THEN** the simulator returns a successful result before checkpoints are evaluated
+
+### Requirement: Scenario-aligned task instructions
+Hands-on task instructions SHALL describe resources that exist or are explicitly created by the solution manifests.
+
+#### Scenario: Capstone wording
+- **WHEN** a capstone starts without a Service
+- **THEN** the instruction says to create the Service rather than repair it
