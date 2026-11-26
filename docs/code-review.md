@@ -32,7 +32,7 @@
 | Lesson feedback | `pod/web created` looked like success even when a checkpoint failed | Every command now prints the live `[checkpoint] … pending: …` line; tests cover wrong label/image |
 | Lesson guard | Guided lessons still created a Pod from a mismatched `kubectl run` | Strict pre-execution guard rejects wrong name/namespace/labels/image without mutating state; unit + E2E tests |
 | Lesson checks | State-only checks completed the lesson without the verification command | Command checks + engine command log; lesson now requires `kubectl get pods` |
-| Content | Only one lesson and no certification entry points | Glob-loaded curriculum: 34 lessons, 12 units, 5 cert readiness checks, dynamic roadmap |
+| Content | Only one lesson and no certification entry points | Glob-loaded curriculum: 54 teaching lessons, 12 units, 5 cert readiness checks, 25 tasks per hands-on track, dynamic roadmap |
 | Lesson checks | Theory lessons had no completion mechanism | `quiz` check type + knowledge-check UI, validated at load time |
 | Lesson layout | Quiz-only lessons showed an unusable terminal | Terminal omitted; inline feedback for theory lessons |
 | Progress | No persistence, XP, streaks, or unlocks | Dexie-backed local progress, quiz-answer persistence, and linear unlocking with E2E coverage |
@@ -104,5 +104,5 @@
 
 ## Verification
 
-`mise run lint`, `typecheck`, 274 Vitest tests, Go tests, `gofmt`, `go vet`,
+`mise run lint`, `typecheck`, 341 Vitest tests, Go tests, `gofmt`, `go vet`,
 `mise run build`, and 42 Playwright E2E tests all pass.

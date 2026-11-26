@@ -94,11 +94,12 @@ fixed below.
 | 71 | Residual XSS, CSP, question relevance, and audit gaps | Sanitized Markdown, added production CSP, tightened knowledge pools, and added axe/Lighthouse CI gates |
 | 72 | Certification cards did not map curriculum to official exam domains | Added per-certification roadmaps with weighted readiness, weak areas, next actions, and local trends |
 | 73 | Course feedback lacked rationales and practical incidents | Added authored answer explanations, multi-step CKA/CKAD incidents, objective audit, and real-cluster bridge |
-| 74 | Several lessons listed incomplete or missing commands, so checkpoints could not be solved from the hints | Added every required command to hints and a completability gate that executes all documented commands for all 43 lessons |
+| 74 | Several lessons listed incomplete or missing commands, so checkpoints could not be solved from the hints | Added every required command to hints and a completability gate that executes all documented commands for every teaching lesson |
 | 75 | Hands-on exams mixed tasks from other certifications | Added enough per-track tasks and restricted every pool to its own CKA, CKAD, or CKS tasks |
 | 76 | `kubectl get secrets` crashed for Secrets without a type, and CronJob describe was not simulated | Fixed Secret rendering and generic workload describe output, with task-level regression tests |
 | 77 | A single readiness snapshot rendered as a solid green block | Replaced the stretched bar with a first-session summary and fixed-width trend bars |
 | 78 | Cluster status accessible name did not contain its visible text, and scrollable code blocks were not keyboard reachable | Matched the accessible name to the visible summary and made code wrap instead of scroll |
+| 79 | Content was too thin for five-certification prep: 38 short lessons, 60 pooled questions, 16 tasks per track | Expanded to 54 teaching lessons at 150-250 words, 100 domain-weighted questions per knowledge track, and 25 tasks per hands-on track |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -136,7 +137,7 @@ references in the docs.
 
 - `mise run lint` - Biome + Stylelint clean.
 - `mise run typecheck` - all four TS packages clean.
-- `mise run test` - 274 Vitest tests pass, including every lesson's documented
+- `mise run test` - 341 Vitest tests pass, including every lesson's documented
   commands, every certification task, readiness math, progress, guards, and the
   simulator.
 - `mise run e2e` - 42 Playwright tests pass. Every lesson is rendered and checked

@@ -1,0 +1,72 @@
+id: threat-modeling-compliance
+unit: security
+title: Threat modeling and compliance
+xp: 20
+order: 7
+strict: true
+prereqs: [rbac-101, pod-security-101]
+theory: ./threat-modeling-compliance.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: ServiceAccount
+      metadata:
+        name: report-bot
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRole
+      metadata:
+        name: read-nodes
+      rules:
+        - apiGroups: [""]
+          resources: ["nodes"]
+          verbs: ["get", "list"]
+    - apiVersion: rbac.authorization.k8s.io/v1
+      kind: ClusterRoleBinding
+      metadata:
+        name: report-bot-read-nodes
+      roleRef:
+        apiGroup: rbac.authorization.k8s.io
+        kind: ClusterRole
+        name: read-nodes
+      subjects:
+        - kind: ServiceAccount
+          name: report-bot
+objectives:
+  - Map trust boundaries
+  - Apply least privilege
+  - Connect controls to evidence
+checks:
+  - type: command
+    verb: get
+    resource: clusterroles
+    name: read-nodes
+    label: Found the role
+  - type: command
+    verb: get
+    resource: clusterrolebindings
+    name: report-bot-read-nodes
+    label: Found the binding
+  - type: command
+    verb: auth
+    subjectVerb: list
+    subjectResource: nodes
+    as: system:serviceaccount:default:report-bot
+    label: Tested least privilege
+  - type: quiz
+    id: q1
+    label: Threat model
+    question: What is the first step in threat modeling a workload?
+    options:
+      - Identify assets, actors, and trust boundaries
+      - Delete unused namespaces
+      - Increase every replica count
+    answer: 0
+hints:
+  - "Find the role: kubectl get clusterroles read-nodes"
+  - "Find the binding: kubectl get clusterrolebindings report-bot-read-nodes"
+  - "Test it: kubectl auth can-i list nodes --as=system:serviceaccount:default:report-bot"
+solution: Start with assets, actors, and trust boundaries, then map controls and evidence to each risk.

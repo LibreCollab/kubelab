@@ -1,0 +1,68 @@
+id: multi-container-patterns
+unit: workloads
+title: Multi-container patterns
+xp: 15
+order: 9
+strict: true
+prereqs: [init-containers-101]
+theory: ./multi-container-patterns.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        labels:
+          app: web
+      spec:
+        nodeName: node-1
+        containers:
+          - name: web
+            image: nginx:1.27
+          - name: sidecar
+            image: busybox
+            command: ["sh", "-c", "echo sidecar-ready && sleep 3600"]
+      status:
+        phase: Running
+        podIP: 10.244.1.30
+        conditions:
+          - type: Ready
+            status: "True"
+objectives:
+  - Compare sidecar, adapter, and ambassador patterns
+  - Read one container's logs
+  - Keep shared networking in mind
+checks:
+  - type: command
+    verb: get
+    resource: pods
+    name: web
+    label: Found the Pod
+  - type: command
+    verb: logs
+    name: web
+    container: sidecar
+    label: Read sidecar logs
+  - type: command
+    verb: describe
+    resource: pods
+    name: web
+    label: Read both containers
+  - type: quiz
+    id: q1
+    label: Shared network
+    question: What do containers in one Pod share?
+    options:
+      - A network namespace and volumes
+      - Separate node names
+      - Separate API servers
+    answer: 0
+hints:
+  - "Find it: kubectl get pod web"
+  - "Read one container: kubectl logs web -c sidecar"
+  - "Compare containers: kubectl describe pod web"
+solution: Pod containers share the network namespace and any declared volumes, so localhost and volume paths are common integration points.

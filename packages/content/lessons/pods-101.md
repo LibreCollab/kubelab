@@ -31,3 +31,7 @@ kubectl describe pod web
 
 The checkpoint on the right fills in as the Pod appears, gets its label, and
 reaches `Running`.
+
+**Failure modes.** Pods fail for predictable reasons: the scheduler cannot place them, the kubelet cannot pull the image, a probe fails, a volume does not mount, or the process exits. A Running phase does not prove readiness, and a pending phase does not prove the image is wrong.
+
+**Verify.** Verify with `get pods`, `describe pod`, and logs. Read Events for scheduling, image, volume, and probe messages. Check labels and the selected namespace. A Pod is ready when its containers are running, readiness succeeds, and the conditions report Ready=True.

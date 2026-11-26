@@ -15,3 +15,7 @@ kubectl get pods
 ```
 
 The checkpoint updates after each command.
+
+**Failure modes.** A common failure is using the wrong context, namespace, or resource name and believing the cluster is empty. Another is copying a command from a different API version so fields are silently ignored. Output that looks successful can still describe the wrong object.
+
+**Verify.** Verify with the current context, target namespace, and exact resource name. Use `--show-labels`, `-o wide`, and `describe` to confirm identity and state. Before applying a change, read the object back and check the fields that matter rather than trusting the command message.

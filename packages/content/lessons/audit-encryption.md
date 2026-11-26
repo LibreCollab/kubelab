@@ -1,0 +1,5 @@
+Audit logs record who sent which API request, from where, and what the API server decided. They are a security control, not a debugging afterthought. Configure an audit policy that captures metadata for normal requests and request bodies only where policy allows. Send audit output to a protected destination with retention.
+
+Encryption at rest protects Secret data in etcd. It does not protect Secrets from a user who can read them through the API. An encryption configuration defines providers and key material, and the API server must be started with the matching flags. Key rotation requires a migration step; changing the key without rewriting existing data can make objects unreadable.
+
+Failure modes include logging request bodies with credentials, storing audit logs only on the same node, enabling encryption without testing restore, and rotating keys without verifying old objects. Verification: inspect API server flags, confirm the audit policy path, read a recent audit event, and prove a Secret is encrypted in etcd storage. 

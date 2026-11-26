@@ -756,7 +756,7 @@ Full audit: [`docs/architecture-audit.md`](./architecture-audit.md).
 **Ship (Lean v1)**: one VPS (8 GB static-only Phase 1; 16 GB with the API in
 Phase 2), Compose (`envoy` + `api` + `postgres`), 3 packages (`sim` incl.
 kubectl parser, `content`, `ui`), GitHub OAuth + `/me` + `/progress` +
-`/healthz`, 43 lessons across 12 core units + 5 certification readiness checks,
+`/healthz`, 54 teaching lessons across 12 core units + 5 certification readiness checks,
 pod-lifecycle visualization, Vitest + Playwright E2E.
 
 **Explicitly deferred**: Redis, PgBouncer, read replica, partitioning, CDN,

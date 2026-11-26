@@ -1,0 +1,110 @@
+id: dns-troubleshooting
+unit: networking
+title: DNS troubleshooting
+xp: 20
+order: 3
+strict: true
+prereqs: [dns-101]
+theory: ./dns-troubleshooting.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: kube-system
+      status:
+        phase: Active
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: demo
+      status:
+        phase: Active
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: coredns-7d9f8c6f5d-abcde
+        namespace: kube-system
+        labels:
+          k8s-app: kube-dns
+      spec:
+        nodeName: node-1
+        containers:
+          - name: coredns
+            image: registry.k8s.io/coredns/coredns:v1.12.0
+      status:
+        phase: Running
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: client
+        namespace: demo
+        labels:
+          app: client
+      spec:
+        nodeName: node-1
+        containers:
+          - name: client
+            image: busybox
+      status:
+        phase: Running
+        podIP: 10.244.1.21
+        conditions:
+          - type: Ready
+            status: "True"
+    - apiVersion: v1
+      kind: Service
+      metadata:
+        name: web
+        namespace: demo
+      spec:
+        type: ClusterIP
+        selector:
+          app: web
+        ports:
+          - port: 80
+            targetPort: 80
+        clusterIP: 10.96.0.80
+objectives:
+  - Check CoreDNS before blaming the application
+  - Inspect endpoints and selectors
+  - Test resolution from a Pod
+checks:
+  - type: command
+    verb: get
+    resource: pods
+    namespace: kube-system
+    label: Checked CoreDNS
+  - type: command
+    verb: get
+    resource: endpoints
+    name: web
+    namespace: demo
+    label: Checked the Service endpoints
+  - type: command
+    verb: exec
+    name: client
+    namespace: demo
+    command: nslookup
+    label: Resolved from the client
+  - type: quiz
+    id: q1
+    label: Service resolution
+    question: What does a Service name resolve to when no endpoints are ready?
+    options:
+      - A ClusterIP that returns no backends
+      - A random external IP
+      - The node IP only
+    answer: 0
+hints:
+  - "Check DNS: kubectl get pods -n kube-system"
+  - "Check backends: kubectl get endpoints web -n demo"
+  - "Test resolution: kubectl exec client -n demo -- nslookup web"
+solution: DNS can resolve the Service while the request still fails because the Service has no ready endpoints.

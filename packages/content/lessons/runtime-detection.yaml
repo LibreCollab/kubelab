@@ -1,0 +1,73 @@
+id: runtime-detection
+unit: observability
+title: Runtime detection
+xp: 20
+order: 4
+strict: true
+prereqs: [logs-events-101, pod-security-101]
+theory: ./runtime-detection.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: worker
+        labels:
+          app: worker
+      spec:
+        nodeName: node-1
+        containers:
+          - name: worker
+            image: busybox
+      status:
+        phase: Running
+        podIP: 10.244.1.33
+        reason: CrashLoopBackOff
+        logs: ["sh: /tmp/.hidden: permission denied", "unexpected outbound connection attempt"]
+    - apiVersion: v1
+      kind: Event
+      metadata:
+        name: worker-unexpected
+      type: Warning
+      reason: Unhealthy
+      message: Container worker restarted repeatedly
+      involvedObject:
+        kind: Pod
+        name: worker
+        namespace: default
+objectives:
+  - Spot suspicious runtime behavior
+  - Correlate logs, events, and Pod state
+  - Choose containment before deleting evidence
+checks:
+  - type: command
+    verb: logs
+    name: worker
+    label: Read runtime logs
+  - type: command
+    verb: describe
+    resource: pods
+    name: worker
+    label: Read the Pod state
+  - type: command
+    verb: get
+    resource: events
+    label: Read warning events
+  - type: quiz
+    id: q1
+    label: First response
+    question: What should happen before deleting a suspicious Pod?
+    options:
+      - Preserve logs and runtime evidence
+      - Delete the Namespace first
+      - Rotate every image tag
+    answer: 0
+hints:
+  - "Read logs: kubectl logs worker"
+  - "Read state: kubectl describe pod worker"
+  - "Read events: kubectl get events"
+solution: Preserve logs and events before containment so the detection signal can be investigated.

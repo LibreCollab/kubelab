@@ -1,0 +1,68 @@
+id: etcd-backup-restore
+unit: architecture
+title: etcd backup and restore
+xp: 20
+order: 5
+strict: true
+prereqs: [control-plane-101]
+theory: ./etcd-backup-restore.md
+scenario:
+  nodes:
+    - name: master-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: kube-system
+      status:
+        phase: Active
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: etcd-master-1
+        namespace: kube-system
+        labels:
+          component: etcd
+      spec:
+        nodeName: master-1
+        containers:
+          - name: etcd
+            image: registry.k8s.io/etcd:3.5.21-0
+      status:
+        phase: Running
+        podIP: 10.0.0.12
+        conditions:
+          - type: Ready
+            status: "True"
+objectives:
+  - Find the etcd member
+  - Understand snapshot and restore sequence
+  - Verify the datastore is healthy
+checks:
+  - type: command
+    verb: get
+    resource: pods
+    namespace: kube-system
+    label: Found the etcd Pod
+  - type: command
+    verb: describe
+    resource: pods
+    name: etcd-master-1
+    namespace: kube-system
+    label: Read the etcd Pod
+  - type: quiz
+    id: q1
+    label: Restore sequence
+    question: What must happen before restoring an etcd snapshot on a control plane node?
+    options:
+      - Stop the API server and kubelet, then restore
+      - Delete every worker node
+      - Rebuild all container images
+    answer: 0
+hints:
+  - "Find it: kubectl get pods -n kube-system"
+  - "Inspect it: kubectl describe pod etcd-master-1 -n kube-system"
+  - "The simulator cannot execute etcdctl, so focus on locating the member and the restore order."
+solution: Take snapshots with etcdctl snapshot save, stop the control plane, restore with etcdctl snapshot restore, then restart components.

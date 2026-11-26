@@ -1,4 +1,4 @@
-import { certificationExams, getCertificationExam } from "@kubelab/content";
+import { certificationDomains, certificationExams, getCertificationExam } from "@kubelab/content";
 import {
   type KubeConfigMap,
   type KubeDeployment,
@@ -99,9 +99,16 @@ describe("certification task pools", () => {
         return;
       }
 
+      expect(exam.taskPool).toHaveLength(25);
       expect(exam.taskPool.length).toBeGreaterThan(exam.taskCount);
       expect(exam.taskPool.every((task) => task.id.startsWith(`${track}-`))).toBe(true);
       expect(new Set(exam.taskPool.map((task) => task.id)).size).toBe(exam.taskPool.length);
+      const mapped = new Set(
+        certificationDomains
+          .filter((domain) => domain.trackId === track)
+          .flatMap((domain) => domain.taskIds),
+      );
+      expect(exam.taskPool.every((task) => mapped.has(task.id))).toBe(true);
     });
   }
 });

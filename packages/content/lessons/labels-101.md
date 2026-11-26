@@ -15,3 +15,7 @@ kubectl get pods -l app=web
 ```
 
 The checkpoint updates after each command.
+
+**Failure modes.** Label failures are usually silent. A typo, wrong case, or missing key changes which Service, Deployment, or NetworkPolicy selects a Pod. Extra labels are often harmless, but conflicting ownership labels can confuse selectors and dashboards.
+
+**Verify.** Verify selectors from both sides: the workload's selector and the Pod's actual labels. Use `--show-labels` and `get pod --show-labels` before debugging traffic. After a change, confirm the affected Service has endpoints and the intended Pods are the ones selected.

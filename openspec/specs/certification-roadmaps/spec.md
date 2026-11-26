@@ -97,3 +97,10 @@ The dashboard SHALL not present a single readiness snapshot as a multi-point tre
 #### Scenario: Multiple snapshots exist
 - **WHEN** at least two snapshots exist
 - **THEN** the dashboard renders compact bars with the current score
+
+### Requirement: New content is mapped
+Every new cert-focused lesson and task SHALL map to at least one official domain.
+
+#### Scenario: Roadmap coverage
+- **WHEN** certification domains are loaded
+- **THEN** new installation, troubleshooting, security, and delivery content contributes to the relevant domains

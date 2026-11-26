@@ -1,0 +1,7 @@
+Kubernetes authentication starts with a credential and a kubeconfig context. A context combines a cluster endpoint, a user credential, and a default namespace. Switching context changes which cluster and identity `kubectl` uses, which is why copying a kubeconfig blindly is risky.
+
+Control plane certificates usually live under `/etc/kubernetes/pki`. Client certificates identify users and components. The API server trusts configured certificate authorities, and authorization then decides what the authenticated identity may do. Certificate expiry can look like a networking failure because requests fail before authorization is evaluated.
+
+Use `kubectl config view`, `kubectl config current-context`, and `kubectl auth whoami` in a real cluster to confirm identity. Check expiration with the cluster certificate tooling, not by guessing. Rotate certificates in a planned window, and keep a known-good admin credential separate from automation credentials.
+
+Failure modes include an expired client certificate, a kubeconfig pointing at a stale IP, a user with valid authentication but no RBAC permission, and a context using the wrong namespace. Verification: reach the API, confirm identity, then test one authorized and one unauthorized action. 

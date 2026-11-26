@@ -74,4 +74,35 @@ export const quizExplanations: Record<string, string> = {
   "statefulsets-101:q1": "StatefulSets create stable ordinal Pod names starting at db-0.",
   "storageclasses-101:q1": "A StorageClass defines how volumes are dynamically provisioned.",
   "tls-ingress-101:q1": "The Ingress TLS section binds host names to a certificate Secret.",
+  "audit-encryption:q1":
+    "Audit logs record API requests and policy decisions; encryption at rest protects stored Secret data.",
+  "certificates-kubeconfig:q1":
+    "A kubeconfig context combines a cluster, user credentials, and a default namespace.",
+  "cncf-ecosystem:q1": "The CNCF hosts open-source cloud native projects and community programs.",
+  "config-secret-volumes:q1":
+    "Projected ConfigMap volumes refresh after the kubelet sync period; subPath mounts do not update.",
+  "dns-troubleshooting:q1":
+    "A Service name can resolve to a ClusterIP while no ready endpoints exist, so requests still fail.",
+  "etcd-backup-restore:q1":
+    "Stop control plane components before restoring etcd, then restart them against the restored data directory.",
+  "kubeadm-install:q1":
+    "kubeadm init bootstraps control plane certificates and components and prints a join command for workers.",
+  "multi-container-patterns:q1":
+    "Containers in one Pod share a network namespace and any volumes declared for the Pod.",
+  "node-control-plane-troubleshooting:q1":
+    "A failed control plane component usually breaks API access cluster-wide before individual workloads fail.",
+  "resource-requests-limits:q1":
+    "The scheduler uses the sum of container requests; limits constrain runtime usage after placement.",
+  "rollout-strategies:q1":
+    "A Recreate strategy stops old Pods before starting replacements, accepting downtime.",
+  "runtime-detection:q1":
+    "Preserve logs and runtime evidence before deleting or recreating a suspicious workload.",
+  "seccomp-apparmor:q1":
+    "RuntimeDefault seccomp applies the container runtime's default syscall filter.",
+  "storage-debugging:q1":
+    "A claim referencing a missing StorageClass stays Pending until the class is created or the claim is corrected.",
+  "supply-chain-security:q1":
+    "A digest identifies immutable image content, unlike a tag that can be moved.",
+  "threat-modeling-compliance:q1":
+    "Threat modeling starts by identifying assets, actors, and trust boundaries before selecting controls.",
 };

@@ -1,0 +1,68 @@
+id: rollout-strategies
+unit: workloads
+title: Rollout strategies
+xp: 15
+order: 10
+strict: true
+prereqs: [deployments-101]
+theory: ./rollout-strategies.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: web
+      spec:
+        replicas: 2
+        template:
+          labels:
+            app: web
+          containers:
+            - name: web
+              image: nginx:1.26
+      status:
+        replicas: 2
+        readyReplicas: 2
+        updatedReplicas: 2
+        availableReplicas: 2
+objectives:
+  - Recognise rolling and recreate strategies
+  - Inspect rollout progress
+  - Roll back a bad image
+checks:
+  - type: command
+    verb: set
+    resource: deployments
+    name: web
+    container: web
+    image: nginx:1.27
+    label: Updated the image
+  - type: command
+    verb: rollout
+    resource: deployments
+    name: web
+    action: status
+    label: Checked the rollout
+  - type: deployment
+    label: New revision ready
+    name: web
+    replicas: 2
+    image: nginx:1.27
+    ready: true
+  - type: quiz
+    id: q1
+    label: Recreate behavior
+    question: What happens to existing Pods during a Recreate rollout?
+    options:
+      - They are stopped before replacements start
+      - They are kept alongside replacements
+      - They are moved to another cluster
+    answer: 0
+hints:
+  - "Update it: kubectl set image deployment/web web=nginx:1.27"
+  - "Watch it: kubectl rollout status deployment/web"
+solution: RollingUpdate keeps capacity during replacement; Recreate accepts downtime and replaces all Pods.

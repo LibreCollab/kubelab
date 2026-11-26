@@ -100,7 +100,7 @@ simulator to kind or k3d.
 
 ## Current scaffold
 
-- 43 lessons across 12 core units, including 5 certification readiness checks:
+- 59 lessons in total: 54 teaching lessons across 12 core units plus 5 certification readiness checks. Teaching lessons run 150-250 words each:
   interactive terminal lessons through Pods, Deployments, Services, DNS, Ingress,
   ConfigMaps, Secrets, Storage, Scheduling, Networking, RBAC, Observability, Helm,
   Kustomize, GitOps, and operators.
@@ -115,9 +115,11 @@ simulator to kind or k3d.
   Security, startup/gRPC probes, external HPA metrics, Kustomize patches, Helm
   install/rollback, Argo drift/sync, and operator child reconciliation
   rendering, `exec`, `logs`, `auth can-i`, and virtual-clock reconciliation.
-- Real-format certification modes: KCNA/KCSA use 60-question, 90-minute knowledge
-  exams; CKA/CKAD/CKS use 15-task, 120-minute hands-on exams with randomized
-  selection, scoring, weak-domain review, history, and spaced repetition.
+- Real-format certification modes: KCNA/KCSA draw 60-question, 90-minute exams
+  from 100-question domain-weighted banks with balanced answer positions;
+  CKA/CKAD/CKS use 15-task, 120-minute hands-on exams from 25-task pools with
+  randomized selection, scoring, weak-domain review, history, and spaced
+  repetition.
 - Per-certification roadmaps map official domains to lessons and labs, with
   weighted readiness, weak areas, next actions, and local readiness trends.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →

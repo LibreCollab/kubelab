@@ -53,12 +53,30 @@ export default defineConfig({
     sourcemap: true,
     rollupOptions: {
       output: {
-        manualChunks: {
-          react: ["react", "react-dom", "@tanstack/react-router"],
-          xterm: ["@xterm/xterm", "@xterm/addon-fit"],
-          motion: ["motion"],
-          content: ["@kubelab/content"],
-          db: ["dexie"],
+        manualChunks(id) {
+          if (id.includes("knowledge-questions")) {
+            return "knowledge";
+          }
+          if (id.includes("@kubelab/content")) {
+            return "content";
+          }
+          if (
+            id.includes("/react/") ||
+            id.includes("/react-dom/") ||
+            id.includes("@tanstack/react-router")
+          ) {
+            return "react";
+          }
+          if (id.includes("@xterm")) {
+            return "xterm";
+          }
+          if (id.includes("/motion/")) {
+            return "motion";
+          }
+          if (id.includes("/dexie/")) {
+            return "db";
+          }
+          return undefined;
         },
       },
     },

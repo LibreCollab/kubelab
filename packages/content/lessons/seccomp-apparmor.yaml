@@ -1,0 +1,77 @@
+id: seccomp-apparmor
+unit: security
+title: Seccomp and AppArmor
+xp: 20
+order: 5
+strict: true
+prereqs: [pod-security-101]
+theory: ./seccomp-apparmor.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: Namespace
+      metadata:
+        name: secure
+        labels:
+          pod-security.kubernetes.io/enforce: restricted
+      status:
+        phase: Active
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: web
+        namespace: secure
+        labels:
+          app: web
+        annotations:
+          container.apparmor.security.beta.kubernetes.io/web: runtime/default
+      spec:
+        nodeName: node-1
+        securityContext:
+          runAsNonRoot: true
+          seccompProfile:
+            type: RuntimeDefault
+        containers:
+          - name: web
+            image: nginxinc/nginx-unprivileged:1.27
+      status:
+        phase: Running
+        podIP: 10.244.1.32
+        conditions:
+          - type: Ready
+            status: "True"
+objectives:
+  - Apply RuntimeDefault seccomp
+  - Recognise AppArmor annotations
+  - Inspect effective Pod restrictions
+checks:
+  - type: command
+    verb: get
+    resource: pods
+    name: web
+    namespace: secure
+    label: Found the hardened Pod
+  - type: command
+    verb: describe
+    resource: pods
+    name: web
+    namespace: secure
+    label: Read security controls
+  - type: quiz
+    id: q1
+    label: Seccomp scope
+    question: What does a RuntimeDefault seccomp profile do?
+    options:
+      - Blocks uncommon syscalls for the container runtime
+      - Encrypts the container image
+      - Replaces RBAC authorization
+    answer: 0
+hints:
+  - "Find it: kubectl get pod web -n secure"
+  - "Inspect it: kubectl describe pod web -n secure"
+  - "AppArmor uses annotations; seccomp uses securityContext."
+solution: Seccomp filters syscalls, while AppArmor applies mandatory access controls through runtime profiles and annotations.

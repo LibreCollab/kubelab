@@ -13,3 +13,7 @@ kubectl get pod web
 kubectl describe pod web
 kubectl get endpoints web
 ```
+
+**Failure modes.** Probe failures can remove a healthy process from Service endpoints or restart it repeatedly. A readiness probe that is too strict causes 503s; a liveness probe that is too aggressive causes restart loops. Startup probes exist to protect slow boot paths.
+
+**Verify.** Verify probe path, port, thresholds, and timing against the application's real behavior. Check Pod readiness, restart counts, and endpoint membership. Use events and logs to see which probe failed. A correct probe configuration matches startup and steady-state behavior without flapping.

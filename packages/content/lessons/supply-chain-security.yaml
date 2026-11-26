@@ -1,0 +1,60 @@
+id: supply-chain-security
+unit: security
+title: Supply chain security
+xp: 20
+order: 6
+strict: true
+prereqs: [images-101, pod-security-101]
+theory: ./supply-chain-security.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+      spec:
+        replicas: 1
+        template:
+          labels:
+            app: api
+          containers:
+            - name: api
+              image: nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      status:
+        replicas: 1
+        readyReplicas: 1
+        updatedReplicas: 1
+        availableReplicas: 1
+objectives:
+  - Pin images by digest
+  - Understand SBOM and signing
+  - Inspect an admission boundary
+checks:
+  - type: command
+    verb: get
+    resource: deployments
+    name: api
+    label: Found the Deployment
+  - type: command
+    verb: describe
+    resource: deployments
+    name: api
+    label: Read the pinned image
+  - type: quiz
+    id: q1
+    label: Digest versus tag
+    question: Why is an image digest stronger than a mutable tag?
+    options:
+      - It identifies immutable content
+      - It is shorter to type
+      - It makes the image public
+    answer: 0
+hints:
+  - "Find it: kubectl get deployment api"
+  - "Read it: kubectl describe deployment api"
+  - "The theory covers signing, SBOMs, and admission checks outside the simulator."
+solution: Digests pin immutable content; signing, SBOM review, and admission policy enforce provenance before workloads run.

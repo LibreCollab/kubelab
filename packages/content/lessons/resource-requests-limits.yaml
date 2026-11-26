@@ -1,0 +1,66 @@
+id: resource-requests-limits
+unit: scheduling
+title: Requests and limits
+xp: 15
+order: 6
+strict: true
+prereqs: [scheduling-101]
+theory: ./resource-requests-limits.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "2"
+      memory: 4Gi
+  objects:
+    - apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: api
+      spec:
+        replicas: 1
+        template:
+          labels:
+            app: api
+          containers:
+            - name: api
+              image: nginx:1.27
+              resources:
+                requests:
+                  cpu: 250m
+                  memory: 128Mi
+                limits:
+                  cpu: 500m
+                  memory: 256Mi
+      status:
+        replicas: 1
+        readyReplicas: 1
+        updatedReplicas: 1
+        availableReplicas: 1
+objectives:
+  - Distinguish requests from limits
+  - Predict scheduling and throttling behavior
+  - Read resource settings from a Deployment
+checks:
+  - type: command
+    verb: get
+    resource: deployments
+    name: api
+    label: Found the Deployment
+  - type: command
+    verb: describe
+    resource: deployments
+    name: api
+    label: Read resource settings
+  - type: quiz
+    id: q1
+    label: Request versus limit
+    question: Which value does the scheduler use when placing a Pod?
+    options:
+      - The sum of container requests
+      - The sum of container limits
+      - The largest image size
+    answer: 0
+hints:
+  - "Find it: kubectl get deployment api"
+  - "Read it: kubectl describe deployment api"
+solution: Requests drive scheduling, while limits cap runtime usage and can cause throttling or OOM kills.

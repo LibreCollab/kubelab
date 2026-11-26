@@ -1,0 +1,88 @@
+id: storage-debugging
+unit: storage
+title: Debugging storage
+xp: 20
+order: 3
+strict: true
+prereqs: [persistent-volumes-101, storageclasses-101]
+theory: ./storage-debugging.md
+scenario:
+  nodes:
+    - name: node-1
+      cpu: "4"
+      memory: 8Gi
+  objects:
+    - apiVersion: v1
+      kind: StorageClass
+      metadata:
+        name: fast
+      provisioner: ebs.csi.aws.com
+      reclaimPolicy: Delete
+      volumeBindingMode: WaitForFirstConsumer
+    - apiVersion: v1
+      kind: PersistentVolumeClaim
+      metadata:
+        name: data
+      spec:
+        accessModes: [ReadWriteOnce]
+        resources:
+          requests:
+            storage: 5Gi
+        storageClassName: missing-class
+      status:
+        phase: Pending
+    - apiVersion: v1
+      kind: Pod
+      metadata:
+        name: db
+        labels:
+          app: db
+      spec:
+        nodeName: node-1
+        containers:
+          - name: db
+            image: postgres:17
+            volumeMounts:
+              - name: data
+                mountPath: /var/lib/postgresql/data
+        volumes:
+          - name: data
+            persistentVolumeClaim:
+              claimName: data
+      status:
+        phase: Pending
+objectives:
+  - Read PVC events
+  - Compare claim and class names
+  - Trace a volume to its Pod
+checks:
+  - type: command
+    verb: get
+    resource: persistentvolumeclaims
+    name: data
+    label: Found the claim
+  - type: command
+    verb: describe
+    resource: persistentvolumeclaims
+    name: data
+    label: Read claim events
+  - type: command
+    verb: describe
+    resource: pods
+    name: db
+    label: Read the waiting Pod
+  - type: quiz
+    id: q1
+    label: Missing class
+    question: A PVC references a StorageClass that does not exist. What happens?
+    options:
+      - The claim stays Pending until the class exists
+      - The claim binds to any volume
+      - The Pod runs without storage
+    answer: 0
+hints:
+  - "Find it: kubectl get pvc data"
+  - "Read the events: kubectl describe pvc data"
+  - "Inspect the consumer: kubectl describe pod db"
+  - "Compare the requested class with kubectl get storageclass fast."
+solution: Storage failures usually surface as Pending claims and Pending Pods with events naming the missing class or unschedulable volume.
