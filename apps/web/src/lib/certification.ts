@@ -41,6 +41,7 @@ export interface ReviewCard {
   dueAt: number;
   intervalDays: number;
   lapses: number;
+  reps?: number;
 }
 
 export interface ExamResult {
@@ -54,6 +55,34 @@ export interface ExamResult {
 
 const DAY = 24 * 60 * 60 * 1000;
 const INTERVALS = [1, 3, 7, 14, 30];
+
+export interface ReviewSchedule {
+  intervalDays: number;
+  lapses: number;
+  reps: number;
+}
+
+export function nextReviewSchedule(
+  card: ReviewCard | undefined,
+  correct: boolean,
+  lapseDays: number,
+): ReviewSchedule {
+  if (!correct) {
+    return {
+      intervalDays: lapseDays,
+      lapses: (card?.lapses ?? 0) + 1,
+      reps: 0,
+    };
+  }
+
+  const current = card?.reps ?? Math.max(0, INTERVALS.indexOf(card?.intervalDays ?? 0));
+  const reps = Math.min(current + 1, INTERVALS.length - 1);
+  return {
+    intervalDays: INTERVALS[reps] ?? 1,
+    lapses: card?.lapses ?? 0,
+    reps,
+  };
+}
 
 export function gradeExam(exam: CertificationExam, answers: Record<string, number>): ExamResult {
   const incorrect = exam.questions.filter((question) => answers[question.id] !== question.answer);
@@ -99,16 +128,15 @@ export async function saveExamAttempt(
     if (correct && card === undefined) {
       return;
     }
-    const intervalDays = correct
-      ? (INTERVALS[Math.min((card?.lapses ?? 0) + 1, INTERVALS.length - 1)] ?? 1)
-      : 0;
+    const schedule = nextReviewSchedule(card, correct, 0);
     cards.push({
       id: question.id,
       trackId: exam.id,
       questionId: question.id,
-      dueAt: now + intervalDays * DAY,
-      intervalDays,
-      lapses: correct ? (card?.lapses ?? 0) : (card?.lapses ?? 0) + 1,
+      dueAt: now + schedule.intervalDays * DAY,
+      intervalDays: schedule.intervalDays,
+      lapses: schedule.lapses,
+      reps: schedule.reps,
     });
   });
 
@@ -126,15 +154,13 @@ export async function dueReviewCards(now = Date.now()): Promise<ReviewCard[]> {
 }
 
 export async function answerReviewCard(card: ReviewCard, correct: boolean): Promise<void> {
-  const lapses = correct ? card.lapses : card.lapses + 1;
-  const intervalDays = correct
-    ? (INTERVALS[Math.min(card.lapses + 1, INTERVALS.length - 1)] ?? 1)
-    : 1;
+  const schedule = nextReviewSchedule(card, correct, 1);
   await progressDb.reviewCards.put({
     ...card,
-    dueAt: Date.now() + intervalDays * DAY,
-    intervalDays,
-    lapses,
+    dueAt: Date.now() + schedule.intervalDays * DAY,
+    intervalDays: schedule.intervalDays,
+    lapses: schedule.lapses,
+    reps: schedule.reps,
   });
 }
 
