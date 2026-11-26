@@ -151,6 +151,7 @@ export function LabExamPage() {
   const [remaining, setRemaining] = useState(45 * 60);
   const [result, setResult] = useState<LabResult | null>(null);
   const [runKey, setRunKey] = useState(0);
+  const [deadline, setDeadline] = useState<number | null>(null);
   const [, forceUpdate] = useReducer((value: number) => value + 1, 0);
   const durationSeconds = (exam?.durationMinutes ?? 0) * 60;
   const orderedTasks = useMemo(
@@ -213,26 +214,25 @@ export function LabExamPage() {
   }, [exam?.id, exam?.passingScore, phase, runtimes, trackId]);
 
   useEffect(() => {
-    if (phase !== "running") {
+    if (phase !== "running" || deadline === null) {
       return;
     }
-    setRemaining(durationSeconds);
     const unsubscribers = runtimes.map((runtime) =>
       runtime.engine.clock.onTick(() => forceUpdate()),
     );
     runtimes.forEach((runtime) => {
       runtime.engine.start();
     });
-    const timer = window.setInterval(() => {
-      setRemaining((value) => {
-        if (value <= 1) {
-          window.clearInterval(timer);
-          submit();
-          return 0;
-        }
-        return value - 1;
-      });
-    }, 1000);
+    const updateRemaining = () => {
+      const next = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+      setRemaining(next);
+      if (next === 0) {
+        window.clearInterval(timer);
+        submit();
+      }
+    };
+    const timer = window.setInterval(updateRemaining, 1000);
+    updateRemaining();
 
     return () => {
       runtimes.forEach((runtime) => {
@@ -243,7 +243,7 @@ export function LabExamPage() {
       });
       window.clearInterval(timer);
     };
-  }, [durationSeconds, phase, runtimes, submit]);
+  }, [deadline, phase, runtimes, submit]);
 
   if (exam === undefined) {
     return (
@@ -288,12 +288,14 @@ export function LabExamPage() {
   };
 
   const start = () => {
+    setDeadline(Date.now() + durationSeconds * 1000);
     setRemaining(durationSeconds);
     setPhase("running");
   };
 
   const retake = () => {
     setRunKey((value) => value + 1);
+    setDeadline(null);
     setSelected(0);
     setPage(0);
     setResult(null);

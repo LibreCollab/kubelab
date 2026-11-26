@@ -228,13 +228,14 @@ function allocateQuestions(weights: number[], count: number): number[] {
 }
 
 function toExamQuestion(question: KnowledgeQuestion): ExamQuestion {
+  const lesson = lessonsById.get(question.lessonId);
   return {
     id: question.id,
     prompt: question.prompt,
     options: question.options,
     answer: question.answer,
     lessonId: question.lessonId,
-    lessonTitle: question.lessonTitle,
+    lessonTitle: lesson?.title ?? question.lessonTitle,
     unit: question.unit,
     label: question.label,
     explanation: question.explanation,

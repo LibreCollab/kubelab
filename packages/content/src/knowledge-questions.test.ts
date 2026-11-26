@@ -50,6 +50,9 @@ describe("knowledge question banks", () => {
       }
 
       expect(exam.questionPool).toHaveLength(100);
+      for (const question of exam.questionPool) {
+        expect(question.lessonTitle, question.id).toBe(lessonsById.get(question.lessonId)?.title);
+      }
       expect(exam.questions).toHaveLength(60);
       expect(exam.questions.every((question) => question.explanation !== undefined)).toBe(true);
       expect(new Set(exam.questions.map((question) => question.id)).size).toBe(60);

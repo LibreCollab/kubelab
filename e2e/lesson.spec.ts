@@ -1023,6 +1023,40 @@ test("every lesson has no serious accessibility violations", async ({ page }) =>
   }
 });
 
+test("running knowledge exam passes accessibility and mobile checks", async ({ page }) => {
+  await page.goto("/exam/kcna");
+  await page.getByRole("button", { name: "Start exam" }).click();
+  await expect(page.getByText("Answered 0 / 60")).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  expect(serious, serious.map((violation) => violation.id).join(", ")).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
+test("running lab exam passes accessibility and mobile checks", async ({ page }) => {
+  await page.goto("/lab-exam/cka");
+  await page.getByRole("button", { name: "Start lab" }).click();
+  await expect(page.getByRole("button", { name: /Task 1 / }).first()).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  expect(serious, serious.map((violation) => violation.id).join(", ")).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
 test("key pages have no serious accessibility violations", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const route of [

@@ -103,6 +103,8 @@ fixed below.
 | 80 | Three lesson hints contained prose that looked like executable kubectl commands | Rewrote the hints and made the completability gate require every documented command to succeed |
 | 81 | Applying an HPA without status could crash reconciliation or `get hpa`, and lab suggestions stayed tied to the static question set | Initialized and guarded HPA status and derived lab links from the rotated session questions |
 | 82 | The lab sidebar exposed per-task completion and a completed count before submission | Hid checkpoint state during the run and switched the header to review-ready only after submission |
+| 83 | Knowledge review links used stale or missing lesson titles, and the lab timer could stretch when the tab was backgrounded | Resolved titles from lesson metadata and made the lab timer use an absolute deadline |
+| 84 | Running knowledge and lab states lacked accessibility and mobile coverage | Added axe and overflow checks for both live exam states |
 
 Also fixed during the scaffold verification: Postgres 18 volume path, pnpm 11
 build-script allowlist, gitignore excluding the embedded placeholder, Rollup
@@ -143,7 +145,7 @@ references in the docs.
 - `mise run test` - 359 Vitest tests pass, including every lesson's documented
   commands, every certification task, readiness math, progress, guards, and the
   simulator.
-- `mise run e2e` - 42 Playwright tests pass. Every lesson is rendered and checked
+- `mise run e2e` - 44 Playwright tests pass. Every lesson is rendered and checked
   with axe, the full lesson set has no serious accessibility violations, and the
   main terminal, exam, lab, roadmap, mobile, and API flows are covered.
 - `mise run api-test` - Go tests pass, including SPA fallback and method
