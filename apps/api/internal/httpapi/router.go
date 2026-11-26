@@ -44,7 +44,7 @@ func onlyMethod(allowed string, next http.HandlerFunc) http.HandlerFunc {
 
 func apiNotFound(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, "/api/") {
+		if r.URL.Path == "/api" || strings.HasPrefix(r.URL.Path, "/api/") {
 			writeJSON(w, http.StatusNotFound, map[string]string{"error": "not_found"})
 			return
 		}

@@ -42,6 +42,18 @@ func TestMeRequiresAuth(t *testing.T) {
 	}
 }
 
+func TestAPIBasePathReturnsJSON(t *testing.T) {
+	response := serve(http.MethodGet, "/api")
+
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, response.Code)
+	}
+
+	if contentType := response.Header().Get("Content-Type"); contentType != "application/json; charset=utf-8" {
+		t.Fatalf("unexpected content type %q", contentType)
+	}
+}
+
 func TestUnknownAPIPathReturnsJSON(t *testing.T) {
 	response := serve(http.MethodGet, "/api/nope")
 

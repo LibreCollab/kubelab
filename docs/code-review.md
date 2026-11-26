@@ -106,4 +106,4 @@
 ## Verification
 
 `mise run lint`, `typecheck`, 362 Vitest tests, Go tests, `gofmt`, `go vet`,
-`mise run build`, and 47 Playwright E2E tests all pass.
+`mise run build`, and 48 Playwright E2E tests all pass.

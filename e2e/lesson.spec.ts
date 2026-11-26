@@ -1137,6 +1137,26 @@ test("populated practice and roadmap states pass accessibility checks", async ({
   }
 });
 
+test("cluster change scene passes accessibility and mobile checks", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/lesson/deployments-101");
+  await page.locator(".xterm-screen").click();
+  await page.keyboard.type("kubectl create deployment web --image=nginx --replicas=1");
+  await page.keyboard.press("Enter");
+  await expect(page.getByText("Change applied")).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  expect(serious, serious.map((violation) => violation.id).join(", ")).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
 test("key pages have no serious accessibility violations", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const route of [
