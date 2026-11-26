@@ -463,6 +463,8 @@ export class SimEngine {
       }
     } else if (kind === "CronJob") {
       manifest.status ??= {};
+    } else if (kind === "HorizontalPodAutoscaler") {
+      manifest.status ??= { currentReplicas: 0, desiredReplicas: 0 };
     } else if (kind === "PodDisruptionBudget") {
       manifest.status ??= { currentHealthy: 0, desiredHealthy: 0, disruptionsAllowed: 0 };
     } else if (kind === "ResourceQuota") {

@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 
-import { certificationDomains, certificationExams, lessonsById } from "./index";
+import {
+  certificationDomains,
+  certificationExams,
+  examQuestionsForRun,
+  lessonsById,
+} from "./index";
 import { knowledgeByTrack } from "./knowledge-questions";
 
 describe("knowledge question banks", () => {
@@ -44,6 +49,7 @@ describe("knowledge question banks", () => {
         return;
       }
 
+      expect(exam.questionPool).toHaveLength(100);
       expect(exam.questions).toHaveLength(60);
       expect(exam.questions.every((question) => question.explanation !== undefined)).toBe(true);
       expect(new Set(exam.questions.map((question) => question.id)).size).toBe(60);
@@ -60,6 +66,28 @@ describe("knowledge question banks", () => {
         (answer) => exam.questions.filter((question) => question.answer === answer).length,
       );
       expect(Math.max(...answers) - Math.min(...answers)).toBeLessThanOrEqual(6);
+    });
+
+    it(`${track} rotates questions between runs`, () => {
+      const exam = certificationExams.find((candidate) => candidate.id === track);
+      expect(exam).toBeDefined();
+      if (exam === undefined) {
+        return;
+      }
+
+      const first = examQuestionsForRun(exam, 0);
+      const second = examQuestionsForRun(exam, 1);
+      expect(first).toHaveLength(60);
+      expect(second).toHaveLength(60);
+      expect(first.map((question) => question.id)).not.toEqual(
+        second.map((question) => question.id),
+      );
+      for (const questions of [first, second]) {
+        const domainCounts = certificationDomains
+          .filter((domain) => domain.trackId === track)
+          .map((domain) => questions.filter((question) => question.domainId === domain.id).length);
+        expect(domainCounts.reduce((sum, count) => sum + count, 0)).toBe(60);
+      }
     });
   }
 });

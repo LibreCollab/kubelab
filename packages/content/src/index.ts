@@ -154,6 +154,7 @@ export interface CertificationExam {
   taskCount: number;
   taskPool: ExamTask[];
   tasks: ExamTask[];
+  questionPool: ExamQuestion[];
 }
 
 function normalizeTaskCheck(raw: Record<string, unknown>): LessonCheck {
@@ -241,7 +242,7 @@ function toExamQuestion(question: KnowledgeQuestion): ExamQuestion {
   };
 }
 
-function selectKnowledgeQuestions(trackId: string, count: number): ExamQuestion[] {
+function selectKnowledgeQuestions(trackId: string, count: number, runKey = 0): ExamQuestion[] {
   const domains = certificationDomains.filter((domain) => domain.trackId === trackId);
   const bank = knowledgeByTrack[trackId as keyof typeof knowledgeByTrack];
   if (bank === undefined || domains.length === 0) {
@@ -256,9 +257,12 @@ function selectKnowledgeQuestions(trackId: string, count: number): ExamQuestion[
     const sorted = bank
       .filter((question) => question.domainId === domain.id)
       .sort(
-        (left, right) => questionSortKey(trackId, left.id) - questionSortKey(trackId, right.id),
+        (left, right) =>
+          questionSortKey(`${trackId}:${runKey}`, left.id) -
+          questionSortKey(`${trackId}:${runKey}`, right.id),
       );
-    const buckets = [0, 1, 2, 3].map((answer) =>
+    const bucketOrder = [0, 1, 2, 3].map((answer) => (answer + runKey) % 4);
+    const buckets = bucketOrder.map((answer) =>
       sorted.filter((question) => question.answer === answer),
     );
     const selected: KnowledgeQuestion[] = [];
@@ -273,7 +277,11 @@ function selectKnowledgeQuestions(trackId: string, count: number): ExamQuestion[
       }
     }
     return selected
-      .sort((left, right) => questionSortKey(trackId, left.id) - questionSortKey(trackId, right.id))
+      .sort(
+        (left, right) =>
+          questionSortKey(`${trackId}:${runKey}`, left.id) -
+          questionSortKey(`${trackId}:${runKey}`, right.id),
+      )
       .map(toExamQuestion);
   });
 }
@@ -312,8 +320,19 @@ export const certificationExams: CertificationExam[] = certificationTracks.map((
     taskCount,
     taskPool,
     tasks: taskPool.slice(0, taskCount),
+    questionPool:
+      track.format === "knowledge"
+        ? (knowledgeByTrack[track.id as keyof typeof knowledgeByTrack] ?? []).map(toExamQuestion)
+        : [],
   };
 });
+
+export function examQuestionsForRun(exam: CertificationExam, runKey: number): ExamQuestion[] {
+  if (exam.format !== "knowledge") {
+    return exam.questions;
+  }
+  return selectKnowledgeQuestions(exam.id, exam.questionCount, runKey);
+}
 
 export const examQuestionsById = new Map(
   [...knowledgeByTrack.kcna, ...knowledgeByTrack.kcsa].map(

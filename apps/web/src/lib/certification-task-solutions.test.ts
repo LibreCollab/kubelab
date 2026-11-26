@@ -99,7 +99,7 @@ describe("certification task pools", () => {
         return;
       }
 
-      expect(exam.taskPool).toHaveLength(25);
+      expect(exam.taskPool).toHaveLength(30);
       expect(exam.taskPool.length).toBeGreaterThan(exam.taskCount);
       expect(exam.taskPool.every((task) => task.id.startsWith(`${track}-`))).toBe(true);
       expect(new Set(exam.taskPool.map((task) => task.id)).size).toBe(exam.taskPool.length);

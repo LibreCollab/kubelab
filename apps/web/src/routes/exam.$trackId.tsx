@@ -1,7 +1,12 @@
-import { type CertificationExam, type ExamQuestion, getCertificationExam } from "@kubelab/content";
+import {
+  type CertificationExam,
+  type ExamQuestion,
+  examQuestionsForRun,
+  getCertificationExam,
+} from "@kubelab/content";
 import { Button, cx } from "@kubelab/ui";
 import { Link, useParams } from "@tanstack/react-router";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { type ExamResult, gradeExam, saveExamAttempt } from "../lib/certification";
 import styles from "./certification.module.scss";
@@ -249,6 +254,11 @@ export function ExamPage() {
   const [answers, setAnswers] = useState<Record<string, number>>({});
   const [result, setResult] = useState<ExamResult | null>(null);
   const [runKey, setRunKey] = useState(0);
+  const sessionExam = useMemo(
+    () =>
+      exam === undefined ? undefined : { ...exam, questions: examQuestionsForRun(exam, runKey) },
+    [exam, runKey],
+  );
 
   if (exam === undefined) {
     return (
@@ -259,9 +269,10 @@ export function ExamPage() {
     );
   }
 
+  const activeExam = sessionExam ?? exam;
   const finish = async (nextAnswers: Record<string, number>) => {
-    const graded = gradeExam(exam, nextAnswers);
-    await saveExamAttempt(exam, nextAnswers, graded).catch(() => undefined);
+    const graded = gradeExam(activeExam, nextAnswers);
+    await saveExamAttempt(activeExam, nextAnswers, graded).catch(() => undefined);
     setAnswers(nextAnswers);
     setResult(graded);
     setPhase("review");
@@ -335,11 +346,11 @@ export function ExamPage() {
       ) : null}
 
       {phase === "running" && exam.format === "knowledge" ? (
-        <ExamRunner key={runKey} exam={exam} onFinish={finish} />
+        <ExamRunner key={runKey} exam={activeExam} onFinish={finish} />
       ) : null}
 
       {phase === "review" && result !== null ? (
-        <ExamReview exam={exam} answers={answers} result={result} onRetake={retake} />
+        <ExamReview exam={activeExam} answers={answers} result={result} onRetake={retake} />
       ) : null}
     </div>
   );

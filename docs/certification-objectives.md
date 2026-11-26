@@ -1,6 +1,6 @@
 # Certification objective coverage
 
-Last reviewed: 2026-11-25. Weights come from the published CNCF candidate handbooks available at this date and should be rechecked when a guide changes.
+Last reviewed: 2026-11-26. Weights come from the published CNCF candidate handbooks available at this date and should be rechecked when a guide changes.
 
 The machine-readable source is `packages/content/src/certification-roadmaps.ts`.
 
@@ -28,32 +28,32 @@ The machine-readable source is `packages/content/src/certification-roadmaps.ts`.
 
 | Domain | Weight | Lessons | Tasks |
 | --- | ---: | ---: | ---: |
-| Cluster architecture, installation and configuration | 25% | 7 | 4 |
-| Workloads and scheduling | 15% | 13 | 10 |
-| Services and networking | 20% | 7 | 6 |
-| Storage | 10% | 3 | 3 |
+| Cluster architecture, installation and configuration | 25% | 7 | 5 |
+| Workloads and scheduling | 15% | 13 | 11 |
+| Services and networking | 20% | 7 | 8 |
+| Storage | 10% | 3 | 4 |
 | Troubleshooting | 30% | 8 | 5 |
 
 ## CKAD
 
 | Domain | Weight | Lessons | Tasks |
 | --- | ---: | ---: | ---: |
-| Application design and build | 20% | 6 | 9 |
-| Application deployment | 20% | 6 | 8 |
-| Application observability and maintenance | 15% | 5 | 3 |
+| Application design and build | 20% | 6 | 12 |
+| Application deployment | 20% | 6 | 9 |
+| Application observability and maintenance | 15% | 5 | 4 |
 | Application environment, configuration and security | 25% | 6 | 7 |
-| Services and networking | 20% | 6 | 4 |
+| Services and networking | 20% | 6 | 5 |
 
 ## CKS
 
 | Domain | Weight | Lessons | Tasks |
 | --- | ---: | ---: | ---: |
 | Cluster setup | 10% | 5 | 1 |
-| Cluster hardening | 15% | 4 | 8 |
-| System hardening | 15% | 5 | 10 |
-| Minimize microservice vulnerabilities | 20% | 3 | 5 |
-| Supply chain security | 20% | 5 | 4 |
-| Monitoring, logging and runtime security | 20% | 4 | 5 |
+| Cluster hardening | 15% | 4 | 10 |
+| System hardening | 15% | 5 | 11 |
+| Minimize microservice vulnerabilities | 20% | 3 | 6 |
+| Supply chain security | 20% | 5 | 5 |
+| Monitoring, logging and runtime security | 20% | 4 | 6 |
 
 ## Known gaps
 

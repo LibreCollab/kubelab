@@ -1345,6 +1345,266 @@ spec:
         },
       ],
     },
+    {
+      id: "cka-capstone-service",
+      title: "Capstone: service outage",
+      unit: "networking",
+      instruction:
+        "Repair the Deployment and Service end to end, then prove a client request succeeds.",
+      scenario: scenario(
+        {
+          "fix.yaml": `${deploymentManifest("web", 3, "nginx:1.27")}---
+${serviceManifest("web")}`,
+        },
+        [
+          {
+            kind: "Deployment",
+            metadata: { name: "web" },
+            spec: {
+              replicas: 1,
+              template: {
+                labels: { app: "web" },
+                containers: [{ name: "web", image: "nginx:1.25" }],
+              },
+            },
+            status: { replicas: 1, readyReplicas: 1, updatedReplicas: 1, availableReplicas: 1 },
+          },
+          pod("client", {}, "10.244.0.300"),
+        ],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Three ready replicas",
+          name: "web",
+          replicas: 3,
+          image: "nginx:1.27",
+          ready: true,
+        },
+        { type: "service", label: "Web Service", name: "web", port: 80 },
+        get("Verified endpoints", "endpoints", "web"),
+        { type: "command", label: "Tested routing", verb: "exec", name: "client", command: "curl" },
+        get("Read the Deployment", "deployments", "web"),
+      ],
+    },
+    {
+      id: "cka-capstone-storage",
+      title: "Capstone: storage recovery",
+      unit: "storage",
+      instruction: "Create the volume, claim, and consumer, then verify the claim and Pod.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: data-pv
+spec:
+  capacity:
+    storage: 2Gi
+  accessModes: [ReadWriteOnce]
+  hostPath:
+    path: /data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: data
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: db
+spec:
+  containers:
+    - name: db
+      image: postgres:17
+      volumeMounts:
+        - name: data
+          mountPath: /var/lib/postgresql/data
+  volumes:
+    - name: data
+      persistentVolumeClaim:
+        claimName: data
+`,
+      }),
+      checks: [
+        get("Listed the claim", "persistentvolumeclaims", "data"),
+        get("Listed the volume", "persistentvolumes", "data-pv"),
+        {
+          type: "pod",
+          label: "Database Pod running",
+          name: "db",
+          image: "postgres:17",
+          phase: "Running",
+        },
+        describe("Read the Pod", "pods", "db"),
+        describe("Read the claim", "persistentvolumeclaims", "data"),
+      ],
+    },
+    {
+      id: "cka-capstone-rbac",
+      title: "Capstone: least privilege",
+      unit: "security",
+      instruction:
+        "Create a namespaced Role and Binding, then prove the ServiceAccount can read Secrets.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: app-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: app-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: app-reader
+`,
+      }),
+      checks: [
+        get("Listed the Role", "roles", "secret-reader"),
+        get("Listed the binding", "rolebindings", "app-reader"),
+        {
+          type: "command",
+          label: "Tested get",
+          verb: "auth",
+          subjectVerb: "get",
+          subjectResource: "secrets",
+          as: "system:serviceaccount:default:app-reader",
+        },
+        {
+          type: "command",
+          label: "Tested list",
+          verb: "auth",
+          subjectVerb: "list",
+          subjectResource: "secrets",
+          as: "system:serviceaccount:default:app-reader",
+        },
+        describe("Read the Role", "roles", "secret-reader"),
+      ],
+    },
+    {
+      id: "cka-capstone-tls",
+      title: "Capstone: TLS application",
+      unit: "networking",
+      instruction: "Deploy the application, Service, and TLS Ingress, then prove HTTPS routing.",
+      scenario: scenario(
+        {
+          "fix.yaml": `${deploymentManifest("web", 2, "nginx:1.27")}---
+${serviceManifest("web")}---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: shop
+spec:
+  tls:
+    - hosts: [shop.example.com]
+      secretName: shop-tls
+  rules:
+    - host: shop.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  number: 80
+`,
+        },
+        [pod("client", {}, "10.244.0.301")],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Two ready replicas",
+          name: "web",
+          replicas: 2,
+          image: "nginx:1.27",
+          ready: true,
+        },
+        { type: "service", label: "Web Service", name: "web", port: 80 },
+        {
+          type: "ingress",
+          label: "TLS Ingress",
+          name: "shop",
+          host: "shop.example.com",
+          serviceName: "web",
+        },
+        { type: "command", label: "Tested HTTPS", verb: "exec", name: "client", command: "curl" },
+        get("Verified endpoints", "endpoints", "web"),
+      ],
+    },
+    {
+      id: "cka-capstone-scaling",
+      title: "Capstone: scaling and disruption",
+      unit: "scheduling",
+      instruction:
+        "Apply the Deployment, HPA, and PDB, then verify scaling and disruption settings.",
+      scenario: scenario({
+        "fix.yaml": `${deploymentManifest("web", 2, "nginx:1.27")}---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: web
+spec:
+  minReplicas: 2
+  maxReplicas: 8
+  scaleTargetRef:
+    kind: Deployment
+    name: web
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 60
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web
+`,
+      }),
+      checks: [
+        {
+          type: "deployment",
+          label: "Web Deployment",
+          name: "web",
+          replicas: 2,
+          image: "nginx:1.27",
+        },
+        get("Listed the HPA", "horizontalpodautoscalers", "web"),
+        describe("Read the HPA", "horizontalpodautoscalers", "web"),
+        get("Listed the PDB", "poddisruptionbudgets", "web"),
+        describe("Read the PDB", "poddisruptionbudgets", "web"),
+      ],
+    },
   ],
   ckad: [
     {
@@ -2358,6 +2618,290 @@ spec:
         },
       ],
     },
+    {
+      id: "ckad-capstone-app",
+      title: "Capstone: full application",
+      unit: "services",
+      instruction:
+        "Build the ConfigMap, Secret, Deployment, Service, and Ingress, then test the route.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-config
+data:
+  MODE: prod
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+stringData:
+  password: rotated
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: app
+spec:
+  replicas: 2
+  template:
+    labels:
+      app: app
+    containers:
+      - name: app
+        image: nginx:1.27
+        env:
+          - name: MODE
+            value: prod
+        envFrom:
+          - configMapRef:
+              name: app-config
+          - secretRef:
+              name: db-secret
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: app
+spec:
+  selector:
+    app: app
+  ports:
+    - port: 80
+      targetPort: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: app
+spec:
+  rules:
+    - host: app.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: app
+                port:
+                  number: 80
+`,
+        },
+        [pod("client", {}, "10.244.0.310")],
+      ),
+      checks: [
+        {
+          type: "deployment",
+          label: "Two ready replicas",
+          name: "app",
+          replicas: 2,
+          image: "nginx:1.27",
+          ready: true,
+        },
+        { type: "service", label: "App Service", name: "app", port: 80 },
+        {
+          type: "ingress",
+          label: "App Ingress",
+          name: "app",
+          host: "app.example.com",
+          serviceName: "app",
+        },
+        {
+          type: "env",
+          label: "Mode injected",
+          deployment: "app",
+          name: "MODE",
+          value: "prod",
+          sourceKind: "ConfigMap",
+          sourceName: "app-config",
+        },
+        { type: "command", label: "Tested route", verb: "exec", name: "client", command: "curl" },
+      ],
+    },
+    {
+      id: "ckad-capstone-batch",
+      title: "Capstone: batch platform",
+      unit: "workloads",
+      instruction: "Apply the Job and CronJob, then verify completions and schedule.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: batch/v1
+kind: Job
+metadata:
+  name: migrate
+spec:
+  completions: 2
+  parallelism: 1
+  template:
+    spec:
+      containers:
+        - name: migrate
+          image: busybox
+          command: ["sh", "-c", "true"]
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: report
+spec:
+  schedule: "*/10 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+            - name: report
+              image: busybox
+              command: ["sh", "-c", "date"]
+`,
+      }),
+      checks: [
+        get("Listed the Job", "jobs", "migrate"),
+        describe("Read the Job", "jobs", "migrate"),
+        get("Listed the CronJob", "cronjobs", "report"),
+        describe("Read the CronJob", "cronjobs", "report"),
+        get("Listed batch Pods", "pods"),
+      ],
+    },
+    {
+      id: "ckad-capstone-sidecar",
+      title: "Capstone: sidecar application",
+      unit: "workloads",
+      instruction: "Apply the two-container Pod and Service, then read the sidecar logs.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  containers:
+    - name: web
+      image: nginx:1.27
+    - name: sidecar
+      image: busybox
+      command: ["sh", "-c", "echo sidecar-ready && sleep 3600"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 80
+`,
+      }),
+      checks: [
+        {
+          type: "pod",
+          label: "Web running",
+          name: "web",
+          image: "nginx:1.27",
+          phase: "Running",
+        },
+        {
+          type: "command",
+          label: "Read sidecar logs",
+          verb: "logs",
+          name: "web",
+          container: "sidecar",
+        },
+        { type: "service", label: "Web Service", name: "web", port: 80 },
+        get("Checked endpoints", "endpoints", "web"),
+      ],
+    },
+    {
+      id: "ckad-capstone-rollout",
+      title: "Capstone: safe rollout",
+      unit: "deployment",
+      instruction: "Apply the Deployment, PDB, and updated image, then verify the rollout.",
+      scenario: scenario({
+        "fix.yaml": `${deploymentManifest("web", 2, "nginx:1.27")}---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: web
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: web
+`,
+      }),
+      checks: [
+        {
+          type: "deployment",
+          label: "Rollout ready",
+          name: "web",
+          replicas: 2,
+          image: "nginx:1.27",
+          ready: true,
+        },
+        get("Listed the PDB", "poddisruptionbudgets", "web"),
+        describe("Read the PDB", "poddisruptionbudgets", "web"),
+        {
+          type: "command",
+          label: "Checked rollout",
+          verb: "rollout",
+          action: "status",
+          resource: "deployments",
+          name: "web",
+        },
+        get("Read the Deployment", "deployments", "web"),
+      ],
+    },
+    {
+      id: "ckad-capstone-probes",
+      title: "Capstone: probe-ready service",
+      unit: "observability",
+      instruction: "Apply the Pod with a readiness probe and Service, then verify endpoints.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: web
+  labels:
+    app: web
+spec:
+  containers:
+    - name: web
+      image: nginx:1.27
+      readinessProbe:
+        exec:
+          command: ["true"]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 80
+`,
+      }),
+      checks: [
+        {
+          type: "pod",
+          label: "Web ready",
+          name: "web",
+          image: "nginx:1.27",
+          phase: "Running",
+        },
+        { type: "service", label: "Web Service", name: "web", port: 80 },
+        get("Checked endpoints", "endpoints", "web"),
+        describe("Read the probe", "pods", "web"),
+        get("Read the Pod", "pods", "web"),
+      ],
+    },
   ],
   cks: [
     {
@@ -3270,6 +3814,258 @@ spec:
           phase: "Running",
         },
         describe("Read the Pod", "pods", "worker"),
+      ],
+    },
+    {
+      id: "cks-capstone-platform",
+      title: "Capstone: hardened platform",
+      unit: "security",
+      instruction:
+        "Apply the restricted Namespace, hardened Deployment, and Service, then inspect the controls.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Namespace
+metadata:
+  name: restricted
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  namespace: restricted
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: web
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: web
+          image: nginxinc/nginx-unprivileged:1.27
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+  namespace: restricted
+spec:
+  selector:
+    app: web
+  ports:
+    - port: 80
+      targetPort: 80
+`,
+      }),
+      checks: [
+        get("Listed the Namespace", "namespaces", "restricted"),
+        { ...get("Found the Deployment", "deployments", "web"), namespace: "restricted" },
+        { ...get("Found the Pods", "pods"), namespace: "restricted" },
+        { ...describe("Read the Deployment", "deployments", "web"), namespace: "restricted" },
+        { ...get("Found the Service", "services", "web"), namespace: "restricted" },
+      ],
+    },
+    {
+      id: "cks-capstone-netpol",
+      title: "Capstone: default deny",
+      unit: "networking",
+      instruction:
+        "Apply the deny policy and allow only the intended client, then verify the policy.",
+      scenario: scenario(
+        {
+          "fix.yaml": `apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web-allow-client
+spec:
+  podSelector:
+    matchLabels:
+      app: web
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app: client
+      ports:
+        - port: 80
+`,
+        },
+        [
+          pod("web", { app: "web" }, "10.244.0.320"),
+          pod("client", { app: "client" }, "10.244.0.321"),
+          service("web", { app: "web" }, "10.96.0.320"),
+        ],
+      ),
+      checks: [
+        get("Listed the policy", "networkpolicies", "web-allow-client"),
+        describe("Read the policy", "networkpolicies", "web-allow-client"),
+        { type: "command", label: "Tested client", verb: "exec", name: "client", command: "curl" },
+        get("Checked endpoints", "endpoints", "web"),
+      ],
+    },
+    {
+      id: "cks-capstone-supply",
+      title: "Capstone: supply chain",
+      unit: "config",
+      instruction: "Apply the rotated Secret and digest-pinned Deployment, then verify both.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Secret
+metadata:
+  name: db-secret
+stringData:
+  password: rotated
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  replicas: 1
+  template:
+    labels:
+      app: api
+    containers:
+      - name: api
+        image: nginx@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        env:
+          - name: DB_PASSWORD
+            value: rotated
+        envFrom:
+          - secretRef:
+              name: db-secret
+`,
+      }),
+      checks: [
+        {
+          type: "deployment",
+          label: "Digest pinned",
+          name: "api",
+          replicas: 1,
+          image: "nginx@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+        },
+        get("Listed the Secret", "secrets", "db-secret"),
+        {
+          type: "env",
+          label: "Secret rotated",
+          deployment: "api",
+          name: "DB_PASSWORD",
+          value: "rotated",
+          sourceKind: "Secret",
+          sourceName: "db-secret",
+        },
+        describe("Inspected the Deployment", "deployments", "api"),
+      ],
+    },
+    {
+      id: "cks-capstone-rbac",
+      title: "Capstone: secret RBAC",
+      unit: "security",
+      instruction: "Apply the least-privilege Secret Role and Binding, then test access.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: secret-reader
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: secret-reader
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: secret-reader
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: secret-reader
+subjects:
+  - kind: ServiceAccount
+    name: secret-reader
+`,
+      }),
+      checks: [
+        get("Listed the Role", "roles", "secret-reader"),
+        get("Listed the binding", "rolebindings", "secret-reader"),
+        {
+          type: "command",
+          label: "Tested get",
+          verb: "auth",
+          subjectVerb: "get",
+          subjectResource: "secrets",
+          as: "system:serviceaccount:default:secret-reader",
+        },
+        describe("Read the Role", "roles", "secret-reader"),
+      ],
+    },
+    {
+      id: "cks-capstone-runtime",
+      title: "Capstone: runtime hardening",
+      unit: "observability",
+      instruction: "Apply the hardened Pod and Service, then verify runtime controls and logs.",
+      scenario: scenario({
+        "fix.yaml": `apiVersion: v1
+kind: Pod
+metadata:
+  name: worker
+  labels:
+    app: worker
+  annotations:
+    container.apparmor.security.beta.kubernetes.io/worker: runtime/default
+spec:
+  securityContext:
+    runAsNonRoot: true
+    seccompProfile:
+      type: RuntimeDefault
+  containers:
+    - name: worker
+      image: busybox
+      command: ["sh", "-c", "echo ready && sleep 3600"]
+      securityContext:
+        allowPrivilegeEscalation: false
+        readOnlyRootFilesystem: true
+        capabilities:
+          drop: [ALL]
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: worker
+spec:
+  selector:
+    app: worker
+  ports:
+    - port: 80
+      targetPort: 80
+`,
+      }),
+      checks: [
+        {
+          type: "pod",
+          label: "Hardened Pod running",
+          name: "worker",
+          image: "busybox",
+          phase: "Running",
+        },
+        { type: "service", label: "Worker Service", name: "worker", port: 80 },
+        describe("Read runtime controls", "pods", "worker"),
+        { type: "command", label: "Read runtime logs", verb: "logs", name: "worker" },
       ],
     },
   ],

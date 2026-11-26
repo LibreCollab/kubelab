@@ -116,10 +116,11 @@ simulator to kind or k3d.
   install/rollback, Argo drift/sync, and operator child reconciliation
   rendering, `exec`, `logs`, `auth can-i`, and virtual-clock reconciliation.
 - Real-format certification modes: KCNA/KCSA draw 60-question, 90-minute exams
-  from 100-question domain-weighted banks with balanced answer positions;
-  CKA/CKAD/CKS use 15-task, 120-minute hands-on exams from 25-task pools with
-  randomized selection, scoring, weak-domain review, history, and spaced
-  repetition.
+  from 100-question domain-weighted banks with balanced answer positions and
+  per-attempt rotation;
+  CKA/CKAD/CKS use 15-task, 120-minute hands-on exams from 30-task pools with
+  capstone incidents, randomized selection, scoring, weak-domain review,
+  history, and spaced repetition.
 - Per-certification roadmaps map official domains to lessons and labs, with
   weighted readiness, weak areas, next actions, and local readiness trends.
 - Live cluster map beside the terminal: Nodes → Deployments → ReplicaSets →

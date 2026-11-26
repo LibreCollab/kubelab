@@ -441,7 +441,7 @@ export const certificationDomains: CertificationDomain[] = [
 ];
 
 const additionalDomainTasks: Record<string, string[]> = {
-  "cka-architecture": ["cka-etcd-inspect", "cka-secret-volume"],
+  "cka-architecture": ["cka-etcd-inspect", "cka-secret-volume", "cka-capstone-rbac"],
   "cka-workloads": [
     "cka-resource-guard",
     "cka-affinity-zone",
@@ -449,23 +449,44 @@ const additionalDomainTasks: Record<string, string[]> = {
     "cka-toleration",
     "cka-cronjob-report",
     "cka-rollback-drill",
+    "cka-capstone-scaling",
   ],
-  "cka-networking": ["cka-nodeport-service"],
-  "ckad-design-build": ["ckad-sidecar", "ckad-statefulset", "ckad-config-volume"],
-  "ckad-deployment": ["ckad-resource-limits", "ckad-job-completions", "ckad-rollout-check"],
-  "ckad-observability": ["ckad-hpa-inspect"],
+  "cka-networking": ["cka-nodeport-service", "cka-capstone-service", "cka-capstone-tls"],
+  "cka-storage": ["cka-capstone-storage"],
+  "ckad-design-build": [
+    "ckad-sidecar",
+    "ckad-statefulset",
+    "ckad-config-volume",
+    "ckad-capstone-app",
+    "ckad-capstone-batch",
+    "ckad-capstone-sidecar",
+  ],
+  "ckad-deployment": [
+    "ckad-resource-limits",
+    "ckad-job-completions",
+    "ckad-rollout-check",
+    "ckad-capstone-rollout",
+  ],
+  "ckad-observability": ["ckad-hpa-inspect", "ckad-capstone-probes"],
   "ckad-config-security": ["ckad-config-volume", "ckad-secret-volume", "ckad-incident-secret"],
-  "ckad-services": ["ckad-tls-route"],
-  "cks-cluster-hardening": ["cks-secret-rbac", "cks-namespace-hardening", "cks-quota-guard"],
+  "ckad-services": ["ckad-tls-route", "ckad-capstone-app"],
+  "cks-cluster-hardening": [
+    "cks-secret-rbac",
+    "cks-namespace-hardening",
+    "cks-quota-guard",
+    "cks-capstone-platform",
+    "cks-capstone-rbac",
+  ],
   "cks-system-hardening": [
     "cks-namespace-hardening",
     "cks-apparmor",
     "cks-readonly-root-2",
     "cks-serviceaccount-token",
+    "cks-capstone-platform",
   ],
-  "cks-microservice": ["cks-egress-deny"],
-  "cks-supply-chain": ["cks-digest-enforce"],
-  "cks-monitoring": ["cks-runtime-class"],
+  "cks-microservice": ["cks-egress-deny", "cks-capstone-netpol"],
+  "cks-supply-chain": ["cks-digest-enforce", "cks-capstone-supply"],
+  "cks-monitoring": ["cks-runtime-class", "cks-capstone-runtime"],
 };
 
 for (const domain of certificationDomains) {
