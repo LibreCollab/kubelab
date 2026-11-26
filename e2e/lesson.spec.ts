@@ -1057,6 +1057,50 @@ test("running lab exam passes accessibility and mobile checks", async ({ page })
   ).toBe(false);
 });
 
+test("knowledge review passes accessibility and mobile checks", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/exam/kcna");
+  await page.getByRole("button", { name: "Start exam" }).click();
+  for (let index = 0; index < 5; index += 1) {
+    await page.getByRole("button", { name: "Next page" }).click();
+  }
+  await page.getByRole("button", { name: "Submit exam" }).click();
+  await expect(page.getByText("Not passed")).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  expect(serious, serious.map((violation) => violation.id).join(", ")).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
+test("lab review passes accessibility and mobile checks", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto("/lab-exam/cka");
+  await page.getByRole("button", { name: "Start lab" }).click();
+  for (let index = 0; index < 2; index += 1) {
+    await page.getByRole("button", { name: "Next page" }).click();
+  }
+  await page.getByRole("button", { name: "Submit lab exam" }).click();
+  await expect(page.getByText("Not passed")).toBeVisible();
+  const results = await new AxeBuilder({ page }).analyze();
+  const serious = results.violations.filter(
+    (violation) => violation.impact === "serious" || violation.impact === "critical",
+  );
+  expect(serious, serious.map((violation) => violation.id).join(", ")).toEqual([]);
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth > document.documentElement.clientWidth,
+    ),
+  ).toBe(false);
+});
+
 test("key pages have no serious accessibility violations", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   for (const route of [
