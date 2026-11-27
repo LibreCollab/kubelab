@@ -70,7 +70,7 @@ The dashboard SHALL summarize the relevant knowledge-exam and hands-on-lab histo
 - **THEN** recent lab scores, task pass rates, and mapped domain performance are shown
 
 ### Requirement: Preparation actions
-The dashboard SHALL provide direct actions for the next lesson, applicable exam, weak practice, and full exam history.
+The dashboard SHALL provide direct actions for the next lesson, applicable exam, recent weak practice, and its local exam evidence.
 
 #### Scenario: Learner starts preparation
 - **WHEN** the learner selects the next domain action

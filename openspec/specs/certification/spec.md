@@ -91,11 +91,11 @@ Certification tasks SHALL be able to define their own checks instead of inheriti
 - **THEN** grading uses that list
 
 ### Requirement: Larger rotating question bank
-Knowledge exams SHALL draw ten questions from a larger pool using deterministic track-based rotation.
+Knowledge exams SHALL draw 60 questions from a 100-question pool using official domain quotas and per-attempt rotation.
 
-#### Scenario: Different tracks see different questions
-- **WHEN** two tracks share an eligible unit pool
-- **THEN** their exam question sets can differ
+#### Scenario: Different attempts see different questions
+- **WHEN** a learner retakes KCNA or KCSA
+- **THEN** the selected question set can differ while domain counts remain weighted
 
 ### Requirement: Lab pass gate
 Hands-on exams SHALL pass when the earned checkpoint percentage meets the track passing score.
@@ -245,11 +245,11 @@ KCNA and KCSA SHALL each expose 100 questions allocated to official domain weigh
 - **THEN** correct answers are distributed across all four option positions
 
 ### Requirement: Broader hands-on pools
-Each hands-on track SHALL expose at least 25 tasks for a 15-task exam.
+Each hands-on track SHALL expose a task pool larger than the 15 tasks used in one run.
 
 #### Scenario: Track pool
 - **WHEN** a CKA, CKAD, or CKS exam starts
-- **THEN** it selects only from a 25-task pool for that certification
+- **THEN** it selects 15 tasks from that certification's 30-task pool
 
 ### Requirement: Capstone tasks
 Every hands-on track SHALL include multi-resource capstone tasks with at least four checks.

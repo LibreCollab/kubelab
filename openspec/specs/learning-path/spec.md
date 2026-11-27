@@ -41,7 +41,7 @@ The roadmap SHALL offer continuation into the current or most recently visited l
 
 #### Scenario: Reset is confirmed
 - **WHEN** a learner confirms the reset prompt
-- **THEN** lesson progress, XP, streaks, exam attempts, and review cards are cleared and the roadmap re-locks lessons
+- **THEN** lesson progress, XP, streaks, exam attempts, review cards, and readiness snapshots are cleared and the roadmap re-locks lessons
 
 ### Requirement: Certification entry points
 Each certification track SHALL expose a certification-roadmap entry point and the exam modes supported by that track.

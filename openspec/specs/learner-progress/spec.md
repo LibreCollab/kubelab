@@ -47,8 +47,8 @@ The system SHALL compute a streak from consecutive activity dates, allowing toda
 - **THEN** the current streak is zero
 
 ### Requirement: Combined reset
-Resetting progress SHALL clear lessons, metadata, knowledge attempts, lab attempts, and review cards after explicit confirmation.
+Resetting progress SHALL clear lessons, metadata, knowledge attempts, lab attempts, review cards, and readiness snapshots after explicit confirmation.
 
 #### Scenario: Reset clears certification data
 - **WHEN** a learner confirms a full reset
-- **THEN** lesson progress and both exam histories are empty
+- **THEN** lesson progress, both exam histories, review cards, and readiness snapshots are empty
